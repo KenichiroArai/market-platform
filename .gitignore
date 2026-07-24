@@ -1,218 +1,271 @@
-# Byte-compiled / optimized / DLL files
+###############################################################################
+# market-platform
+# .gitignore
+#
+# モノレポ構成
+# - apps/web       : Next.js
+# - apps/api       : NestJS
+# - apps/analysis  : FastAPI
+# - packages/*     : 共通ライブラリ
+#
+# 開発環境
+# - Node.js
+# - pnpm
+# - Turborepo
+# - Python
+# - PostgreSQL
+# - Docker
+###############################################################################
+
+###############################################################################
+# OS固有ファイル
+###############################################################################
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+###############################################################################
+# エディタ設定
+###############################################################################
+
+# VSCode（共有したい設定は除外しないため、workspaceファイルのみ保持）
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# JetBrains IDE
+.idea/
+
+# Vim
+*.swp
+*.swo
+
+###############################################################################
+# Node.js
+###############################################################################
+
+# node_modulesは生成物
+node_modules/
+
+# npm
+npm-debug.log*
+
+# pnpm
+pnpm-debug.log*
+
+# yarn
+yarn-error.log*
+yarn-debug.log*
+
+###############################################################################
+# Turborepo
+###############################################################################
+
+# ビルドキャッシュ
+.turbo/
+
+###############################################################################
+# Next.js
+###############################################################################
+
+# ビルド成果物
+.next/
+
+# エクスポート成果物
+out/
+
+###############################################################################
+# TypeScript
+###############################################################################
+
+# TypeScriptコンパイル情報
+*.tsbuildinfo
+
+###############################################################################
+# ビルド成果物
+###############################################################################
+
+dist/
+build/
+coverage/
+
+###############################################################################
+# Python
+###############################################################################
+
+# Pythonキャッシュ
 __pycache__/
-*.py[codz]
+
+*.py[cod]
 *$py.class
 
-# C extensions
-*.so
+# 仮想環境
+.venv/
+venv/
+env/
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+# Pythonバージョン管理
+.python-version
 
-# PyInstaller
-#   Usually these files are written by a python script from a template
-#   before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
-
-# Installer logs
+# pip
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Unit test / coverage reports
-htmlcov/
+###############################################################################
+# Python テスト
+###############################################################################
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .tox/
 .nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py.cover
-.hypothesis/
-.pytest_cache/
-cover/
 
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-.pybuilder/
-target/
-
+###############################################################################
 # Jupyter Notebook
-.ipynb_checkpoints
+###############################################################################
 
-# IPython
-profile_default/
-ipython_config.py
+.ipynb_checkpoints/
 
-# pyenv
-#   For a library or package, you might want to ignore these files since the code is
-#   intended to run in multiple environments; otherwise, check them in:
-# .python-version
+###############################################################################
+# FastAPI
+###############################################################################
 
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-# Pipfile.lock
+# ローカルSQLiteを利用した場合
+*.sqlite3
 
-# UV
-#   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-# uv.lock
+###############################################################################
+# Prisma
+###############################################################################
 
-# poetry
-#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
-# poetry.lock
-# poetry.toml
+# Prisma生成コード
+packages/**/generated/
 
-# pdm
-#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
-#   pdm recommends including project-wide configuration in pdm.toml, but excluding .pdm-python.
-#   https://pdm-project.org/en/latest/usage/project/#working-with-version-control
-# pdm.lock
-# pdm.toml
-.pdm-python
-.pdm-build/
+###############################################################################
+# PostgreSQL
+###############################################################################
 
-# pixi
-#   Similar to Pipfile.lock, it is generally recommended to include pixi.lock in version control.
-# pixi.lock
-#   Pixi creates a virtual environment in the .pixi directory, just like venv module creates one
-#   in the .venv directory. It is recommended not to include this directory in version control.
-.pixi
+# ローカルDBファイル（利用した場合）
+*.db
 
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
-__pypackages__/
+###############################################################################
+# ログ
+###############################################################################
 
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
+logs/
+*.log
 
-# Redis
-*.rdb
-*.aof
-*.pid
+###############################################################################
+# 一時ファイル
+###############################################################################
 
-# RabbitMQ
-mnesia/
-rabbitmq/
-rabbitmq-data/
+tmp/
+temp/
 
-# ActiveMQ
-activemq-data/
+###############################################################################
+# Docker
+###############################################################################
 
-# SageMath parsed files
-*.sage.py
+# Dockerボリューム
+docker-data/
 
-# Environments
+###############################################################################
+# 環境変数
+###############################################################################
+
+# 環境変数はGitへ登録しない
 .env
-.envrc
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Spyder project settings
-.spyderproject
-.spyproject
+# 必要なテンプレートは管理する
+!.env.example
 
-# Rope project settings
-.ropeproject
+###############################################################################
+# Secrets
+###############################################################################
 
-# mkdocs documentation
-/site
+*.pem
+*.key
+*.crt
+*.p12
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+###############################################################################
+# キャッシュ
+###############################################################################
 
-# Pyre type checker
-.pyre/
+.cache/
 
-# pytype static type analyzer
-.pytype/
+###############################################################################
+# テストレポート
+###############################################################################
 
-# Cython debug symbols
-cython_debug/
+playwright-report/
+test-results/
 
-# PyCharm
-#   JetBrains specific template is maintained in a separate JetBrains.gitignore that can
-#   be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-#   and can be added to the global gitignore or merged into this file.  For a more nuclear
-#   option (not recommended) you can uncomment the following to ignore the entire idea folder.
-# .idea/
+###############################################################################
+# 一時ダウンロード
+###############################################################################
 
-# Abstra
-#   Abstra is an AI-powered process automation framework.
-#   Ignore directories containing user credentials, local state, and settings.
-#   Learn more at https://abstra.io/docs
-.abstra/
+downloads/
 
-# Visual Studio Code
-#   Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
-#   that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#   and can be added to the global gitignore or merged into this file. However, if you prefer, 
-#   you could uncomment the following to ignore the entire vscode folder
-# .vscode/
-# Temporary file for partial code execution
-tempCodeRunnerFile.py
+###############################################################################
+# バックアップファイル
+###############################################################################
 
-# Ruff stuff:
-.ruff_cache/
+*.bak
+*.backup
+*.old
 
-# PyPI configuration file
-.pypirc
+###############################################################################
+# 圧縮ファイル
+###############################################################################
 
-# Marimo
-marimo/_static/
-marimo/_lsp/
-__marimo__/
+*.zip
+*.tar
+*.gz
+*.7z
 
-# Streamlit
-.streamlit/secrets.toml
+###############################################################################
+# 将来的なAI/機械学習
+###############################################################################
+
+# 学習済みモデル
+*.pt
+*.pth
+*.onnx
+*.h5
+*.ckpt
+
+# 大容量データセット
+datasets/
+data/raw/
+data/cache/
+
+###############################################################################
+# コメント
+#
+# 以下はコミット対象とする
+#
+# apps/
+# packages/
+# docs/
+# docker/
+# scripts/
+# prisma/
+# .github/
+# *.md
+# *.yml
+# *.yaml
+# *.json
+# *.toml
+#
+###############################################################################
