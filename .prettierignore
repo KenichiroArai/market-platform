@@ -1,0 +1,38 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+build
+out
+.next
+.turbo
+coverage
+*.tsbuildinfo
+
+# Lockfiles (formatted by their own tooling)
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Prisma generated client (adjust path if schema output changes)
+packages/database/src/generated
+packages/database/generated
+
+# Python
+.venv
+venv
+__pycache__
+.mypy_cache
+.ruff_cache
+.pytest_cache
+*.egg-info
+
+# Env and local overrides
+.env
+.env.*
+!.env.example
+
+# Misc
+*.min.js
+*.min.css
