@@ -1,20 +1,4 @@
-import type { HealthResponse } from '@market/shared-types';
-
-async function fetchApiHealth(): Promise<HealthResponse | null> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-
-  try {
-    const response = await fetch(`${baseUrl}/health`, {
-      cache: 'no-store',
-    });
-    if (!response.ok) {
-      return null;
-    }
-    return (await response.json()) as HealthResponse;
-  } catch {
-    return null;
-  }
-}
+import { fetchApiHealth } from '../lib/fetch-api-health';
 
 export default async function HomePage() {
   const health = await fetchApiHealth();

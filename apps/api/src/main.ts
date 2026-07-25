@@ -1,13 +1,23 @@
-import 'reflect-metadata';
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { bootstrap } from './bootstrap';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.enableCors();
-
-  const port = Number(process.env.API_PORT ?? 3001);
-  await app.listen(port);
+export function startApplication(start: typeof bootstrap = bootstrap): Promise<unknown> {
+  return start();
 }
 
-void bootstrap();
+export function shouldAutoStart(
+  mainModule: NodeModule | undefined = require.main,
+  currentModule: NodeModule | undefined = module,
+): boolean {
+  return Boolean(mainModule && currentModule && mainModule === currentModule);
+}
+
+export function autoStartIfNeeded(
+  check: () => boolean = shouldAutoStart,
+  start: () => Promise<unknown> = startApplication,
+): void {
+  if (check()) {
+    void start();
+  }
+}
+
+autoStartIfNeeded();

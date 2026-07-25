@@ -24,6 +24,7 @@ flowchart TB
 - pnpm Workspace + Turborepo
 - Prisma 7 初期セットアップ（空 schema + baseline migration）
 - Docker Compose 定義（postgres / api / web / analysis）
+- 単体テスト（カバレッジ 100%）… `pnpm test`（各パッケージで statements/branches/functions/lines 100%、analysis は pytest-cov）
 
 ## Phase 1 — Foundation
 
@@ -34,6 +35,7 @@ flowchart TB
 - ヘルスチェック
 - ロギング
 - OpenAPI（NestJS ↔ FastAPI）の契約整備
+- 単体テスト（カバレッジ 100%）
 
 ## Phase 2 — Market Data
 
@@ -42,6 +44,7 @@ flowchart TB
 - 銘柄マスタ
 - 価格取得ジョブ（api がオーケストレーション）
 - 保存スキーマ（Prisma）
+- 単体テスト（カバレッジ 100%）
 
 ## Phase 3 — Watchlist / Portfolio
 
@@ -50,6 +53,7 @@ flowchart TB
 - ウォッチリスト CRUD
 - ポートフォリオ管理・集計 API
 - web UI
+- 単体テスト（カバレッジ 100%）
 
 ## Phase 4 — Technical Analysis
 
@@ -57,16 +61,19 @@ flowchart TB
 
 - `apps/analysis` でのテクニカル指標計算
 - NestJS 経由での結果返却
+- 単体テスト（カバレッジ 100%）
 
 ## Phase 5 — Signals / Backtest
 
 - 売買シグナル定義・算出
 - バックテスト実行と結果保存
+- 単体テスト（カバレッジ 100%）
 
 ## Phase 6 — Notification / AI
 
 - 通知チャネル
 - AI 分析エンドポイント（`apps/analysis`）
+- 単体テスト（カバレッジ 100%）
 
 ## 対象外
 

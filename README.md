@@ -28,9 +28,22 @@ scripts/       # 開発用スクリプト
 ## 前提ツール
 
 - Node.js 22+（`.nvmrc` 参照）
-- pnpm 9（`packageManager` で固定。未導入なら `corepack enable` または `npx pnpm`）
+- pnpm 9（`packageManager` で固定）
 - Docker / Docker Compose（PostgreSQL と一式起動用）
 - Python 3.10+（`apps/analysis`。コンテナでは uv を使用）
+
+### pnpm が入っていない場合（Windows で多い）
+
+```bash
+npm install -g pnpm@9.15.9
+```
+
+インストール後は**新しいターミナル**を開き直してください。`pnpm` がまだ見つからない場合は次のどちらかで実行できます。
+
+```bash
+npx pnpm@9.15.9 test
+npm test
+```
 
 ## クイックスタート
 
@@ -40,7 +53,6 @@ cp .env.example .env
 
 # 依存関係のインストール
 pnpm install
-# または: npx pnpm@9.15.9 install
 
 # 共有パッケージと Prisma Client
 pnpm generate
@@ -66,6 +78,15 @@ pnpm dev
 - API: http://localhost:3001/health
 - Analysis: http://localhost:8000/health
 - API → Analysis: http://localhost:3001/health/analysis
+
+## テスト
+
+```bash
+pnpm test
+# pnpm 未導入時: npx pnpm@9.15.9 test または npm test
+```
+
+各パッケージでカバレッジ 100%（statements / branches / functions / lines）を要求します。`apps/analysis` は pytest-cov です。
 
 ## ドキュメント
 
