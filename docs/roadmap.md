@@ -15,15 +15,15 @@ flowchart TB
   p0 --> p1 --> p2 --> p3 --> p4 --> p5 --> p6
 ```
 
-## Phase 0 — Scaffold
+## Phase 0 — Scaffold（完了）
 
-モノレポの骨格を用意し、ローカルで一式起動できる状態にする。
+モノレポの骨格を用意し、ローカルでヘルスチェックまで確認できる状態にした。
 
 - `apps/web` / `apps/api` / `apps/analysis` の雛形
 - `packages/database` / `shared-types` / `shared-config`
 - pnpm Workspace + Turborepo
-- Prisma 初期セットアップ
-- Docker Compose（postgres / api / web / analysis）の起動確認
+- Prisma 7 初期セットアップ（空 schema + baseline migration）
+- Docker Compose 定義（postgres / api / web / analysis）
 
 ## Phase 1 — Foundation
 

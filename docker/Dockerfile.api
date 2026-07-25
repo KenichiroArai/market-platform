@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1
+
+FROM node:22-bookworm-slim
+WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/* \
+  && corepack enable \
+  && corepack prepare pnpm@9.15.9 --activate
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json .npmrc ./
+COPY packages ./packages
+COPY apps ./apps
+
+RUN pnpm install --frozen-lockfile
+
+ARG DATABASE_URL=postgresql://market:market@postgres:5432/market?schema=public
+ENV DATABASE_URL=$DATABASE_URL
+
+RUN pnpm --filter @market/shared-types build \
+  && pnpm --filter @market/database generate \
+  && pnpm --filter @market/database build \
+  && pnpm --filter @market/api build
+
+ENV NODE_ENV=production
+ENV API_PORT=3001
+EXPOSE 3001
+
+CMD ["node", "apps/api/dist/main.js"]

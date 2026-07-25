@@ -1,0 +1,10 @@
+{
+  "extends": "../shared-config/tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "skipLibCheck": true,
+    "composite": false
+  },
+  "include": ["src/**/*.ts", "generated/**/*.ts"]
+}

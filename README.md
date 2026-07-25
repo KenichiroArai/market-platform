@@ -9,7 +9,7 @@ TypeScript を中心にフロントエンド（Next.js）と Web API（NestJS）
 - **Frontend**: Next.js (React + TypeScript)
 - **Web API**: NestJS (TypeScript)
 - **Analysis API**: FastAPI (Python)
-- **Database**: PostgreSQL + Prisma
+- **Database**: PostgreSQL + Prisma 7
 - **Monorepo**: pnpm Workspace + Turborepo
 - **Runtime / Infra**: Docker Compose
 
@@ -25,32 +25,47 @@ scripts/       # 開発用スクリプト
 
 ディレクトリの責務や通信設計の詳細は [docs/architecture/overview.md](docs/architecture/overview.md) を参照してください。
 
-## 前提ツール（予定）
+## 前提ツール
 
-スキャフォールド（Phase 0）完了後、以下を想定しています。
-
-- Node.js（LTS）
-- pnpm
-- Docker / Docker Compose
-- Python + uv（`apps/analysis`）
+- Node.js 22+（`.nvmrc` 参照）
+- pnpm 9（`packageManager` で固定。未導入なら `corepack enable` または `npx pnpm`）
+- Docker / Docker Compose（PostgreSQL と一式起動用）
+- Python 3.10+（`apps/analysis`。コンテナでは uv を使用）
 
 ## クイックスタート
 
-> **注意**: アプリ雛形と Compose 実体は Phase 0（Scaffold）で追加予定です。以下は完成後の想定手順です。
-
 ```bash
+# 環境変数
+cp .env.example .env
+
 # 依存関係のインストール
 pnpm install
+# または: npx pnpm@9.15.9 install
 
-# 開発環境の起動（PostgreSQL / api / web / analysis）
-docker compose up -d
+# 共有パッケージと Prisma Client
+pnpm generate
+pnpm --filter @market/shared-types build
+pnpm --filter @market/database build
 
-# DB マイグレーション（予定）
-pnpm db:migrate
+# PostgreSQL 起動
+docker compose up -d postgres
 
-# またはホスト上で各アプリを起動（予定）
+# マイグレーション
+pnpm db:migrate:deploy
+
+# 全サービス起動（postgres / analysis / api / web）
+docker compose up --build
+
+# またはホスト上でアプリのみ起動
 pnpm dev
 ```
+
+ヘルスチェック:
+
+- Web: http://localhost:3000
+- API: http://localhost:3001/health
+- Analysis: http://localhost:8000/health
+- API → Analysis: http://localhost:3001/health/analysis
 
 ## ドキュメント
 

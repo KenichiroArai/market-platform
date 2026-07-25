@@ -181,7 +181,7 @@ packages:
 
 ## 設定ファイル一覧
 
-### リポジトリ初期で整備済み
+### 整備済み（初期 + Phase 0）
 
 | ファイル | 内容 |
 |----------|------|
@@ -189,18 +189,20 @@ packages:
 | `.gitattributes` | LF 強制・バイナリ定義 |
 | `.prettierignore` | 生成物・venv 除外 |
 | `.gitignore` | モノレポ向け ignore |
+| `package.json` / `pnpm-workspace.yaml` / `turbo.json` | モノレポ基盤 |
+| `prettier.config.mjs` / `.nvmrc` / `.env.example` | 開発設定 |
+| `docker-compose.yml` / `docker/Dockerfile.*` | コンテナ構成 |
+| `packages/shared-config` | 共有 `tsconfig.base.json` |
+| `packages/database` | Prisma 7 schema / config / Client |
+| `apps/analysis/pyproject.toml` | FastAPI + uv（Docker）/ pip 可 |
 
-### Scaffold（Phase 0）以降で追加予定
+### 後続で追加予定
 
-- ルート: `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `prettier.config.mjs`, `.nvmrc` または `.node-version`, `.env.example`, `docker-compose.yml`
-- `packages/shared-config`: `tsconfig.base.json`, ESLint flat config
-- `packages/database`: Prisma schema / config
-- `apps/analysis`: `pyproject.toml`, `.python-version`（uv）
-- `docker/Dockerfile.*`
+- ESLint flat config（shared-config への集約）
 - `.vscode/extensions.json`（Prisma, ESLint, Prettier, Python）
 - CI: `.github/workflows/ci.yml`（lint / typecheck / test）
 
-ESLint / Prettier 本体設定は、必要最小限の構成で入れる。
+ESLint 本体は必要になったタイミングで最小構成で入れる。
 
 ## 関連ドキュメント
 

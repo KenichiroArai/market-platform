@@ -1,0 +1,14 @@
+{
+  "name": "@market/analysis",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+    "start": "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000",
+    "dev:uv": "uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
+    "start:uv": "uv run uvicorn app.main:app --host 0.0.0.0 --port 8000",
+    "lint": "echo \"No lint configured for @market/analysis\"",
+    "typecheck": "echo \"Python typecheck is handled outside turbo for Phase 0\"",
+    "build": "echo \"No build step for @market/analysis\""
+  }
+}

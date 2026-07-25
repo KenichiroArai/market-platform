@@ -1,0 +1,26 @@
+{
+  "name": "market-platform",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev --filter=@market/web --filter=@market/api --filter=@market/analysis",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "generate": "turbo run generate",
+    "db:generate": "pnpm --filter @market/database generate",
+    "db:migrate": "pnpm --filter @market/database migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @market/database migrate:deploy",
+    "db:studio": "pnpm --filter @market/database studio",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@market/database",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "scripts": {
+    "build": "pnpm generate && tsc -p tsconfig.json",
+    "generate": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "studio": "prisma studio",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"No lint configured for @market/database\""
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.0.0",
+    "@prisma/client": "^7.0.0",
+    "pg": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.4",
+    "dotenv": "^16.5.0",
+    "prisma": "^7.0.0",
+    "typescript": "^5.8.3"
+  }
+}
