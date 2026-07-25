@@ -1,4 +1,6 @@
 # syntax=docker/dockerfile:1
+# NestJS API 用イメージ。
+# Prisma 7 のエンジンが OpenSSL を必要とするため、slim イメージに openssl を追加する。
 
 FROM node:22-bookworm-slim
 WORKDIR /app
@@ -9,12 +11,14 @@ RUN apt-get update \
   && corepack enable \
   && corepack prepare pnpm@9.15.9 --activate
 
+# ワークスペース全体をコピーしてから install（filter だけだと解決漏れが起きやすい）
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json .npmrc ./
 COPY packages ./packages
 COPY apps ./apps
 
 RUN pnpm install --frozen-lockfile
 
+# generate 時に参照されるダミー URL（実行時は compose の環境変数で上書き）
 ARG DATABASE_URL=postgresql://market:market@postgres:5432/market?schema=public
 ENV DATABASE_URL=$DATABASE_URL
 

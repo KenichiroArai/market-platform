@@ -1,10 +1,21 @@
+/**
+ * NestJS（api）の /health を取得するクライアント関数。
+ *
+ * サーバーコンポーネントの page から呼び、失敗時は null を返して UI を落とさない。
+ * fetchImpl を注入可能にし、単体テストでグローバル fetch に依存しなくてよいようにする。
+ */
 import type { HealthResponse } from '@market/shared-types';
 
+/**
+ * @param baseUrl - 省略時は NEXT_PUBLIC_API_URL、さらに無ければ localhost:3001
+ * @param fetchImpl - 既定はグローバル fetch（ブラウザ / Node / Next ランタイム）
+ */
 export async function fetchApiHealth(
   baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001',
   fetchImpl: typeof fetch = fetch,
 ): Promise<HealthResponse | null> {
   try {
+    // ビルド時キャッシュで古いヘルスを出さないよう、都度取得する
     const response = await fetchImpl(`${baseUrl}/health`, {
       cache: 'no-store',
     });
@@ -13,6 +24,7 @@ export async function fetchApiHealth(
     }
     return (await response.json()) as HealthResponse;
   } catch {
+    // ネットワークエラー等は「未接続」として UI 側でメッセージ表示する
     return null;
   }
 }

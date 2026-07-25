@@ -1,6 +1,13 @@
+/**
+ * トップページ（Phase 0）。
+ *
+ * プロダクト名をヒーロー級で示し、API ヘルスの取得結果（または接続失敗メッセージ）を表示する。
+ * ドメイン UI は後続 Phase で追加する。
+ */
 import { fetchApiHealth } from '../lib/fetch-api-health';
 
 export default async function HomePage() {
+  // サーバー側で取得。失敗してもページ全体は 200 で返す
   const health = await fetchApiHealth();
 
   return (
@@ -8,6 +15,7 @@ export default async function HomePage() {
       style={{
         minHeight: '100vh',
         padding: '3rem 1.5rem',
+        // フラット単色を避け、第一画面にわずかな奥行きを出す
         background: 'linear-gradient(160deg, #0f1c2e 0%, #1a334d 45%, #243b55 100%)',
         color: '#e8eef5',
       }}
@@ -33,6 +41,7 @@ export default async function HomePage() {
           </pre>
         ) : (
           <p style={{ marginTop: '0.75rem', opacity: 0.8 }}>
+            {/* 接続先を明示し、ローカル / Docker の設定ミス切り分けを助ける */}
             API に接続できませんでした（{process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}
             ）。
           </p>

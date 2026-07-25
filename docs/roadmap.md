@@ -15,6 +15,13 @@ flowchart TB
   p0 --> p1 --> p2 --> p3 --> p4 --> p5 --> p6
 ```
 
+## 共通品質要件（全 Phase）
+
+各 Phase の実装では、次を満たすこと。
+
+- **可読性のためのコメント**: モジュール・公開 API・分岐・外部 I/O・非自明な意図を日本語で厚めに記載する（「何をしているか」「なぜそうしているか」が後続の読者に伝わること）
+- **単体テスト（カバレッジ 100%）**: statements / branches / functions / lines（analysis は pytest-cov）
+
 ## Phase 0 — Scaffold（完了）
 
 モノレポの骨格を用意し、ローカルでヘルスチェックまで確認できる状態にした。
@@ -24,7 +31,8 @@ flowchart TB
 - pnpm Workspace + Turborepo
 - Prisma 7 初期セットアップ（空 schema + baseline migration）
 - Docker Compose 定義（postgres / api / web / analysis）
-- 単体テスト（カバレッジ 100%）… `pnpm test`（各パッケージで statements/branches/functions/lines 100%、analysis は pytest-cov）
+- 可読性のためのコメント（アプリ・共有パッケージのソースに厚めに記載）
+- 単体テスト（カバレッジ 100%）… `pnpm test`
 
 ## Phase 1 — Foundation
 
@@ -35,6 +43,7 @@ flowchart TB
 - ヘルスチェック
 - ロギング
 - OpenAPI（NestJS ↔ FastAPI）の契約整備
+- 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
 
 ## Phase 2 — Market Data
@@ -44,6 +53,7 @@ flowchart TB
 - 銘柄マスタ
 - 価格取得ジョブ（api がオーケストレーション）
 - 保存スキーマ（Prisma）
+- 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
 
 ## Phase 3 — Watchlist / Portfolio
@@ -53,6 +63,7 @@ flowchart TB
 - ウォッチリスト CRUD
 - ポートフォリオ管理・集計 API
 - web UI
+- 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
 
 ## Phase 4 — Technical Analysis
@@ -61,18 +72,21 @@ flowchart TB
 
 - `apps/analysis` でのテクニカル指標計算
 - NestJS 経由での結果返却
+- 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
 
 ## Phase 5 — Signals / Backtest
 
 - 売買シグナル定義・算出
 - バックテスト実行と結果保存
+- 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
 
 ## Phase 6 — Notification / AI
 
 - 通知チャネル
 - AI 分析エンドポイント（`apps/analysis`）
+- 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
 
 ## 対象外

@@ -1,4 +1,6 @@
 # syntax=docker/dockerfile:1
+# FastAPI analysis 用イメージ。
+# 依存解決は uv（公式イメージからバイナリのみコピー）に任せる。
 
 FROM python:3.12-slim-bookworm
 
@@ -9,6 +11,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 COPY apps/analysis/pyproject.toml ./
 COPY apps/analysis/app ./app
 
+# ロックが無くても sync で仮想環境を作る（Phase 0）
 RUN uv sync
 
 ENV PATH="/app/.venv/bin:$PATH"

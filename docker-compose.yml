@@ -1,4 +1,9 @@
+# market-platform 開発用 Compose
+# web → api → analysis / postgres の依存関係で起動順を制御する。
+# ホスト公開ポートは .env（またはデフォルト）で上書き可能。
+
 services:
+  # 永続化の単一ソース。api のみが Prisma 経由で接続する。
   postgres:
     image: postgres:16-alpine
     environment:
@@ -15,6 +20,7 @@ services:
       timeout: 5s
       retries: 10
 
+  # 分析専用 FastAPI。DB は持たず、api からの内部 HTTP で呼ばれる。
   analysis:
     build:
       context: .
@@ -33,6 +39,7 @@ services:
       timeout: 5s
       retries: 10
 
+  # NestJS Web API。Compose ネットワーク上のサービス名で DB / analysis に接続する。
   api:
     build:
       context: .
@@ -60,6 +67,7 @@ services:
       timeout: 5s
       retries: 10
 
+  # Next.js。ブラウザから見える API URL はホスト向け（localhost:3001）がデフォルト。
   web:
     build:
       context: .
@@ -86,4 +94,5 @@ services:
       retries: 10
 
 volumes:
+  # DB データをコンテナ削除後も残す
   postgres_data:

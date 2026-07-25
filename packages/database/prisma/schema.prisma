@@ -1,3 +1,8 @@
+// Prisma schema（Phase 0 はドメインモデルなし。接続と Client 生成の土台のみ）
+//
+// Client は packages/database/generated に出力する（node_modules へは出さない）。
+// DATABASE_URL は prisma.config.ts 側で渡す（Prisma 7 の構成）。
+
 generator client {
   provider = "prisma-client"
   output   = "../generated"
