@@ -47,7 +47,7 @@ flowchart TB
 - 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
 
-## Phase 2 — Market Data
+## Phase 2 — Market Data（完了）
 
 市場データの取得と永続化。
 
@@ -56,7 +56,7 @@ flowchart TB
 - 保存スキーマ（Prisma）
 - 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
-
+- 詳細は [ADR 002](adr/002-market-data-provider.md)
 ## Phase 3 — Watchlist / Portfolio
 
 ユーザー向けの基本ドメイン機能。

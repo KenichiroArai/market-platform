@@ -15,6 +15,10 @@ export const API_ERROR_CODES = {
   AUTH_INVALID_CREDENTIALS: 'AUTH_INVALID_CREDENTIALS',
   /** 登録時のメール重複 */
   AUTH_EMAIL_TAKEN: 'AUTH_EMAIL_TAKEN',
+  /** 銘柄が見つからない */
+  SYMBOL_NOT_FOUND: 'SYMBOL_NOT_FOUND',
+  /** 銘柄の ticker+market が既に存在する */
+  SYMBOL_ALREADY_EXISTS: 'SYMBOL_ALREADY_EXISTS',
   /** 予期しないサーバー内部エラー */
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;

@@ -17,6 +17,8 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
+    // Phase 2: 代表銘柄（US/JP）を投入する
+    seed: 'tsx prisma/seed.ts',
   },
   datasource: {
     // prisma migrate / generate 実行時に必須

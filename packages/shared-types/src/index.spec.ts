@@ -2,11 +2,18 @@ import {
   API_ERROR_CODES,
   createApiErrorBody,
   createAuthTokenResponse,
+  createDailyPriceDto,
   createHealthResponse,
+  createPriceSyncJobResult,
+  createSymbolDto,
   isApiErrorBody,
   isAuthTokenResponse,
   isAuthUser,
+  isDailyPriceDto,
   isHealthStatus,
+  isMarket,
+  isPriceSyncJobResult,
+  isSymbolDto,
 } from './index';
 
 describe('shared-types health', () => {
@@ -44,6 +51,8 @@ describe('shared-types errors', () => {
     expect(API_ERROR_CODES.AUTH_UNAUTHORIZED).toBe('AUTH_UNAUTHORIZED');
     expect(API_ERROR_CODES.AUTH_INVALID_CREDENTIALS).toBe('AUTH_INVALID_CREDENTIALS');
     expect(API_ERROR_CODES.AUTH_EMAIL_TAKEN).toBe('AUTH_EMAIL_TAKEN');
+    expect(API_ERROR_CODES.SYMBOL_NOT_FOUND).toBe('SYMBOL_NOT_FOUND');
+    expect(API_ERROR_CODES.SYMBOL_ALREADY_EXISTS).toBe('SYMBOL_ALREADY_EXISTS');
     expect(API_ERROR_CODES.INTERNAL_ERROR).toBe('INTERNAL_ERROR');
   });
 
@@ -129,5 +138,85 @@ describe('shared-types auth', () => {
     expect(isAuthTokenResponse({ accessToken: 't', tokenType: 'Basic', user })).toBe(false);
     expect(isAuthTokenResponse(null)).toBe(false);
     expect(isAuthTokenResponse({ accessToken: 1, tokenType: 'Bearer', user })).toBe(false);
+  });
+});
+
+describe('shared-types market', () => {
+  const symbol = {
+    id: 'sym_1',
+    ticker: 'AAPL',
+    market: 'US' as const,
+    name: 'Apple Inc.',
+    currency: 'USD',
+    exchange: 'NASDAQ',
+    isActive: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  const price = {
+    id: 'px_1',
+    symbolId: 'sym_1',
+    date: '2026-01-02',
+    open: 100,
+    high: 110,
+    low: 95,
+    close: 105,
+    volume: 1_000_000,
+    createdAt: '2026-01-02T00:00:00.000Z',
+    updatedAt: '2026-01-02T00:00:00.000Z',
+  };
+
+  it('validates Market', () => {
+    expect(isMarket('US')).toBe(true);
+    expect(isMarket('JP')).toBe(true);
+    expect(isMarket('EU')).toBe(false);
+  });
+
+  it('creates and validates SymbolDto', () => {
+    expect(createSymbolDto(symbol)).toEqual(symbol);
+    expect(isSymbolDto(symbol)).toBe(true);
+    expect(isSymbolDto({ ...symbol, exchange: null })).toBe(true);
+    expect(isSymbolDto(null)).toBe(false);
+    expect(isSymbolDto({ ...symbol, market: 'EU' })).toBe(false);
+  });
+
+  it('creates and validates DailyPriceDto', () => {
+    expect(createDailyPriceDto(price)).toEqual(price);
+    expect(isDailyPriceDto(price)).toBe(true);
+    expect(isDailyPriceDto(null)).toBe(false);
+    expect(isDailyPriceDto({ ...price, open: 'x' })).toBe(false);
+  });
+
+  it('creates and validates PriceSyncJobResult', () => {
+    const result = createPriceSyncJobResult(2, 10, [
+      { symbolId: 'sym_2', ticker: 'MSFT', reason: 'timeout' },
+    ]);
+    expect(result.processedSymbols).toBe(2);
+    expect(result.upsertedBars).toBe(10);
+    expect(isPriceSyncJobResult(result)).toBe(true);
+    expect(createPriceSyncJobResult(0, 0)).toEqual({
+      processedSymbols: 0,
+      upsertedBars: 0,
+      failures: [],
+    });
+    expect(isPriceSyncJobResult(null)).toBe(false);
+    expect(isPriceSyncJobResult({ processedSymbols: 1, upsertedBars: 1, failures: 'x' })).toBe(
+      false,
+    );
+    expect(
+      isPriceSyncJobResult({
+        processedSymbols: 1,
+        upsertedBars: 1,
+        failures: [{ symbolId: 1, ticker: 'A', reason: 'x' }],
+      }),
+    ).toBe(false);
+    expect(
+      isPriceSyncJobResult({
+        processedSymbols: 1,
+        upsertedBars: 1,
+        failures: [null],
+      }),
+    ).toBe(false);
   });
 });

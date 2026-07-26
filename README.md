@@ -87,7 +87,14 @@ pnpm dev
 - Nest OpenAPI: http://localhost:3001/docs
 - FastAPI OpenAPI: http://localhost:8000/docs
 
-`.env` に `JWT_SECRET` が必須です（[`.env.example`](.env.example) 参照）。
+市場データ（Phase 2、いずれも Bearer 必須）:
+
+- 銘柄: `GET|POST /symbols` / `GET|PATCH /symbols/:id`
+- 日足: `GET /symbols/:id/prices?from=&to=`
+- 価格同期: `POST /market-data/jobs/sync-prices`
+- シード: `pnpm db:seed`（代表的な US/JP 銘柄）
+
+`.env` に `JWT_SECRET` が必須です（[`.env.example`](.env.example) 参照）。市場データは `MARKET_DATA_PROVIDER`（`yahoo`|`stub`）で切替できます（[ADR 002](docs/adr/002-market-data-provider.md)）。
 
 ## テスト
 
@@ -106,6 +113,7 @@ pnpm test
 - [アーキテクチャ概要](docs/architecture/overview.md)
 - [開発ロードマップ](docs/roadmap.md)
 - [ADR 001: JWT 認証](docs/adr/001-authentication-jwt.md)
+- [ADR 002: 市場データプロバイダ](docs/adr/002-market-data-provider.md)
 ## ライセンス
 
 [MIT](LICENSE)

@@ -65,7 +65,7 @@ market-platform/
 | 追加 | 理由 |
 |------|------|
 | `packages/database` | Prisma を NestJS 内に閉じ込めず、マイグレーション責務を独立させる。将来の worker / BFF でも同一 Client を再利用しやすい |
-| `docs/adr/` | 「なぜこの境界か」を残し、マイクロサービス化時の判断根拠にする |
+| `docs/adr/` | 「なぜこの境界か」を残し、マイクロサービス化時の判断根拠にする（認証は ADR 001、市場データは ADR 002） |
 | Compose はルート `docker-compose.yml` + `docker/Dockerfile.*` | 開発時の `docker compose up` が最短 |
 
 ## 各ディレクトリの責務
@@ -193,8 +193,8 @@ packages:
 | `prettier.config.mjs` / `.nvmrc` / `.env.example` | 開発設定（JWT 含む） |
 | `docker-compose.yml` / `docker/Dockerfile.*` | コンテナ構成 |
 | `packages/shared-config` | 共有 `tsconfig.base.json` |
-| `packages/database` | Prisma 7 schema / config / Client（User モデル含む） |
-| `packages/shared-types` | Health / ApiErrorBody / Auth DTO |
+| `packages/database` | Prisma 7 schema / config / Client（User / Symbol / DailyPrice） |
+| `packages/shared-types` | Health / ApiErrorBody / Auth / Market DTO |
 | `apps/analysis/pyproject.toml` | FastAPI + uv（Docker）/ pip 可 |
 | `.github/workflows/ci.yml` | lint / typecheck / test |
 
@@ -204,6 +204,13 @@ packages:
 - **共通エラー**: `ApiErrorBody`（NestJS / FastAPI で同形）
 - **OpenAPI**: NestJS `/docs`、FastAPI `/docs`
 - **ロギング**: リクエスト単位の method / path / status / duration
+
+### 市場データ（Phase 2）
+
+- **銘柄マスタ / 日足**: Prisma `Symbol` / `DailyPrice`（US・JP）
+- **取得**: `MarketDataProvider` 抽象 + Yahoo / Stub（[ADR 002](../adr/002-market-data-provider.md)）
+- **ジョブ**: `@nestjs/schedule` 日次 cron + `POST /market-data/jobs/sync-prices`
+- **API**: `GET|POST|PATCH /symbols`、`GET /symbols/:id/prices`
 
 ### 後続で追加予定
 
@@ -216,3 +223,5 @@ ESLint 本体は必要になったタイミングで最小構成で入れる。
 
 - [ドキュメント索引](../README.md)
 - [開発ロードマップ](../roadmap.md)
+- [ADR 001: JWT 認証](../adr/001-authentication-jwt.md)
+- [ADR 002: 市場データプロバイダ](../adr/002-market-data-provider.md)

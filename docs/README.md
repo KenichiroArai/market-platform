@@ -15,6 +15,7 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 | [architecture/overview.md](architecture/overview.md) | ディレクトリ構成、責務、通信、Turborepo、pnpm、Docker Compose、設定ファイル一覧 |
 | [roadmap.md](roadmap.md) | Phase 0〜6 の開発ロードマップ |
 | [adr/001-authentication-jwt.md](adr/001-authentication-jwt.md) | 認証方針（JWT + メール/パスワード） |
+| [adr/002-market-data-provider.md](adr/002-market-data-provider.md) | 市場データ取得（Provider 抽象 + Yahoo / Stub） |
 
 ## ドキュメント方針
 

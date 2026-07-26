@@ -34,7 +34,7 @@ export function setupSwagger(app: {
   const nestApp = app as Parameters<typeof SwaggerModule.setup>[1];
   const config = new DocumentBuilder()
     .setTitle('market-api')
-    .setDescription('market-platform NestJS Web API（Phase 1 Foundation）')
+    .setDescription('market-platform NestJS Web API（Phase 2 Market Data）')
     .setVersion('0.1.0')
     .addBearerAuth()
     .build();

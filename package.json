@@ -16,6 +16,7 @@
     "db:generate": "pnpm --filter @market/database generate",
     "db:migrate": "pnpm --filter @market/database migrate:dev",
     "db:migrate:deploy": "pnpm --filter @market/database migrate:deploy",
+    "db:seed": "pnpm --filter @market/database seed",
     "db:studio": "pnpm --filter @market/database studio",
     "format": "prettier --write ."
   },

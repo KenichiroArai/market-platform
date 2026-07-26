@@ -50,6 +50,9 @@ services:
       ANALYSIS_URL: http://analysis:8000
       JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-yahoo}
+      MARKET_DATA_CRON: ${MARKET_DATA_CRON:-0 6 * * *}
+      MARKET_DATA_LOOKBACK_DAYS: ${MARKET_DATA_LOOKBACK_DAYS:-30}
     ports:
       - "${API_PORT:-3001}:3001"
     depends_on:

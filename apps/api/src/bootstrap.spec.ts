@@ -27,9 +27,11 @@ jest.mock('@nestjs/swagger', () => ({
     setup: jest.fn(),
   },
   ApiProperty: () => () => undefined,
+  ApiPropertyOptional: () => () => undefined,
   ApiTags: () => () => undefined,
   ApiOkResponse: () => () => undefined,
   ApiBearerAuth: () => () => undefined,
+  ApiQuery: () => () => undefined,
 }));
 
 describe('bootstrap helpers', () => {
