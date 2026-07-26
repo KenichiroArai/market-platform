@@ -34,15 +34,16 @@ flowchart TB
 - 可読性のためのコメント（アプリ・共有パッケージのソースに厚めに記載）
 - 単体テスト（カバレッジ 100%）… `pnpm test`
 
-## Phase 1 — Foundation
+## Phase 1 — Foundation（完了）
 
 共通基盤を固める。
 
-- 認証（方針確定後に実装）
-- 共通エラー形式
-- ヘルスチェック
-- ロギング
-- OpenAPI（NestJS ↔ FastAPI）の契約整備
+- 認証（JWT + メール/パスワード。詳細は [ADR 001](adr/001-authentication-jwt.md)）
+- 共通エラー形式（`ApiErrorBody`）
+- ヘルスチェック（OpenAPI 化・uptime 付与）
+- ロギング（Nest / FastAPI のリクエストログ）
+- OpenAPI（NestJS `/docs` ↔ FastAPI `/docs`）の契約整備
+- CI（`.github/workflows/ci.yml`）
 - 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
 

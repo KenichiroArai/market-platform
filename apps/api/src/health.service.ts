@@ -9,6 +9,9 @@ import { Injectable } from '@nestjs/common';
 import type { HealthResponse } from '@market/shared-types';
 import { PrismaService } from './prisma.service';
 
+/** プロセス起動時刻。uptime 秒数の算出に使う。 */
+const STARTED_AT_MS = Date.now();
+
 @Injectable()
 export class HealthService {
   constructor(private readonly prismaService: PrismaService) {}
@@ -16,6 +19,7 @@ export class HealthService {
   /**
    * API 自身と DB の状態。
    * DB に届かない場合は status=degraded（プロセスは生きているが依存が落ちている）。
+   * details.uptimeSeconds で稼働時間を返し、基盤としての診断性を少し上げる。
    */
   async getApiHealth(): Promise<HealthResponse> {
     let database: 'up' | 'down' = 'down';
@@ -31,7 +35,10 @@ export class HealthService {
     return {
       status: database === 'up' ? 'ok' : 'degraded',
       service: 'api',
-      details: { database },
+      details: {
+        database,
+        uptimeSeconds: Math.floor((Date.now() - STARTED_AT_MS) / 1000),
+      },
     };
   }
 

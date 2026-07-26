@@ -48,6 +48,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-market}:${POSTGRES_PASSWORD:-market}@postgres:5432/${POSTGRES_DB:-market}?schema=public
       API_PORT: 3001
       ANALYSIS_URL: http://analysis:8000
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
     ports:
       - "${API_PORT:-3001}:3001"
     depends_on:

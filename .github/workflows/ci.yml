@@ -1,0 +1,58 @@
+# lint / typecheck / test（Phase 1 Foundation）
+#
+# ユニットテストはモック中心のため Postgres サービスは起動しない。
+# Prisma Client 生成と共有パッケージ build の後にチェックを走らせる。
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client and build shared packages
+        run: |
+          pnpm generate
+          pnpm --filter @market/shared-types build
+          pnpm --filter @market/database build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test (coverage 100%)
+        run: pnpm test
+        env:
+          JWT_SECRET: ci-test-secret-not-for-production

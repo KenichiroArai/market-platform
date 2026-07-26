@@ -30,21 +30,28 @@ describe('HealthService', () => {
   it('returns ok when database is up', async () => {
     prisma.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
 
-    await expect(service.getApiHealth()).resolves.toEqual({
-      status: 'ok',
-      service: 'api',
-      details: { database: 'up' },
-    });
+    const result = await service.getApiHealth();
+    expect(result.status).toBe('ok');
+    expect(result.service).toBe('api');
+    expect(result.details).toEqual(
+      expect.objectContaining({
+        database: 'up',
+        uptimeSeconds: expect.any(Number),
+      }),
+    );
   });
 
   it('returns degraded when database is down', async () => {
     prisma.$queryRaw.mockRejectedValue(new Error('db down'));
 
-    await expect(service.getApiHealth()).resolves.toEqual({
-      status: 'degraded',
-      service: 'api',
-      details: { database: 'down' },
-    });
+    const result = await service.getApiHealth();
+    expect(result.status).toBe('degraded');
+    expect(result.details).toEqual(
+      expect.objectContaining({
+        database: 'down',
+        uptimeSeconds: expect.any(Number),
+      }),
+    );
   });
 
   it('returns analysis health when upstream is ok', async () => {

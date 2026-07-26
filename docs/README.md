@@ -6,7 +6,7 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 
 1. まず [アーキテクチャ概要](architecture/overview.md) で構成・責務・基盤（Turborepo / pnpm / Docker）を把握する
 2. [開発ロードマップ](roadmap.md) で実装の優先順位を確認する
-3. 個別の重要な意思決定は、今後 `adr/` に ADR として追記する
+3. 個別の重要な意思決定は `adr/` の ADR を参照する
 
 ## 目次
 
@@ -14,7 +14,7 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 |--------------|------|
 | [architecture/overview.md](architecture/overview.md) | ディレクトリ構成、責務、通信、Turborepo、pnpm、Docker Compose、設定ファイル一覧 |
 | [roadmap.md](roadmap.md) | Phase 0〜6 の開発ロードマップ |
-| `adr/`（予定） | Architecture Decision Records |
+| [adr/001-authentication-jwt.md](adr/001-authentication-jwt.md) | 認証方針（JWT + メール/パスワード） |
 
 ## ドキュメント方針
 

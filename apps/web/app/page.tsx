@@ -1,9 +1,9 @@
 /**
- * トップページ（Phase 0）。
+ * トップページ（Phase 1）。
  *
- * プロダクト名をヒーロー級で示し、API ヘルスの取得結果（または接続失敗メッセージ）を表示する。
- * ドメイン UI は後続 Phase で追加する。
+ * プロダクト名をヒーロー級で示し、API ヘルスと認証導線を表示する。
  */
+import Link from 'next/link';
 import { fetchApiHealth } from '../lib/fetch-api-health';
 
 export default async function HomePage() {
@@ -24,7 +24,15 @@ export default async function HomePage() {
         market-platform
       </h1>
       <p style={{ marginTop: '1rem', maxWidth: '36rem', lineHeight: 1.6, opacity: 0.9 }}>
-        株式・ETF・指数などの市場データと分析基盤のモノレポです。Phase 0 ではヘルスチェックまでの骨格を提供します。
+        株式・ETF・指数などの市場データと分析基盤のモノレポです。Phase 1 では認証と共通基盤を提供します。
+      </p>
+      <p style={{ marginTop: '1.25rem', display: 'flex', gap: '1.25rem' }}>
+        <Link href="/login" style={{ color: '#e8eef5' }}>
+          ログイン
+        </Link>
+        <Link href="/register" style={{ color: '#e8eef5' }}>
+          登録
+        </Link>
       </p>
       <section style={{ marginTop: '2.5rem' }}>
         <h2 style={{ fontSize: '1.1rem', fontWeight: 600 }}>API health</h2>

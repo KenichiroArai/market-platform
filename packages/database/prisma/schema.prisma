@@ -1,4 +1,4 @@
-// Prisma schema（Phase 0 はドメインモデルなし。接続と Client 生成の土台のみ）
+// Prisma schema（Phase 1: User モデルを追加。ドメインモデルは後続 Phase で拡張）
 //
 // Client は packages/database/generated に出力する（node_modules へは出さない）。
 // DATABASE_URL は prisma.config.ts 側で渡す（Prisma 7 の構成）。
@@ -10,4 +10,15 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+/// 認証ユーザー。パスワードは bcrypt ハッシュのみ保存する（平文は永続化しない）。
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([email])
 }

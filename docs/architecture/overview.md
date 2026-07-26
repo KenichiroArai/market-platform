@@ -95,7 +95,7 @@ flowchart LR
 | `packages/database` | `schema.prisma`、マイグレーション、生成 Client。NestJS が依存する |
 | `packages/shared-types` | TypeScript 間の API 契約・共有型。Python とは OpenAPI / 明示的な JSON スキーマで同期する（無理に型共有しない） |
 | `packages/shared-config` | 共有 `tsconfig`、ESLint、Prettier 設定。アプリ実装は持たない |
-| `docs/` | アーキテクチャ、ADR、ロードマップなど設計の正本 |
+| `docs/` | アーキテクチャ、ADR、ロードマップなど設計の正本。認証方針は [ADR 001](../adr/001-authentication-jwt.md) |
 | `docker/` | 各アプリの Dockerfile |
 | `scripts/` | ローカル初期化、DB 待機などの開発用ユーティリティ（アプリロジックは置かない） |
 
@@ -181,7 +181,7 @@ packages:
 
 ## 設定ファイル一覧
 
-### 整備済み（初期 + Phase 0）
+### 整備済み（初期 + Phase 0 + Phase 1）
 
 | ファイル | 内容 |
 |----------|------|
@@ -190,17 +190,25 @@ packages:
 | `.prettierignore` | 生成物・venv 除外 |
 | `.gitignore` | モノレポ向け ignore |
 | `package.json` / `pnpm-workspace.yaml` / `turbo.json` | モノレポ基盤 |
-| `prettier.config.mjs` / `.nvmrc` / `.env.example` | 開発設定 |
+| `prettier.config.mjs` / `.nvmrc` / `.env.example` | 開発設定（JWT 含む） |
 | `docker-compose.yml` / `docker/Dockerfile.*` | コンテナ構成 |
 | `packages/shared-config` | 共有 `tsconfig.base.json` |
-| `packages/database` | Prisma 7 schema / config / Client |
+| `packages/database` | Prisma 7 schema / config / Client（User モデル含む） |
+| `packages/shared-types` | Health / ApiErrorBody / Auth DTO |
 | `apps/analysis/pyproject.toml` | FastAPI + uv（Docker）/ pip 可 |
+| `.github/workflows/ci.yml` | lint / typecheck / test |
+
+### 基盤（Phase 1）
+
+- **認証**: JWT + メール/パスワード（[ADR 001](../adr/001-authentication-jwt.md)）
+- **共通エラー**: `ApiErrorBody`（NestJS / FastAPI で同形）
+- **OpenAPI**: NestJS `/docs`、FastAPI `/docs`
+- **ロギング**: リクエスト単位の method / path / status / duration
 
 ### 後続で追加予定
 
 - ESLint flat config（shared-config への集約）
 - `.vscode/extensions.json`（Prisma, ESLint, Prettier, Python）
-- CI: `.github/workflows/ci.yml`（lint / typecheck / test）
 
 ESLint 本体は必要になったタイミングで最小構成で入れる。
 

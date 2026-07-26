@@ -79,6 +79,16 @@ pnpm dev
 - Analysis: http://localhost:8000/health
 - API → Analysis: http://localhost:3001/health/analysis
 
+認証・OpenAPI（Phase 1）:
+
+- 登録: `POST /auth/register` / 画面 http://localhost:3000/register
+- ログイン: `POST /auth/login` / 画面 http://localhost:3000/login
+- 自分: `GET /auth/me`（Bearer） / 画面 http://localhost:3000/me
+- Nest OpenAPI: http://localhost:3001/docs
+- FastAPI OpenAPI: http://localhost:8000/docs
+
+`.env` に `JWT_SECRET` が必須です（[`.env.example`](.env.example) 参照）。
+
 ## テスト
 
 ```bash
@@ -86,7 +96,7 @@ pnpm test
 # pnpm 未導入時: npx pnpm@9.15.9 test または npm test
 ```
 
-各パッケージでカバレッジ 100%（statements / branches / functions / lines）を要求します。`apps/analysis` は pytest-cov です。
+各パッケージでカバレッジ 100%（statements / branches / functions / lines）を要求します。`apps/analysis` は pytest-cov です。CI は [`.github/workflows/ci.yml`](.github/workflows/ci.yml) です。
 
 ## ドキュメント
 
@@ -95,7 +105,7 @@ pnpm test
 - [ドキュメント索引](docs/README.md)
 - [アーキテクチャ概要](docs/architecture/overview.md)
 - [開発ロードマップ](docs/roadmap.md)
-
+- [ADR 001: JWT 認証](docs/adr/001-authentication-jwt.md)
 ## ライセンス
 
 [MIT](LICENSE)

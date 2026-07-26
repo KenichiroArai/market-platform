@@ -41,7 +41,9 @@
       ]
     },
     "moduleNameMapper": {
-      "^@market/shared-types$": "<rootDir>/../../packages/shared-types/src/index.ts"
+      "^@market/shared-types$": "<rootDir>/../../packages/shared-types/dist/index.js",
+      "^next/navigation$": "<rootDir>/test-mocks/next-navigation.ts",
+      "^next/link$": "<rootDir>/test-mocks/next-link.tsx"
     },
     "collectCoverageFrom": [
       "app/**/*.{ts,tsx}",

@@ -1,0 +1,189 @@
+import {
+  ApiClientError,
+  apiFetch,
+  fetchCurrentUser,
+  loginUser,
+  registerUser,
+} from './api-client';
+import * as authToken from './auth-token';
+
+describe('api-client', () => {
+  beforeEach(() => {
+    jest.spyOn(authToken, 'getAccessToken').mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('posts register and validates response', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        accessToken: 't',
+        tokenType: 'Bearer',
+        user: { id: '1', email: 'a@b.c' },
+      }),
+    });
+
+    await expect(
+      registerUser({ email: 'a@b.c', password: 'password123' }, fetchImpl as unknown as typeof fetch),
+    ).resolves.toEqual({
+      accessToken: 't',
+      tokenType: 'Bearer',
+      user: { id: '1', email: 'a@b.c' },
+    });
+  });
+
+  it('posts login and validates response', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        accessToken: 't',
+        tokenType: 'Bearer',
+        user: { id: '1', email: 'a@b.c' },
+      }),
+    });
+
+    await expect(
+      loginUser({ email: 'a@b.c', password: 'password123' }, fetchImpl as unknown as typeof fetch),
+    ).resolves.toMatchObject({ accessToken: 't' });
+  });
+
+  it('fetches current user with bearer token', async () => {
+    jest.spyOn(authToken, 'getAccessToken').mockReturnValue('tok');
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: '1', email: 'a@b.c' }),
+    });
+
+    await expect(fetchCurrentUser(fetchImpl as unknown as typeof fetch)).resolves.toEqual({
+      id: '1',
+      email: 'a@b.c',
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      expect.stringContaining('/auth/me'),
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it('throws ApiClientError for ApiErrorBody responses', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({
+        statusCode: 401,
+        code: 'AUTH_UNAUTHORIZED',
+        message: 'nope',
+        timestamp: '2026-01-01T00:00:00.000Z',
+      }),
+    });
+
+    await expect(apiFetch('/x', {}, fetchImpl as unknown as typeof fetch)).rejects.toBeInstanceOf(
+      ApiClientError,
+    );
+  });
+
+  it('throws generic ApiClientError when body is not ApiErrorBody', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ weird: true }),
+    });
+
+    await expect(apiFetch('/x', {}, fetchImpl as unknown as typeof fetch)).rejects.toMatchObject({
+      code: 'HTTP_ERROR',
+    });
+  });
+
+  it('throws when register response shape is invalid', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ accessToken: 't' }),
+    });
+
+    await expect(
+      registerUser({ email: 'a@b.c', password: 'password123' }, fetchImpl as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
+
+  it('throws when login response shape is invalid', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ nope: true }),
+    });
+
+    await expect(
+      loginUser({ email: 'a@b.c', password: 'x' }, fetchImpl as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
+
+  it('throws when me response shape is invalid', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 1 }),
+    });
+
+    await expect(fetchCurrentUser(fetchImpl as unknown as typeof fetch)).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE',
+    });
+  });
+
+  it('handles non-json error bodies', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new Error('not json');
+      },
+    });
+
+    await expect(apiFetch('/x', {}, fetchImpl as unknown as typeof fetch)).rejects.toMatchObject({
+      code: 'HTTP_ERROR',
+    });
+  });
+
+  it('sets content-type when body is present and header missing', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: '1', email: 'a@b.c' }),
+    });
+
+    await apiFetch('/auth/me', { method: 'POST', body: '{}' }, fetchImpl as unknown as typeof fetch);
+    const init = fetchImpl.mock.calls[0][1] as RequestInit;
+    expect(new Headers(init.headers).get('Content-Type')).toBe('application/json');
+  });
+
+  it('keeps existing content-type header', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: '1', email: 'a@b.c' }),
+    });
+
+    await apiFetch(
+      '/auth/me',
+      { method: 'POST', body: '{}', headers: { 'Content-Type': 'text/plain' } },
+      fetchImpl as unknown as typeof fetch,
+    );
+    const init = fetchImpl.mock.calls[0][1] as RequestInit;
+    expect(new Headers(init.headers).get('Content-Type')).toBe('text/plain');
+  });
+
+  it('uses global fetch and default options when omitted', async () => {
+    const originalFetch = globalThis.fetch;
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: '1', email: 'a@b.c' }),
+    });
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
+
+    try {
+      await expect(apiFetch('/auth/me')).resolves.toEqual({ id: '1', email: 'a@b.c' });
+      expect(mockFetch).toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
