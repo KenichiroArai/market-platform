@@ -1,9 +1,11 @@
 import {
   API_ERROR_CODES,
+  computeIndicatorLookback,
   createApiErrorBody,
   createAuthTokenResponse,
   createDailyPriceDto,
   createHealthResponse,
+  createIndicatorsResponseDto,
   createPortfolioCurrencyTotalDto,
   createPortfolioDto,
   createPortfolioHoldingDto,
@@ -16,6 +18,10 @@ import {
   isAuthUser,
   isDailyPriceDto,
   isHealthStatus,
+  isIndicatorRequestSpec,
+  isIndicatorSeriesPoint,
+  isIndicatorType,
+  isIndicatorsResponseDto,
   isMarket,
   isPortfolioCurrencyTotalDto,
   isPortfolioDto,
@@ -69,6 +75,8 @@ describe('shared-types errors', () => {
     expect(API_ERROR_CODES.PORTFOLIO_NOT_FOUND).toBe('PORTFOLIO_NOT_FOUND');
     expect(API_ERROR_CODES.HOLDING_NOT_FOUND).toBe('HOLDING_NOT_FOUND');
     expect(API_ERROR_CODES.HOLDING_ALREADY_EXISTS).toBe('HOLDING_ALREADY_EXISTS');
+    expect(API_ERROR_CODES.INSUFFICIENT_PRICE_DATA).toBe('INSUFFICIENT_PRICE_DATA');
+    expect(API_ERROR_CODES.ANALYSIS_UPSTREAM_ERROR).toBe('ANALYSIS_UPSTREAM_ERROR');
     expect(API_ERROR_CODES.INTERNAL_ERROR).toBe('INTERNAL_ERROR');
   });
 
@@ -360,5 +368,92 @@ describe('shared-types portfolio', () => {
     expect(isPortfolioDto({ ...portfolio, holdings: [null] })).toBe(false);
     expect(isPortfolioDto({ ...portfolio, totalsByCurrency: [null] })).toBe(false);
     expect(isPortfolioDto({ ...portfolio, name: 1 })).toBe(false);
+  });
+});
+
+describe('shared-types analysis', () => {
+  const specs = [
+    { type: 'sma' as const, period: 20 },
+    { type: 'ema' as const, period: 50 },
+    { type: 'rsi' as const, period: 14 },
+    { type: 'macd' as const, fast: 12, slow: 26, signal: 9 },
+  ];
+
+  const point = {
+    date: '2026-01-02',
+    sma: 100,
+    ema: null,
+    rsi: 55.5,
+    macd: 1.2,
+    macdSignal: 1.0,
+    macdHistogram: 0.2,
+  };
+
+  it('validates IndicatorType', () => {
+    expect(isIndicatorType('sma')).toBe(true);
+    expect(isIndicatorType('ema')).toBe(true);
+    expect(isIndicatorType('rsi')).toBe(true);
+    expect(isIndicatorType('macd')).toBe(true);
+    expect(isIndicatorType('bb')).toBe(false);
+  });
+
+  it('validates IndicatorRequestSpec', () => {
+    expect(isIndicatorRequestSpec({ type: 'sma', period: 20 })).toBe(true);
+    expect(isIndicatorRequestSpec({ type: 'macd', fast: 12, slow: 26, signal: 9 })).toBe(true);
+    expect(isIndicatorRequestSpec({ type: 'sma', period: 'x' })).toBe(false);
+    expect(isIndicatorRequestSpec({ type: 'macd', fast: 12 })).toBe(false);
+    expect(isIndicatorRequestSpec(null)).toBe(false);
+    expect(isIndicatorRequestSpec({ type: 'bb' })).toBe(false);
+  });
+
+  it('validates IndicatorSeriesPoint', () => {
+    expect(isIndicatorSeriesPoint(point)).toBe(true);
+    expect(isIndicatorSeriesPoint({ date: '2026-01-02' })).toBe(true);
+    expect(isIndicatorSeriesPoint(null)).toBe(false);
+    expect(isIndicatorSeriesPoint({ date: 1 })).toBe(false);
+    expect(isIndicatorSeriesPoint({ date: '2026-01-02', sma: 'x' })).toBe(false);
+  });
+
+  it('creates and validates IndicatorsResponseDto', () => {
+    const withSymbol = createIndicatorsResponseDto({
+      symbolId: 'sym_1',
+      indicators: specs,
+      points: [point],
+    });
+    expect(withSymbol.symbolId).toBe('sym_1');
+    expect(isIndicatorsResponseDto(withSymbol)).toBe(true);
+
+    const withoutSymbol = createIndicatorsResponseDto({
+      indicators: specs,
+      points: [],
+    });
+    expect(withoutSymbol.symbolId).toBeUndefined();
+    expect(isIndicatorsResponseDto(withoutSymbol)).toBe(true);
+
+    expect(isIndicatorsResponseDto(null)).toBe(false);
+    expect(isIndicatorsResponseDto({ indicators: [], points: 'x' })).toBe(false);
+    expect(isIndicatorsResponseDto({ symbolId: 1, indicators: [], points: [] })).toBe(false);
+    expect(
+      isIndicatorsResponseDto({
+        indicators: [{ type: 'sma' }],
+        points: [],
+      }),
+    ).toBe(false);
+    expect(
+      isIndicatorsResponseDto({
+        indicators: [],
+        points: [{ date: 1 }],
+      }),
+    ).toBe(false);
+  });
+
+  it('computes lookback from the longest indicator requirement', () => {
+    expect(computeIndicatorLookback([{ type: 'sma', period: 20 }])).toBe(20);
+    // EMA 50 が MACD(slow+signal=35) より長い
+    expect(computeIndicatorLookback(specs)).toBe(50);
+    expect(computeIndicatorLookback([{ type: 'macd', fast: 12, slow: 26, signal: 9 }])).toBe(
+      35,
+    );
+    expect(computeIndicatorLookback([])).toBe(0);
   });
 });

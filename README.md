@@ -108,6 +108,11 @@ pnpm dev
 - ポートフォリオ: `GET|POST /portfolios` / `GET|PATCH|DELETE /portfolios/:id` / 画面 http://localhost:3000/portfolios
 - 保有: `POST /portfolios/:id/holdings` / `PATCH|DELETE /portfolios/:id/holdings/:holdingId`
 
+テクニカル分析（Phase 4、Bearer 必須）:
+
+- 指標: `GET /symbols/:id/indicators?indicators=sma,ema,rsi,macd&from=&to=`
+- 内部計算: Analysis `POST /indicators`（Nest 経由。詳細は [ADR 004](docs/adr/004-technical-analysis.md)）
+
 `.env` に `JWT_SECRET` が必須です（[`.env.example`](.env.example) 参照）。市場データは `MARKET_DATA_PROVIDER`（`yahoo`|`stub`）で切替できます（[ADR 002](docs/adr/002-market-data-provider.md)）。
 
 ## テスト
@@ -129,6 +134,7 @@ pnpm test
 - [ADR 001: JWT 認証](docs/adr/001-authentication-jwt.md)
 - [ADR 002: 市場データプロバイダ](docs/adr/002-market-data-provider.md)
 - [ADR 003: ウォッチリスト / ポートフォリオ](docs/adr/003-watchlist-portfolio.md)
+- [ADR 004: テクニカル分析](docs/adr/004-technical-analysis.md)
 
 ## ライセンス
 

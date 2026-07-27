@@ -31,6 +31,10 @@ export const API_ERROR_CODES = {
   HOLDING_NOT_FOUND: 'HOLDING_NOT_FOUND',
   /** 同一ポートフォリオに同じ銘柄の保有が既にある */
   HOLDING_ALREADY_EXISTS: 'HOLDING_ALREADY_EXISTS',
+  /** 日足本数が指標計算の最短要件を満たさない */
+  INSUFFICIENT_PRICE_DATA: 'INSUFFICIENT_PRICE_DATA',
+  /** 分析 API（FastAPI）への内部 HTTP が失敗した */
+  ANALYSIS_UPSTREAM_ERROR: 'ANALYSIS_UPSTREAM_ERROR',
   /** 予期しないサーバー内部エラー */
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;

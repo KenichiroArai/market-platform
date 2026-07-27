@@ -17,6 +17,7 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 | [adr/001-authentication-jwt.md](adr/001-authentication-jwt.md) | 認証方針（JWT + メール/パスワード） |
 | [adr/002-market-data-provider.md](adr/002-market-data-provider.md) | 市場データ取得（Provider 抽象 + Yahoo / Stub） |
 | [adr/003-watchlist-portfolio.md](adr/003-watchlist-portfolio.md) | ウォッチリスト / ポートフォリオ（複数・日足終値集計） |
+| [adr/004-technical-analysis.md](adr/004-technical-analysis.md) | テクニカル分析（オンデマンド SMA/EMA/RSI/MACD） |
 
 ## ドキュメント方針
 

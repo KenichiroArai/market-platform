@@ -69,14 +69,15 @@ flowchart TB
 - 単体テスト（カバレッジ 100%）
 - 詳細は [ADR 003](adr/003-watchlist-portfolio.md)
 
-## Phase 4 — Technical Analysis
+## Phase 4 — Technical Analysis（完了）
 
 分析 API の本格利用開始。
 
-- `apps/analysis` でのテクニカル指標計算
-- NestJS 経由での結果返却
+- `apps/analysis` でのテクニカル指標計算（SMA / EMA / RSI / MACD）
+- NestJS 経由での結果返却（`GET /symbols/:id/indicators`）
 - 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
+- 詳細は [ADR 004](adr/004-technical-analysis.md)
 
 ## Phase 5 — Signals / Backtest
 
