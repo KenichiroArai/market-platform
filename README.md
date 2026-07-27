@@ -66,6 +66,13 @@ docker compose up -d postgres
 pnpm db:migrate:deploy
 
 # 全サービス起動（postgres / analysis / api / web）
+# ビルド進捗・ヘルス確認・URL サマリーを表示（推奨）
+pnpm docker:up
+
+# バックグラウンド起動のみ（ログ追跡なし）
+pnpm docker:up:detach
+
+# 従来どおり直接起動（ビルドログに >>> [service] の進捗は表示されます）
 docker compose up --build
 
 # またはホスト上でアプリのみ起動

@@ -18,6 +18,9 @@
     "db:migrate:deploy": "pnpm --filter @market/database migrate:deploy",
     "db:seed": "pnpm --filter @market/database seed",
     "db:studio": "pnpm --filter @market/database studio",
+    "docker:up": "node scripts/docker-compose-up.mjs",
+    "docker:up:detach": "node scripts/docker-compose-up.mjs -d",
+    "docker:down": "docker compose down",
     "format": "prettier --write ."
   },
   "devDependencies": {

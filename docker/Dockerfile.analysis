@@ -12,9 +12,14 @@ COPY apps/analysis/pyproject.toml ./
 COPY apps/analysis/app ./app
 
 # ロックが無くても sync で仮想環境を作る（Phase 0）
-RUN uv sync
+RUN echo ">>> [analysis] Python 依存関係をインストール中..." \
+  && uv sync \
+  && echo ">>> [analysis] 依存関係のインストール完了"
+
+COPY docker/entrypoint-analysis.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

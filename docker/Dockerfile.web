@@ -15,19 +15,26 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json .npmrc ./
 COPY packages ./packages
 COPY apps ./apps
 
-RUN pnpm install --frozen-lockfile
+RUN echo ">>> [web] 依存関係をインストール中..." \
+  && pnpm install --frozen-lockfile \
+  && echo ">>> [web] 依存関係のインストール完了"
 
 # ブラウザから見える API の URL（ホストの localhost がデフォルト）
 ARG NEXT_PUBLIC_API_URL=http://localhost:3001
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN pnpm --filter @market/shared-types build \
-  && pnpm --filter @market/web build
+RUN echo ">>> [web] shared-types / web をビルド中..." \
+  && pnpm --filter @market/shared-types build \
+  && pnpm --filter @market/web build \
+  && echo ">>> [web] ビルド完了"
+
+COPY docker/entrypoint-web.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 WORKDIR /app/apps/web
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 EXPOSE 3000
 
-CMD ["pnpm", "start"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

@@ -16,19 +16,26 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json .npmrc ./
 COPY packages ./packages
 COPY apps ./apps
 
-RUN pnpm install --frozen-lockfile
+RUN echo ">>> [api] 依存関係をインストール中..." \
+  && pnpm install --frozen-lockfile \
+  && echo ">>> [api] 依存関係のインストール完了"
 
 # generate 時に参照されるダミー URL（実行時は compose の環境変数で上書き）
 ARG DATABASE_URL=postgresql://market:market@postgres:5432/market?schema=public
 ENV DATABASE_URL=$DATABASE_URL
 
-RUN pnpm --filter @market/shared-types build \
+RUN echo ">>> [api] shared-types / database / api をビルド中..." \
+  && pnpm --filter @market/shared-types build \
   && pnpm --filter @market/database generate \
   && pnpm --filter @market/database build \
-  && pnpm --filter @market/api build
+  && pnpm --filter @market/api build \
+  && echo ">>> [api] ビルド完了"
+
+COPY docker/entrypoint-api.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 ENV NODE_ENV=production
 ENV API_PORT=3001
 EXPOSE 3001
 
-CMD ["node", "apps/api/dist/main.js"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
