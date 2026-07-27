@@ -95,7 +95,7 @@ flowchart LR
 | `packages/database` | `schema.prisma`、マイグレーション、生成 Client。NestJS が依存する |
 | `packages/shared-types` | TypeScript 間の API 契約・共有型。Python とは OpenAPI / 明示的な JSON スキーマで同期する（無理に型共有しない） |
 | `packages/shared-config` | 共有 `tsconfig`、ESLint、Prettier 設定。アプリ実装は持たない |
-| `docs/` | アーキテクチャ、ADR、ロードマップなど設計の正本。認証方針は [ADR 001](../adr/001-authentication-jwt.md) |
+| `docs/` | アーキテクチャ、ADR、ロードマップなど設計の正本。認証は [ADR 001](../adr/001-authentication-jwt.md)、市場データは [ADR 002](../adr/002-market-data-provider.md)、ウォッチリスト/ポートフォリオは [ADR 003](../adr/003-watchlist-portfolio.md) |
 | `docker/` | 各アプリの Dockerfile |
 | `scripts/` | ローカル初期化、DB 待機などの開発用ユーティリティ（アプリロジックは置かない） |
 
@@ -193,8 +193,8 @@ packages:
 | `prettier.config.mjs` / `.nvmrc` / `.env.example` | 開発設定（JWT 含む） |
 | `docker-compose.yml` / `docker/Dockerfile.*` | コンテナ構成 |
 | `packages/shared-config` | 共有 `tsconfig.base.json` |
-| `packages/database` | Prisma 7 schema / config / Client（User / Symbol / DailyPrice） |
-| `packages/shared-types` | Health / ApiErrorBody / Auth / Market DTO |
+| `packages/database` | Prisma 7 schema / config / Client（User / Symbol / DailyPrice / Watchlist / Portfolio） |
+| `packages/shared-types` | Health / ApiErrorBody / Auth / Market / Watchlist / Portfolio DTO |
 | `apps/analysis/pyproject.toml` | FastAPI + uv（Docker）/ pip 可 |
 | `.github/workflows/ci.yml` | lint / typecheck / test |
 
@@ -211,6 +211,13 @@ packages:
 - **取得**: `MarketDataProvider` 抽象 + Yahoo / Stub（[ADR 002](../adr/002-market-data-provider.md)）
 - **ジョブ**: `@nestjs/schedule` 日次 cron + `POST /market-data/jobs/sync-prices`
 - **API**: `GET|POST|PATCH /symbols`、`GET /symbols/:id/prices`
+
+### ウォッチリスト / ポートフォリオ（Phase 3）
+
+- **ウォッチリスト**: ユーザー所有の複数名前付きリスト + 銘柄参照（`Watchlist` / `WatchlistItem`）
+- **ポートフォリオ**: 複数名前付き + 保有（`quantity` / `averageCost`）。評価は最新日足終値、集計は通貨別（[ADR 003](../adr/003-watchlist-portfolio.md)）
+- **API**: `GET|POST|PATCH|DELETE /watchlists`、`POST|DELETE /watchlists/:id/items`、`GET|POST|PATCH|DELETE /portfolios`、`POST|PATCH|DELETE /portfolios/:id/holdings`
+- **Web**: `/watchlists`、`/portfolios`
 
 ### 後続で追加予定
 

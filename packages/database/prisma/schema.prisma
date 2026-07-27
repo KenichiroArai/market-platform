@@ -1,4 +1,4 @@
-// Prisma schema（Phase 2: 銘柄マスタ・日足価格を追加）
+// Prisma schema（Phase 3: ウォッチリスト・ポートフォリオを追加）
 //
 // Client は packages/database/generated に出力する（node_modules へは出さない）。
 // DATABASE_URL は prisma.config.ts 側で渡す（Prisma 7 の構成）。
@@ -26,6 +26,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  watchlists Watchlist[]
+  portfolios Portfolio[]
+
   @@index([email])
 }
 
@@ -42,7 +45,9 @@ model Symbol {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  dailyPrices DailyPrice[]
+  dailyPrices       DailyPrice[]
+  watchlistItems    WatchlistItem[]
+  portfolioHoldings PortfolioHolding[]
 
   @@unique([ticker, market])
   @@index([market])
@@ -65,4 +70,64 @@ model DailyPrice {
 
   @@unique([symbolId, date])
   @@index([date])
+}
+
+/// ユーザー所有の名前付きウォッチリスト。1 ユーザーが複数持てる。
+model Watchlist {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items WatchlistItem[]
+
+  @@index([userId])
+}
+
+/// ウォッチリスト内の銘柄参照。同一リスト内で symbol は一意。
+model WatchlistItem {
+  id          String   @id @default(cuid())
+  watchlistId String
+  symbolId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  symbol    Symbol    @relation(fields: [symbolId], references: [id], onDelete: Cascade)
+
+  @@unique([watchlistId, symbolId])
+  @@index([symbolId])
+}
+
+/// ユーザー所有の名前付きポートフォリオ。1 ユーザーが複数持てる。
+model Portfolio {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings PortfolioHolding[]
+
+  @@index([userId])
+}
+
+/// ポートフォリオ内の保有。quantity と平均取得単価 averageCost で評価・損益を算出する。
+model PortfolioHolding {
+  id          String  @id @default(cuid())
+  portfolioId String
+  symbolId    String
+  quantity    Decimal @db.Decimal(18, 6)
+  averageCost Decimal @db.Decimal(18, 6)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  symbol    Symbol    @relation(fields: [symbolId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, symbolId])
+  @@index([symbolId])
 }

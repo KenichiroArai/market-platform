@@ -7,10 +7,16 @@ import {
   isApiErrorBody,
   isAuthTokenResponse,
   isAuthUser,
+  isPortfolioDto,
+  isSymbolDto,
+  isWatchlistDto,
   type AuthTokenResponse,
   type AuthUser,
   type LoginRequest,
+  type PortfolioDto,
   type RegisterRequest,
+  type SymbolDto,
+  type WatchlistDto,
 } from '@market/shared-types';
 import { getApiBaseUrl } from './api-base-url';
 import { getAccessToken } from './auth-token';
@@ -33,6 +39,7 @@ export class ApiClientError extends Error {
 /**
  * JSON API を呼び出す共通処理。
  * Bearer トークンがある場合は Authorization を付与する。
+ * 204 No Content などボディ無し成功は null を返す。
  */
 export async function apiFetch<T>(
   path: string,
@@ -54,6 +61,10 @@ export async function apiFetch<T>(
     headers,
   });
 
+  if (response.status === 204) {
+    return null as T;
+  }
+
   const payload: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
@@ -64,6 +75,18 @@ export async function apiFetch<T>(
   }
 
   return payload as T;
+}
+
+/** 配列レスポンスの各要素を type guard で検証する。 */
+function assertArray<T>(
+  value: unknown,
+  guard: (item: unknown) => item is T,
+  label: string,
+): T[] {
+  if (!Array.isArray(value) || !value.every(guard)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', `Unexpected ${label} response`, value);
+  }
+  return value;
 }
 
 /** POST /auth/register */
@@ -103,6 +126,152 @@ export async function fetchCurrentUser(fetchImpl?: typeof fetch): Promise<AuthUs
   const result = await apiFetch<AuthUser>('/auth/me', { method: 'GET' }, fetchImpl);
   if (!isAuthUser(result)) {
     throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected me response', result);
+  }
+  return result;
+}
+
+/** GET /symbols */
+export async function fetchSymbols(fetchImpl?: typeof fetch): Promise<SymbolDto[]> {
+  const result = await apiFetch<unknown>('/symbols', { method: 'GET' }, fetchImpl);
+  return assertArray(result, isSymbolDto, 'symbols');
+}
+
+/** GET /watchlists */
+export async function fetchWatchlists(fetchImpl?: typeof fetch): Promise<WatchlistDto[]> {
+  const result = await apiFetch<unknown>('/watchlists', { method: 'GET' }, fetchImpl);
+  return assertArray(result, isWatchlistDto, 'watchlists');
+}
+
+/** POST /watchlists */
+export async function createWatchlist(
+  name: string,
+  fetchImpl?: typeof fetch,
+): Promise<WatchlistDto> {
+  const result = await apiFetch<unknown>(
+    '/watchlists',
+    { method: 'POST', body: JSON.stringify({ name }) },
+    fetchImpl,
+  );
+  if (!isWatchlistDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected watchlist response', result);
+  }
+  return result;
+}
+
+/** DELETE /watchlists/:id */
+export async function deleteWatchlist(id: string, fetchImpl?: typeof fetch): Promise<void> {
+  await apiFetch<null>(`/watchlists/${id}`, { method: 'DELETE' }, fetchImpl);
+}
+
+/** POST /watchlists/:id/items */
+export async function addWatchlistItem(
+  watchlistId: string,
+  symbolId: string,
+  fetchImpl?: typeof fetch,
+): Promise<WatchlistDto> {
+  const result = await apiFetch<unknown>(
+    `/watchlists/${watchlistId}/items`,
+    { method: 'POST', body: JSON.stringify({ symbolId }) },
+    fetchImpl,
+  );
+  if (!isWatchlistDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected watchlist response', result);
+  }
+  return result;
+}
+
+/** DELETE /watchlists/:id/items/:itemId */
+export async function removeWatchlistItem(
+  watchlistId: string,
+  itemId: string,
+  fetchImpl?: typeof fetch,
+): Promise<WatchlistDto> {
+  const result = await apiFetch<unknown>(
+    `/watchlists/${watchlistId}/items/${itemId}`,
+    { method: 'DELETE' },
+    fetchImpl,
+  );
+  if (!isWatchlistDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected watchlist response', result);
+  }
+  return result;
+}
+
+/** GET /portfolios */
+export async function fetchPortfolios(fetchImpl?: typeof fetch): Promise<PortfolioDto[]> {
+  const result = await apiFetch<unknown>('/portfolios', { method: 'GET' }, fetchImpl);
+  return assertArray(result, isPortfolioDto, 'portfolios');
+}
+
+/** POST /portfolios */
+export async function createPortfolio(
+  name: string,
+  fetchImpl?: typeof fetch,
+): Promise<PortfolioDto> {
+  const result = await apiFetch<unknown>(
+    '/portfolios',
+    { method: 'POST', body: JSON.stringify({ name }) },
+    fetchImpl,
+  );
+  if (!isPortfolioDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected portfolio response', result);
+  }
+  return result;
+}
+
+/** DELETE /portfolios/:id */
+export async function deletePortfolio(id: string, fetchImpl?: typeof fetch): Promise<void> {
+  await apiFetch<null>(`/portfolios/${id}`, { method: 'DELETE' }, fetchImpl);
+}
+
+/** POST /portfolios/:id/holdings */
+export async function addPortfolioHolding(
+  portfolioId: string,
+  body: { symbolId: string; quantity: number; averageCost: number },
+  fetchImpl?: typeof fetch,
+): Promise<PortfolioDto> {
+  const result = await apiFetch<unknown>(
+    `/portfolios/${portfolioId}/holdings`,
+    { method: 'POST', body: JSON.stringify(body) },
+    fetchImpl,
+  );
+  if (!isPortfolioDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected portfolio response', result);
+  }
+  return result;
+}
+
+/** PATCH /portfolios/:id/holdings/:holdingId */
+export async function updatePortfolioHolding(
+  portfolioId: string,
+  holdingId: string,
+  body: { quantity?: number; averageCost?: number },
+  fetchImpl?: typeof fetch,
+): Promise<PortfolioDto> {
+  const result = await apiFetch<unknown>(
+    `/portfolios/${portfolioId}/holdings/${holdingId}`,
+    { method: 'PATCH', body: JSON.stringify(body) },
+    fetchImpl,
+  );
+  if (!isPortfolioDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected portfolio response', result);
+  }
+  return result;
+}
+
+/** DELETE /portfolios/:id/holdings/:holdingId */
+export async function removePortfolioHolding(
+  portfolioId: string,
+  holdingId: string,
+  fetchImpl?: typeof fetch,
+): Promise<PortfolioDto> {
+  const result = await apiFetch<unknown>(
+    `/portfolios/${portfolioId}/holdings/${holdingId}`,
+    { method: 'DELETE' },
+    fetchImpl,
+  );
+  if (!isPortfolioDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected portfolio response', result);
   }
   return result;
 }

@@ -19,6 +19,18 @@ export const API_ERROR_CODES = {
   SYMBOL_NOT_FOUND: 'SYMBOL_NOT_FOUND',
   /** 銘柄の ticker+market が既に存在する */
   SYMBOL_ALREADY_EXISTS: 'SYMBOL_ALREADY_EXISTS',
+  /** ウォッチリストが見つからない（他人所有も含む） */
+  WATCHLIST_NOT_FOUND: 'WATCHLIST_NOT_FOUND',
+  /** ウォッチリスト内の銘柄行が見つからない */
+  WATCHLIST_ITEM_NOT_FOUND: 'WATCHLIST_ITEM_NOT_FOUND',
+  /** 同一ウォッチリストに同じ銘柄が既にある */
+  WATCHLIST_ITEM_ALREADY_EXISTS: 'WATCHLIST_ITEM_ALREADY_EXISTS',
+  /** ポートフォリオが見つからない（他人所有も含む） */
+  PORTFOLIO_NOT_FOUND: 'PORTFOLIO_NOT_FOUND',
+  /** 保有行が見つからない */
+  HOLDING_NOT_FOUND: 'HOLDING_NOT_FOUND',
+  /** 同一ポートフォリオに同じ銘柄の保有が既にある */
+  HOLDING_ALREADY_EXISTS: 'HOLDING_ALREADY_EXISTS',
   /** 予期しないサーバー内部エラー */
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;

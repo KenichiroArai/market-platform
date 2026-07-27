@@ -57,10 +57,16 @@ export default function MePage() {
       ) : !error ? (
         <p style={{ opacity: 0.8 }}>読み込み中…</p>
       ) : null}
-      <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
+      <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
         <button type="button" onClick={onLogout} style={buttonStyle}>
           ログアウト
         </button>
+        <Link href="/watchlists" style={{ color: '#e8eef5' }}>
+          ウォッチリスト
+        </Link>
+        <Link href="/portfolios" style={{ color: '#e8eef5' }}>
+          ポートフォリオ
+        </Link>
         <Link href="/" style={{ color: '#e8eef5' }}>
           トップへ
         </Link>

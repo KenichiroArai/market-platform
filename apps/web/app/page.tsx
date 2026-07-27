@@ -24,14 +24,20 @@ export default async function HomePage() {
         market-platform
       </h1>
       <p style={{ marginTop: '1rem', maxWidth: '36rem', lineHeight: 1.6, opacity: 0.9 }}>
-        株式・ETF・指数などの市場データと分析基盤のモノレポです。Phase 1 では認証と共通基盤を提供します。
+        株式・ETF・指数などの市場データと分析基盤のモノレポです。Phase 3 ではウォッチリストとポートフォリオを提供します。
       </p>
-      <p style={{ marginTop: '1.25rem', display: 'flex', gap: '1.25rem' }}>
+      <p style={{ marginTop: '1.25rem', display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
         <Link href="/login" style={{ color: '#e8eef5' }}>
           ログイン
         </Link>
         <Link href="/register" style={{ color: '#e8eef5' }}>
           登録
+        </Link>
+        <Link href="/watchlists" style={{ color: '#e8eef5' }}>
+          ウォッチリスト
+        </Link>
+        <Link href="/portfolios" style={{ color: '#e8eef5' }}>
+          ポートフォリオ
         </Link>
       </p>
       <section style={{ marginTop: '2.5rem' }}>

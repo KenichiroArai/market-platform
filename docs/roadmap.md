@@ -57,7 +57,8 @@ flowchart TB
 - 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
 - 詳細は [ADR 002](adr/002-market-data-provider.md)
-## Phase 3 — Watchlist / Portfolio
+
+## Phase 3 — Watchlist / Portfolio（完了）
 
 ユーザー向けの基本ドメイン機能。
 
@@ -66,6 +67,7 @@ flowchart TB
 - web UI
 - 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
+- 詳細は [ADR 003](adr/003-watchlist-portfolio.md)
 
 ## Phase 4 — Technical Analysis
 
