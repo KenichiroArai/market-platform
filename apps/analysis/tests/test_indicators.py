@@ -12,6 +12,7 @@ from app.schemas import (
     ComputeIndicatorsRequest,
     IndicatorSpec,
     OhlcBar,
+    SignalSpec,
 )
 
 
@@ -198,3 +199,135 @@ def test_compute_indicators_direct() -> None:
     result = compute_indicators(body)
     assert len(result.points) == 3
     assert result.points[1].sma == pytest.approx(1.5)
+
+
+def test_post_signals_compute_sma_cross() -> None:
+    """SMAクロス戦略で buy/sell シグナルを返す。"""
+    client = TestClient(app)
+    payload = {
+        "bars": _bars([1.0, 1.0, 1.0, 2.0, 2.0, 1.0]),
+        "signal": {"strategyType": "smaCross", "shortPeriod": 2, "longPeriod": 3},
+    }
+    response = client.post("/signals/compute", json=payload)
+    assert response.status_code == 200
+    points = response.json()["points"]
+    assert len(points) == 6
+    assert any(point["buy"] for point in points)
+    assert any(point["sell"] for point in points)
+
+
+def test_post_signals_compute_rsi() -> None:
+    """RSIしきい値戦略で bool シグナル配列を返す。"""
+    client = TestClient(app)
+    closes = [100.0] * 20
+    response = client.post(
+        "/signals/compute",
+        json={
+            "bars": _bars(closes),
+            "signal": {"strategyType": "rsiThreshold", "period": 14, "lower": 30, "upper": 70},
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["points"]) == len(closes)
+    assert body["points"][14]["buy"] is True
+
+
+def test_post_signals_compute_macd() -> None:
+    """MACDクロス戦略が計算可能。"""
+    client = TestClient(app)
+    closes = [float(100 + (i % 7)) for i in range(100)]
+    response = client.post(
+        "/signals/compute",
+        json={
+            "bars": _bars(closes),
+            "signal": {"strategyType": "macdCross", "fast": 12, "slow": 26, "signal": 9},
+        },
+    )
+    assert response.status_code == 200
+    assert len(response.json()["points"]) == len(closes)
+
+
+def test_post_signals_validation_error() -> None:
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post(
+        "/signals/compute",
+        json={"bars": [], "signal": {"strategyType": "unknown"}},
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "VALIDATION_FAILED"
+
+
+def test_signal_spec_validation_for_thresholds() -> None:
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="rsiThreshold", period=14, lower=80, upper=20)
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="smaCross")
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="smaCross", shortPeriod=0, longPeriod=5)
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="smaCross", shortPeriod=10, longPeriod=5)
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="rsiThreshold")
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="rsiThreshold", period=0, lower=10, upper=90)
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="macdCross")
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="macdCross", fast=0, slow=26, signal=9)
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="macdCross", fast=26, slow=12, signal=9)
+
+
+def test_post_backtests_run_with_trade() -> None:
+    """エントリー/エグジットが発生するケース。"""
+    client = TestClient(app)
+    payload = {
+        "symbolId": "sym_1",
+        "bars": _bars([1.0, 1.0, 1.0, 2.0, 2.0, 1.0]),
+        "signal": {"strategyType": "smaCross", "shortPeriod": 2, "longPeriod": 3},
+        "initialCash": 10000,
+        "feeRate": 0.001,
+        "slippageRate": 0.001,
+    }
+    response = client.post("/backtests/run", json=payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["totalTrades"] >= 1
+    assert len(body["equityPoints"]) == 6
+
+
+def test_post_backtests_run_without_trade() -> None:
+    """シグナルが発生しないとトレード0件。"""
+    client = TestClient(app)
+    payload = {
+        "symbolId": "sym_1",
+        "bars": _bars([100.0] * 10),
+        "signal": {"strategyType": "rsiThreshold", "period": 14, "lower": 0, "upper": 100},
+        "initialCash": 10000,
+        "feeRate": 0.0,
+        "slippageRate": 0.0,
+    }
+    response = client.post("/backtests/run", json=payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["totalTrades"] == 0
+    assert body["summary"]["winRate"] == 0
+
+
+def test_post_backtests_run_force_close_at_end() -> None:
+    """最終日に未決済ならクローズされる。"""
+    client = TestClient(app)
+    payload = {
+        "symbolId": "sym_1",
+        "bars": _bars([1.0, 1.0, 1.0, 2.0, 3.0, 4.0]),
+        "signal": {"strategyType": "smaCross", "shortPeriod": 2, "longPeriod": 3},
+        "initialCash": 10000,
+        "feeRate": 0.0,
+        "slippageRate": 0.0,
+    }
+    response = client.post("/backtests/run", json=payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["totalTrades"] >= 1
+    assert body["equityPoints"][-1]["positionValue"] == 0

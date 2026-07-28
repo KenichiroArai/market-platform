@@ -7,14 +7,20 @@ import {
   isApiErrorBody,
   isAuthTokenResponse,
   isAuthUser,
+  isBacktestRunDto,
   isPortfolioDto,
+  isSignalDefinitionDto,
   isSymbolDto,
   isWatchlistDto,
   type AuthTokenResponse,
   type AuthUser,
   type LoginRequest,
   type PortfolioDto,
+  type BacktestRunDto,
   type RegisterRequest,
+  type SignalDefinitionDto,
+  type SignalStrategyParams,
+  type SignalStrategyType,
   type SymbolDto,
   type WatchlistDto,
 } from '@market/shared-types';
@@ -272,6 +278,86 @@ export async function removePortfolioHolding(
   );
   if (!isPortfolioDto(result)) {
     throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected portfolio response', result);
+  }
+  return result;
+}
+
+/** GET /signals */
+export async function fetchSignalDefinitions(fetchImpl?: typeof fetch): Promise<SignalDefinitionDto[]> {
+  const result = await apiFetch<unknown>('/signals', { method: 'GET' }, fetchImpl);
+  return assertArray(result, isSignalDefinitionDto, 'signal definitions');
+}
+
+/** POST /signals */
+export async function createSignalDefinition(
+  body: {
+    name: string;
+    description?: string;
+    strategyType: SignalStrategyType;
+    params: SignalStrategyParams;
+    isActive?: boolean;
+  },
+  fetchImpl?: typeof fetch,
+): Promise<SignalDefinitionDto> {
+  const result = await apiFetch<unknown>(
+    '/signals',
+    { method: 'POST', body: JSON.stringify(body) },
+    fetchImpl,
+  );
+  if (!isSignalDefinitionDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected signal definition response', result);
+  }
+  return result;
+}
+
+/** PATCH /signals/:id */
+export async function updateSignalDefinition(
+  id: string,
+  body: { name?: string; description?: string; params?: SignalStrategyParams; isActive?: boolean },
+  fetchImpl?: typeof fetch,
+): Promise<SignalDefinitionDto> {
+  const result = await apiFetch<unknown>(
+    `/signals/${id}`,
+    { method: 'PATCH', body: JSON.stringify(body) },
+    fetchImpl,
+  );
+  if (!isSignalDefinitionDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected signal definition response', result);
+  }
+  return result;
+}
+
+/** DELETE /signals/:id */
+export async function deleteSignalDefinition(id: string, fetchImpl?: typeof fetch): Promise<void> {
+  await apiFetch<null>(`/signals/${id}`, { method: 'DELETE' }, fetchImpl);
+}
+
+/** GET /backtests */
+export async function fetchBacktestRuns(fetchImpl?: typeof fetch): Promise<BacktestRunDto[]> {
+  const result = await apiFetch<unknown>('/backtests', { method: 'GET' }, fetchImpl);
+  return assertArray(result, isBacktestRunDto, 'backtest runs');
+}
+
+/** POST /backtests/run */
+export async function runBacktest(
+  body: {
+    signalDefinitionId: string;
+    symbolId: string;
+    from: string;
+    to: string;
+    initialCash: number;
+    feeRate: number;
+    slippageRate: number;
+  },
+  fetchImpl?: typeof fetch,
+): Promise<BacktestRunDto> {
+  const result = await apiFetch<unknown>(
+    '/backtests/run',
+    { method: 'POST', body: JSON.stringify(body) },
+    fetchImpl,
+  );
+  if (!isBacktestRunDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected backtest run response', result);
   }
   return result;
 }

@@ -39,6 +39,9 @@ export default async function HomePage() {
         <Link href="/portfolios" style={{ color: '#e8eef5' }}>
           ポートフォリオ
         </Link>
+        <Link href="/backtests" style={{ color: '#e8eef5' }}>
+          Signals / Backtest
+        </Link>
       </p>
       <section style={{ marginTop: '2.5rem' }}>
         <h2 style={{ fontSize: '1.1rem', fontWeight: 600 }}>API health</h2>

@@ -16,6 +16,7 @@ import { IndicatorsModule } from './indicators/indicators.module';
 import { MarketDataModule } from './market-data/market-data.module';
 import { PortfoliosModule } from './portfolios/portfolios.module';
 import { PrismaModule } from './prisma.module';
+import { SignalsBacktestsModule } from './signals-backtests/signals-backtests.module';
 import { WatchlistsModule } from './watchlists/watchlists.module';
 
 @Module({
@@ -27,6 +28,7 @@ import { WatchlistsModule } from './watchlists/watchlists.module';
     WatchlistsModule,
     PortfoliosModule,
     IndicatorsModule,
+    SignalsBacktestsModule,
   ],
   controllers: [HealthController],
   providers: [

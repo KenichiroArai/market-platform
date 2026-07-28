@@ -4,10 +4,14 @@ import {
   addWatchlistItem,
   apiFetch,
   createPortfolio,
+  createSignalDefinition,
   createWatchlist,
+  deleteSignalDefinition,
   deletePortfolio,
   deleteWatchlist,
+  fetchBacktestRuns,
   fetchCurrentUser,
+  fetchSignalDefinitions,
   fetchPortfolios,
   fetchSymbols,
   fetchWatchlists,
@@ -15,7 +19,9 @@ import {
   registerUser,
   removePortfolioHolding,
   removeWatchlistItem,
+  runBacktest,
   updatePortfolioHolding,
+  updateSignalDefinition,
 } from './api-client';
 import * as authToken from './auth-token';
 
@@ -77,6 +83,40 @@ const portfolio = {
       unrealizedPnl: 100,
     },
   ],
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+const signal = {
+  id: 'sig_1',
+  userId: 'user_1',
+  name: 'SMA 5/20',
+  strategyType: 'smaCross' as const,
+  params: { shortPeriod: 5, longPeriod: 20 },
+  isActive: true,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+const run = {
+  id: 'run_1',
+  userId: 'user_1',
+  signalDefinitionId: 'sig_1',
+  symbolId: 'sym_1',
+  fromDate: '2026-01-01',
+  toDate: '2026-06-30',
+  initialCash: 100000,
+  feeRate: 0.001,
+  slippageRate: 0.001,
+  summary: {
+    finalEquity: 110000,
+    totalReturnRate: 0.1,
+    maxDrawdownRate: 0.05,
+    totalTrades: 5,
+    winRate: 0.6,
+  },
+  trades: [],
+  equityPoints: [],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -196,6 +236,42 @@ describe('api-client', () => {
     await expect(deletePortfolio('pf_1', del as unknown as typeof fetch)).resolves.toBeUndefined();
   });
 
+  it('handles signal definition and backtest APIs', async () => {
+    await expect(
+      fetchSignalDefinitions(okJson([signal]) as unknown as typeof fetch),
+    ).resolves.toEqual([signal]);
+    await expect(
+      createSignalDefinition(
+        { name: 'SMA', strategyType: 'smaCross', params: { shortPeriod: 5, longPeriod: 20 } },
+        okJson(signal) as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual(signal);
+    await expect(
+      updateSignalDefinition('sig_1', { name: 'SMA2' }, okJson(signal) as unknown as typeof fetch),
+    ).resolves.toEqual(signal);
+
+    const del = jest.fn().mockResolvedValue({ ok: true, status: 204, json: async () => null });
+    await expect(
+      deleteSignalDefinition('sig_1', del as unknown as typeof fetch),
+    ).resolves.toBeUndefined();
+
+    await expect(fetchBacktestRuns(okJson([run]) as unknown as typeof fetch)).resolves.toEqual([run]);
+    await expect(
+      runBacktest(
+        {
+          signalDefinitionId: 'sig_1',
+          symbolId: 'sym_1',
+          from: '2026-01-01',
+          to: '2026-06-30',
+          initialCash: 100000,
+          feeRate: 0.001,
+          slippageRate: 0.001,
+        },
+        okJson(run) as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual(run);
+  });
+
   it('rejects invalid list and entity responses', async () => {
     await expect(
       fetchSymbols(okJson([{ id: 1 }]) as unknown as typeof fetch),
@@ -224,6 +300,35 @@ describe('api-client', () => {
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     await expect(
       removePortfolioHolding('pf_1', 'h_1', okJson({ id: 1 }) as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      createSignalDefinition(
+        { name: 'SMA', strategyType: 'smaCross', params: { shortPeriod: 5, longPeriod: 20 } },
+        okJson({ id: 1 }) as unknown as typeof fetch,
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      updateSignalDefinition('s', {}, okJson({ id: 1 }) as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      runBacktest(
+        {
+          signalDefinitionId: 'sig_1',
+          symbolId: 'sym_1',
+          from: '2026-01-01',
+          to: '2026-06-30',
+          initialCash: 100000,
+          feeRate: 0.001,
+          slippageRate: 0.001,
+        },
+        okJson({ id: 1 }) as unknown as typeof fetch,
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      fetchSignalDefinitions(okJson([{ id: 1 }]) as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      fetchBacktestRuns(okJson([{ id: 1 }]) as unknown as typeof fetch),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
   });
 

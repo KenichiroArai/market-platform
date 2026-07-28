@@ -28,6 +28,9 @@ import {
   isPortfolioHoldingDto,
   isPriceSyncJobResult,
   isSymbolDto,
+  isBacktestRunDto,
+  isSignalDefinitionDto,
+  isSignalStrategyType,
   isWatchlistDto,
   isWatchlistItemDto,
 } from './index';
@@ -77,6 +80,9 @@ describe('shared-types errors', () => {
     expect(API_ERROR_CODES.HOLDING_ALREADY_EXISTS).toBe('HOLDING_ALREADY_EXISTS');
     expect(API_ERROR_CODES.INSUFFICIENT_PRICE_DATA).toBe('INSUFFICIENT_PRICE_DATA');
     expect(API_ERROR_CODES.ANALYSIS_UPSTREAM_ERROR).toBe('ANALYSIS_UPSTREAM_ERROR');
+    expect(API_ERROR_CODES.SIGNAL_DEFINITION_NOT_FOUND).toBe('SIGNAL_DEFINITION_NOT_FOUND');
+    expect(API_ERROR_CODES.SIGNAL_DEFINITION_ALREADY_EXISTS).toBe('SIGNAL_DEFINITION_ALREADY_EXISTS');
+    expect(API_ERROR_CODES.BACKTEST_RUN_NOT_FOUND).toBe('BACKTEST_RUN_NOT_FOUND');
     expect(API_ERROR_CODES.INTERNAL_ERROR).toBe('INTERNAL_ERROR');
   });
 
@@ -137,6 +143,58 @@ describe('shared-types errors', () => {
     expect(isApiErrorBody({ statusCode: 'x', code: 'a', message: 'b', timestamp: 'c' })).toBe(
       false,
     );
+  });
+});
+
+describe('shared-types signals', () => {
+  const signal = {
+    id: 'sig_1',
+    userId: 'u_1',
+    name: 'SMA',
+    strategyType: 'smaCross' as const,
+    params: { shortPeriod: 5, longPeriod: 20 },
+    isActive: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  const run = {
+    id: 'run_1',
+    userId: 'u_1',
+    signalDefinitionId: 'sig_1',
+    symbolId: 'sym_1',
+    fromDate: '2026-01-01',
+    toDate: '2026-06-30',
+    initialCash: 100000,
+    feeRate: 0.001,
+    slippageRate: 0.001,
+    summary: {
+      finalEquity: 110000,
+      totalReturnRate: 0.1,
+      maxDrawdownRate: 0.05,
+      totalTrades: 5,
+      winRate: 0.6,
+    },
+    trades: [],
+    equityPoints: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  it('validates strategy types', () => {
+    expect(isSignalStrategyType('smaCross')).toBe(true);
+    expect(isSignalStrategyType('rsiThreshold')).toBe(true);
+    expect(isSignalStrategyType('macdCross')).toBe(true);
+    expect(isSignalStrategyType('other')).toBe(false);
+  });
+
+  it('validates SignalDefinitionDto and BacktestRunDto', () => {
+    expect(isSignalDefinitionDto(signal)).toBe(true);
+    expect(isBacktestRunDto(run)).toBe(true);
+    expect(isSignalDefinitionDto(null)).toBe(false);
+    expect(isBacktestRunDto(null)).toBe(false);
+    expect(isSignalDefinitionDto({ ...signal, strategyType: 'invalid' })).toBe(false);
+    expect(isBacktestRunDto({ ...run, summary: null })).toBe(false);
   });
 });
 
