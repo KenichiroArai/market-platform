@@ -10,6 +10,7 @@ import {
   deleteSignalDefinition,
   fetchBacktestRuns,
   fetchSignalDefinitions,
+  fetchSymbolPrices,
   fetchSymbols,
   runBacktest,
 } from '../../lib/api-client';
@@ -19,6 +20,7 @@ jest.mock('../../lib/api-client', () => ({
   fetchSignalDefinitions: jest.fn(),
   fetchBacktestRuns: jest.fn(),
   fetchSymbols: jest.fn(),
+  fetchSymbolPrices: jest.fn(),
   createSignalDefinition: jest.fn(),
   deleteSignalDefinition: jest.fn(),
   runBacktest: jest.fn(),
@@ -32,6 +34,12 @@ jest.mock('../../lib/api-client', () => ({
       this.name = 'ApiClientError';
     }
   },
+}));
+
+jest.mock('../../components/price-chart', () => ({
+  PriceChart: ({ loading }: { loading?: boolean }) => (
+    <div data-testid="price-chart-stub">{loading ? 'loading' : 'ready'}</div>
+  ),
 }));
 
 jest.mock('../../lib/auth-token', () => ({
@@ -87,6 +95,7 @@ describe('BacktestsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (useRouter as jest.Mock).mockReturnValue({ replace });
+    (fetchSymbolPrices as jest.Mock).mockResolvedValue([]);
   });
 
   it('redirects when token missing', async () => {

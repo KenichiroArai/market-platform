@@ -13,6 +13,7 @@ import {
   fetchCurrentUser,
   fetchSignalDefinitions,
   fetchPortfolios,
+  fetchSymbolPrices,
   fetchSymbols,
   fetchWatchlists,
   loginUser,
@@ -94,6 +95,19 @@ const signal = {
   strategyType: 'smaCross' as const,
   params: { shortPeriod: 5, longPeriod: 20 },
   isActive: true,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+const dailyPrice = {
+  id: 'price_1',
+  symbolId: 'sym_1',
+  date: '2026-01-02',
+  open: 100,
+  high: 105,
+  low: 99,
+  close: 103,
+  volume: 1000,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -192,6 +206,48 @@ describe('api-client', () => {
     await expect(
       fetchPortfolios(okJson([portfolio]) as unknown as typeof fetch),
     ).resolves.toEqual([portfolio]);
+  });
+
+  it('fetches symbol prices with optional date range', async () => {
+    const withRange = okJson([dailyPrice]);
+    await expect(
+      fetchSymbolPrices(
+        'sym_1',
+        { from: '2026-01-01', to: '2026-06-30' },
+        withRange as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual([dailyPrice]);
+    expect(withRange).toHaveBeenCalledWith(
+      expect.stringContaining('/symbols/sym_1/prices?from=2026-01-01&to=2026-06-30'),
+      expect.any(Object),
+    );
+
+    const fromOnly = okJson([dailyPrice]);
+    await expect(
+      fetchSymbolPrices('sym_1', { from: '2026-01-01' }, fromOnly as unknown as typeof fetch),
+    ).resolves.toEqual([dailyPrice]);
+    expect(fromOnly).toHaveBeenCalledWith(
+      expect.stringContaining('/symbols/sym_1/prices?from=2026-01-01'),
+      expect.any(Object),
+    );
+
+    const toOnly = okJson([dailyPrice]);
+    await expect(
+      fetchSymbolPrices('sym_1', { to: '2026-06-30' }, toOnly as unknown as typeof fetch),
+    ).resolves.toEqual([dailyPrice]);
+    expect(toOnly).toHaveBeenCalledWith(
+      expect.stringContaining('/symbols/sym_1/prices?to=2026-06-30'),
+      expect.any(Object),
+    );
+
+    const withDefaultRange = okJson([dailyPrice]);
+    await expect(
+      fetchSymbolPrices('sym_1', undefined, withDefaultRange as unknown as typeof fetch),
+    ).resolves.toEqual([dailyPrice]);
+    expect(withDefaultRange).toHaveBeenCalledWith(
+      expect.stringMatching(/\/symbols\/sym_1\/prices$/),
+      expect.any(Object),
+    );
   });
 
   it('creates and mutates watchlists', async () => {
@@ -329,6 +385,9 @@ describe('api-client', () => {
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     await expect(
       fetchBacktestRuns(okJson([{ id: 1 }]) as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      fetchSymbolPrices('sym_1', {}, okJson([{ id: 1 }]) as unknown as typeof fetch),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
   });
 

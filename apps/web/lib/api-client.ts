@@ -8,12 +8,14 @@ import {
   isAuthTokenResponse,
   isAuthUser,
   isBacktestRunDto,
+  isDailyPriceDto,
   isPortfolioDto,
   isSignalDefinitionDto,
   isSymbolDto,
   isWatchlistDto,
   type AuthTokenResponse,
   type AuthUser,
+  type DailyPriceDto,
   type LoginRequest,
   type PortfolioDto,
   type BacktestRunDto,
@@ -140,6 +142,28 @@ export async function fetchCurrentUser(fetchImpl?: typeof fetch): Promise<AuthUs
 export async function fetchSymbols(fetchImpl?: typeof fetch): Promise<SymbolDto[]> {
   const result = await apiFetch<unknown>('/symbols', { method: 'GET' }, fetchImpl);
   return assertArray(result, isSymbolDto, 'symbols');
+}
+
+/**
+ * GET /symbols/:id/prices
+ * from / to は YYYY-MM-DD。チャート表示の期間絞り込みに使う。
+ */
+export async function fetchSymbolPrices(
+  symbolId: string,
+  range: { from?: string; to?: string } = {},
+  fetchImpl?: typeof fetch,
+): Promise<DailyPriceDto[]> {
+  const params = new URLSearchParams();
+  if (range.from) {
+    params.set('from', range.from);
+  }
+  if (range.to) {
+    params.set('to', range.to);
+  }
+  const query = params.toString();
+  const path = `/symbols/${encodeURIComponent(symbolId)}/prices${query ? `?${query}` : ''}`;
+  const result = await apiFetch<unknown>(path, { method: 'GET' }, fetchImpl);
+  return assertArray(result, isDailyPriceDto, 'symbol prices');
 }
 
 /** GET /watchlists */

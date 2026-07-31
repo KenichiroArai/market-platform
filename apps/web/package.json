@@ -14,7 +14,8 @@
     "@market/shared-types": "workspace:*",
     "next": "^15.3.3",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
@@ -30,8 +31,12 @@
   },
   "jest": {
     "testEnvironment": "jsdom",
-    "setupFilesAfterEnv": ["<rootDir>/jest.setup.ts"],
-    "testMatch": ["**/?(*.)+(spec|test).ts?(x)"],
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.ts"
+    ],
+    "testMatch": [
+      "**/?(*.)+(spec|test).ts?(x)"
+    ],
     "transform": {
       "^.+\\.(t|j)sx?$": [
         "ts-jest",
@@ -48,6 +53,7 @@
     "collectCoverageFrom": [
       "app/**/*.{ts,tsx}",
       "lib/**/*.{ts,tsx}",
+      "components/**/*.{ts,tsx}",
       "!**/*.spec.ts",
       "!**/*.spec.tsx",
       "!next-env.d.ts",

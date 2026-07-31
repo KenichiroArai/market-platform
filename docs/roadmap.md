@@ -79,10 +79,13 @@ flowchart TB
 - 単体テスト（カバレッジ 100%）
 - 詳細は [ADR 004](adr/004-technical-analysis.md)
 
-## Phase 5 — Signals / Backtest
+## Phase 5 — Signals / Backtest（完了）
+
+売買シグナルとバックテストを API / analysis / Web で使える状態にした。
 
 - 売買シグナル定義・算出
 - バックテスト実行と結果保存
+- Web: 銘柄選択に連動した価格チャート
 - 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
 

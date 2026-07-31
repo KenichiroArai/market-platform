@@ -1,19 +1,22 @@
 /* istanbul ignore file */
 /**
  * Phase 5: シグナル定義とバックテスト実行画面。
+ * 銘柄・期間の選択に連動して日足終値チャートを表示する。
  */
 'use client';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState, type CSSProperties } from 'react';
-import type { BacktestRunDto, SignalDefinitionDto, SymbolDto } from '@market/shared-types';
+import type { BacktestRunDto, DailyPriceDto, SignalDefinitionDto, SymbolDto } from '@market/shared-types';
+import { PriceChart } from '../../components/price-chart';
 import {
   ApiClientError,
   createSignalDefinition,
   deleteSignalDefinition,
   fetchBacktestRuns,
   fetchSignalDefinitions,
+  fetchSymbolPrices,
   fetchSymbols,
   runBacktest,
 } from '../../lib/api-client';
@@ -24,13 +27,16 @@ export default function BacktestsPage() {
   const [signals, setSignals] = useState<SignalDefinitionDto[]>([]);
   const [runs, setRuns] = useState<BacktestRunDto[]>([]);
   const [symbols, setSymbols] = useState<SymbolDto[]>([]);
+  const [prices, setPrices] = useState<DailyPriceDto[]>([]);
   const [name, setName] = useState('SMA 5/20');
   const [symbolId, setSymbolId] = useState('');
   const [signalId, setSignalId] = useState('');
   const [from, setFrom] = useState('2026-01-01');
   const [to, setTo] = useState('2026-06-30');
   const [error, setError] = useState<string | null>(null);
+  const [chartError, setChartError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [chartLoading, setChartLoading] = useState(false);
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
@@ -67,6 +73,41 @@ export default function BacktestsPage() {
       cancelled = true;
     };
   }, [router]);
+
+  /** 銘柄・期間が変わったら価格を取り直しチャートを更新する。 */
+  useEffect(() => {
+    if (!symbolId) {
+      setPrices([]);
+      setChartError(null);
+      setChartLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setChartLoading(true);
+    setChartError(null);
+    void (async () => {
+      try {
+        const rows = await fetchSymbolPrices(symbolId, { from, to });
+        if (!cancelled) {
+          setPrices(rows);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setPrices([]);
+          setChartError(err instanceof ApiClientError ? err.message : '価格の取得に失敗しました');
+        }
+      } finally {
+        if (!cancelled) {
+          setChartLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [symbolId, from, to]);
 
   async function onCreateSignal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -197,6 +238,14 @@ export default function BacktestsPage() {
             実行
           </button>
         </form>
+        {!symbolId ? (
+          <p style={{ marginTop: '0.75rem', opacity: 0.85 }}>銘柄を選択するとチャートを表示します</p>
+        ) : (
+          <>
+            {chartError ? <p style={errorStyle}>{chartError}</p> : null}
+            <PriceChart prices={prices} loading={chartLoading} />
+          </>
+        )}
       </section>
 
       <section style={sectionStyle}>
