@@ -14,6 +14,7 @@ import {
   fetchSignalDefinitions,
   fetchPortfolios,
   fetchSymbolPrices,
+  fetchSymbolIndicators,
   fetchSymbols,
   fetchWatchlists,
   loginUser,
@@ -248,6 +249,75 @@ describe('api-client', () => {
       expect.stringMatching(/\/symbols\/sym_1\/prices$/),
       expect.any(Object),
     );
+
+    const withInterval = okJson([dailyPrice]);
+    await expect(
+      fetchSymbolPrices(
+        'sym_1',
+        { interval: '1w' },
+        withInterval as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual([dailyPrice]);
+    expect(withInterval).toHaveBeenCalledWith(
+      expect.stringContaining('/symbols/sym_1/prices?interval=1w'),
+      expect.any(Object),
+    );
+  });
+
+  it('fetches symbol indicators with query options', async () => {
+    const indicatorsResponse = {
+      symbolId: 'sym_1',
+      indicators: [{ type: 'sma' as const, period: 20 }],
+      points: [{ date: '2026-01-02', sma: 10 }],
+    };
+    const full = okJson(indicatorsResponse);
+    await expect(
+      fetchSymbolIndicators(
+        'sym_1',
+        {
+          from: '2026-01-01',
+          to: '2026-06-30',
+          interval: '1d',
+          indicators: 'sma,ema',
+          smaPeriod: 10,
+          emaPeriod: 20,
+          rsiPeriod: 14,
+          macdFast: 12,
+          macdSlow: 26,
+          macdSignal: 9,
+        },
+        full as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual(indicatorsResponse);
+    expect(full).toHaveBeenCalledWith(
+      expect.stringContaining('/symbols/sym_1/indicators?'),
+      expect.any(Object),
+    );
+    const calledUrl = String(full.mock.calls[0]?.[0]);
+    expect(calledUrl).toContain('from=2026-01-01');
+    expect(calledUrl).toContain('to=2026-06-30');
+    expect(calledUrl).toContain('interval=1d');
+    expect(calledUrl).toContain('indicators=sma%2Cema');
+    expect(calledUrl).toContain('smaPeriod=10');
+    expect(calledUrl).toContain('emaPeriod=20');
+    expect(calledUrl).toContain('rsiPeriod=14');
+    expect(calledUrl).toContain('macdFast=12');
+    expect(calledUrl).toContain('macdSlow=26');
+    expect(calledUrl).toContain('macdSignal=9');
+
+    const bare = okJson(indicatorsResponse);
+    await expect(
+      fetchSymbolIndicators('sym_1', undefined, bare as unknown as typeof fetch),
+    ).resolves.toEqual(indicatorsResponse);
+    expect(bare).toHaveBeenCalledWith(
+      expect.stringMatching(/\/symbols\/sym_1\/indicators$/),
+      expect.any(Object),
+    );
+
+    const invalid = okJson({ bad: true });
+    await expect(
+      fetchSymbolIndicators('sym_1', {}, invalid as unknown as typeof fetch),
+    ).rejects.toBeInstanceOf(ApiClientError);
   });
 
   it('creates and mutates watchlists', async () => {

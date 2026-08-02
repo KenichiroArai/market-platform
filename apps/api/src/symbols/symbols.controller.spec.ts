@@ -71,6 +71,14 @@ describe('SymbolsController', () => {
     expect(pricesService.listBySymbolId).toHaveBeenCalledWith('s1', {
       from: '2026-01-01',
       to: '2026-01-31',
+      interval: '1d',
+    });
+
+    await controller.listPrices('s1', undefined, undefined, '1w');
+    expect(pricesService.listBySymbolId).toHaveBeenCalledWith('s1', {
+      from: undefined,
+      to: undefined,
+      interval: '1w',
     });
   });
 });

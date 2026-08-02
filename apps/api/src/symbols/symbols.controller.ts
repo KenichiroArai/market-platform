@@ -57,17 +57,28 @@ export class SymbolsController {
     return this.symbolsService.getById(id);
   }
 
-  /** 銘柄の日足一覧。 */
+  /** 銘柄の価格一覧（日足または週足）。 */
   @Get(':id/prices')
   @ApiQuery({ name: 'from', required: false, example: '2026-01-01' })
   @ApiQuery({ name: 'to', required: false, example: '2026-01-31' })
-  @ApiOkResponse({ description: 'Daily prices for symbol' })
+  @ApiQuery({
+    name: 'interval',
+    required: false,
+    enum: ['1d', '1w'],
+    description: '足種。省略時は 1d。1w は日足から集約',
+  })
+  @ApiOkResponse({ description: 'Prices for symbol (daily or weekly)' })
   listPrices(
     @Param('id') id: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('interval') interval?: '1d' | '1w',
   ): Promise<DailyPriceDto[]> {
-    return this.pricesService.listBySymbolId(id, { from, to });
+    return this.pricesService.listBySymbolId(id, {
+      from,
+      to,
+      interval: interval === '1w' ? '1w' : '1d',
+    });
   }
 
   /** 銘柄作成。 */

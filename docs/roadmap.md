@@ -10,7 +10,7 @@ flowchart TB
   p3[Phase3_WatchPortfolio]
   p4[Phase4_Analysis]
   p5[Phase5_SignalsBacktest]
-  p6[Phase6_NotifyAI]
+  p6[Phase6_ChartAnalysis]
 
   p0 --> p1 --> p2 --> p3 --> p4 --> p5 --> p6
 ```
@@ -89,12 +89,19 @@ flowchart TB
 - 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
 
-## Phase 6 — Notification / AI
+## Phase 6 — Chart Analysis（完了）
 
-- 通知チャネル
-- AI 分析エンドポイント（`apps/analysis`）
+銘柄を指定した分析画面を充実させ、チャートとテクニカル指標を一体で確認できるようにした。
+
+- Web: 銘柄選択 UI（ウォッチリスト / 検索から指定）
+- ローソク足チャート（OHLC）表示
+- Phase 4 のテクニカル指標（SMA / EMA / RSI / MACD など）をチャート上またはサブパネルで重ねて表示
+- 出来高（Volume）の表示（価格チャート連動のサブチャート。データが揃う範囲で対応）
+- 期間切替（日足 / 週足など）やズーム・パンなど、分析操作の基本 UX
+- prices / indicators API に `interval=1d|1w`（週足は日足から集約）
 - 可読性のためのコメント
 - 単体テスト（カバレッジ 100%）
+- 詳細は [ADR 005](adr/005-chart-analysis.md)
 
 ## 対象外
 

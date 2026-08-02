@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@market/shared-types": "workspace:*",
+    "lightweight-charts": "^5.2.0",
     "next": "^15.3.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -48,7 +49,8 @@
     "moduleNameMapper": {
       "^@market/shared-types$": "<rootDir>/../../packages/shared-types/dist/index.js",
       "^next/navigation$": "<rootDir>/test-mocks/next-navigation.ts",
-      "^next/link$": "<rootDir>/test-mocks/next-link.tsx"
+      "^next/link$": "<rootDir>/test-mocks/next-link.tsx",
+      "^lightweight-charts$": "<rootDir>/test-mocks/lightweight-charts.ts"
     },
     "collectCoverageFrom": [
       "app/**/*.{ts,tsx}",

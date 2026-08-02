@@ -9,13 +9,16 @@ import {
   isAuthUser,
   isBacktestRunDto,
   isDailyPriceDto,
+  isIndicatorsResponseDto,
   isPortfolioDto,
   isSignalDefinitionDto,
   isSymbolDto,
   isWatchlistDto,
   type AuthTokenResponse,
   type AuthUser,
+  type ChartInterval,
   type DailyPriceDto,
+  type IndicatorsResponseDto,
   type LoginRequest,
   type PortfolioDto,
   type BacktestRunDto,
@@ -146,11 +149,11 @@ export async function fetchSymbols(fetchImpl?: typeof fetch): Promise<SymbolDto[
 
 /**
  * GET /symbols/:id/prices
- * from / to は YYYY-MM-DD。チャート表示の期間絞り込みに使う。
+ * from / to は YYYY-MM-DD。interval は 1d（既定）または 1w。
  */
 export async function fetchSymbolPrices(
   symbolId: string,
-  range: { from?: string; to?: string } = {},
+  range: { from?: string; to?: string; interval?: ChartInterval } = {},
   fetchImpl?: typeof fetch,
 ): Promise<DailyPriceDto[]> {
   const params = new URLSearchParams();
@@ -160,10 +163,73 @@ export async function fetchSymbolPrices(
   if (range.to) {
     params.set('to', range.to);
   }
+  if (range.interval) {
+    params.set('interval', range.interval);
+  }
   const query = params.toString();
   const path = `/symbols/${encodeURIComponent(symbolId)}/prices${query ? `?${query}` : ''}`;
   const result = await apiFetch<unknown>(path, { method: 'GET' }, fetchImpl);
   return assertArray(result, isDailyPriceDto, 'symbol prices');
+}
+
+/**
+ * GET /symbols/:id/indicators
+ * チャート分析画面で価格と並列取得する。interval / indicators / 期間パラメータ対応。
+ */
+export async function fetchSymbolIndicators(
+  symbolId: string,
+  query: {
+    from?: string;
+    to?: string;
+    interval?: ChartInterval;
+    indicators?: string;
+    smaPeriod?: number;
+    emaPeriod?: number;
+    rsiPeriod?: number;
+    macdFast?: number;
+    macdSlow?: number;
+    macdSignal?: number;
+  } = {},
+  fetchImpl?: typeof fetch,
+): Promise<IndicatorsResponseDto> {
+  const params = new URLSearchParams();
+  if (query.from) {
+    params.set('from', query.from);
+  }
+  if (query.to) {
+    params.set('to', query.to);
+  }
+  if (query.interval) {
+    params.set('interval', query.interval);
+  }
+  if (query.indicators) {
+    params.set('indicators', query.indicators);
+  }
+  if (query.smaPeriod !== undefined) {
+    params.set('smaPeriod', String(query.smaPeriod));
+  }
+  if (query.emaPeriod !== undefined) {
+    params.set('emaPeriod', String(query.emaPeriod));
+  }
+  if (query.rsiPeriod !== undefined) {
+    params.set('rsiPeriod', String(query.rsiPeriod));
+  }
+  if (query.macdFast !== undefined) {
+    params.set('macdFast', String(query.macdFast));
+  }
+  if (query.macdSlow !== undefined) {
+    params.set('macdSlow', String(query.macdSlow));
+  }
+  if (query.macdSignal !== undefined) {
+    params.set('macdSignal', String(query.macdSignal));
+  }
+  const qs = params.toString();
+  const path = `/symbols/${encodeURIComponent(symbolId)}/indicators${qs ? `?${qs}` : ''}`;
+  const result = await apiFetch<unknown>(path, { method: 'GET' }, fetchImpl);
+  if (!isIndicatorsResponseDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected indicators response', result);
+  }
+  return result;
 }
 
 /** GET /watchlists */

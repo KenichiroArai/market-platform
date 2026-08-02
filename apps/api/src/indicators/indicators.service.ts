@@ -44,6 +44,7 @@ export class IndicatorsService {
     query: {
       from?: string;
       to?: string;
+      interval?: '1d' | '1w';
       indicators?: string;
       smaPeriod?: number;
       emaPeriod?: number;
@@ -55,10 +56,11 @@ export class IndicatorsService {
   ): Promise<IndicatorsResponseDto> {
     const specs = this.buildSpecs(query);
     const lookback = computeIndicatorLookback(specs);
+    const interval = query.interval === '1w' ? '1w' : '1d';
 
     const { bars, rangeStartIndex } = await this.pricesService.listWithLookback(
       symbolId,
-      { from: query.from, to: query.to, lookback },
+      { from: query.from, to: query.to, lookback, interval },
     );
 
     // 計算に必要な最短本数に満たない（ウォームアップすら足りない）場合

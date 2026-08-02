@@ -33,6 +33,8 @@ import {
   isSignalStrategyType,
   isWatchlistDto,
   isWatchlistItemDto,
+  isChartInterval,
+  aggregateDailyBarsToWeekly,
 } from './index';
 
 describe('shared-types health', () => {
@@ -513,5 +515,126 @@ describe('shared-types analysis', () => {
       35,
     );
     expect(computeIndicatorLookback([])).toBe(0);
+  });
+});
+
+describe('shared-types chart', () => {
+  it('accepts valid chart intervals', () => {
+    expect(isChartInterval('1d')).toBe(true);
+    expect(isChartInterval('1w')).toBe(true);
+  });
+
+  it('rejects invalid chart intervals', () => {
+    expect(isChartInterval('1m')).toBe(false);
+    expect(isChartInterval(1)).toBe(false);
+    expect(isChartInterval(null)).toBe(false);
+  });
+
+  it('returns empty array for empty input', () => {
+    expect(aggregateDailyBarsToWeekly([])).toEqual([]);
+  });
+
+  it('aggregates daily bars into UTC Monday-start weeks', () => {
+    // 2026-01-05(月)〜01-09(金) と 01-12(月)〜01-13(火)
+    const bars = [
+      { date: '2026-01-07', open: 10, high: 12, low: 9, close: 11, volume: 100 },
+      { date: '2026-01-05', open: 8, high: 9, low: 7, close: 8.5, volume: 50 },
+      { date: '2026-01-09', open: 11, high: 15, low: 10, close: 14, volume: 200 },
+      { date: '2026-01-12', open: 14, high: 16, low: 13, close: 15, volume: 80 },
+      { date: '2026-01-13', open: 15, high: 17, low: 14.5, close: 16.5, volume: 90 },
+    ];
+
+    const weekly = aggregateDailyBarsToWeekly(bars);
+    expect(weekly).toHaveLength(2);
+    // 第1週: 5→9、日付キーは最終取引日 01-09
+    expect(weekly[0]).toEqual({
+      date: '2026-01-09',
+      open: 8,
+      high: 15,
+      low: 7,
+      close: 14,
+      volume: 350,
+    });
+    // 第2週: 12→13
+    expect(weekly[1]).toEqual({
+      date: '2026-01-13',
+      open: 14,
+      high: 17,
+      low: 13,
+      close: 16.5,
+      volume: 170,
+    });
+  });
+
+  it('skips invalid dates and still aggregates valid bars', () => {
+    const bars = [
+      { date: 'not-a-date', open: 1, high: 1, low: 1, close: 1, volume: 1 },
+      { date: '2026-02-02', open: 2, high: 3, low: 1, close: 2.5, volume: 10 },
+      { date: '2026-13-40', open: 9, high: 9, low: 9, close: 9, volume: 9 },
+    ];
+    const weekly = aggregateDailyBarsToWeekly(bars);
+    expect(weekly).toEqual([
+      { date: '2026-02-02', open: 2, high: 3, low: 1, close: 2.5, volume: 10 },
+    ]);
+  });
+
+  it('preserves extra fields from the last bar of each week', () => {
+    const bars = [
+      {
+        id: 'a',
+        symbolId: 's1',
+        date: '2026-03-02',
+        open: 1,
+        high: 2,
+        low: 1,
+        close: 1.5,
+        volume: 5,
+        createdAt: 'c1',
+        updatedAt: 'u1',
+      },
+      {
+        id: 'b',
+        symbolId: 's1',
+        date: '2026-03-03',
+        open: 1.5,
+        high: 3,
+        low: 1.2,
+        close: 2.8,
+        volume: 7,
+        createdAt: 'c2',
+        updatedAt: 'u2',
+      },
+    ];
+    const weekly = aggregateDailyBarsToWeekly(bars);
+    expect(weekly).toEqual([
+      {
+        id: 'b',
+        symbolId: 's1',
+        date: '2026-03-03',
+        open: 1,
+        high: 3,
+        low: 1,
+        close: 2.8,
+        volume: 12,
+        createdAt: 'c2',
+        updatedAt: 'u2',
+      },
+    ]);
+  });
+
+  it('groups Sunday into the previous Monday-start week', () => {
+    // 2026-01-04 は日曜 → 2025-12-29(月) 始まりの週
+    const bars = [
+      { date: '2026-01-02', open: 1, high: 2, low: 1, close: 1.5, volume: 3 },
+      { date: '2026-01-04', open: 1.5, high: 2.5, low: 1.4, close: 2, volume: 4 },
+    ];
+    const weekly = aggregateDailyBarsToWeekly(bars);
+    expect(weekly).toHaveLength(1);
+    expect(weekly[0]).toMatchObject({
+      date: '2026-01-04',
+      open: 1,
+      close: 2,
+      volume: 7,
+    });
   });
 });

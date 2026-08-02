@@ -24,7 +24,7 @@ export default async function HomePage() {
         market-platform
       </h1>
       <p style={{ marginTop: '1rem', maxWidth: '36rem', lineHeight: 1.6, opacity: 0.9 }}>
-        株式・ETF・指数などの市場データと分析基盤のモノレポです。Phase 3 ではウォッチリストとポートフォリオを提供します。
+        株式・ETF・指数などの市場データと分析基盤のモノレポです。チャート分析ではローソク足とテクニカル指標を一体で確認できます。
       </p>
       <p style={{ marginTop: '1.25rem', display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
         <Link href="/login" style={{ color: '#e8eef5' }}>
@@ -41,6 +41,9 @@ export default async function HomePage() {
         </Link>
         <Link href="/backtests" style={{ color: '#e8eef5' }}>
           Signals / Backtest
+        </Link>
+        <Link href="/charts" style={{ color: '#e8eef5' }}>
+          チャート分析
         </Link>
       </p>
       <section style={{ marginTop: '2.5rem' }}>

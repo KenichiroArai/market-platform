@@ -93,10 +93,50 @@ describe('IndicatorsService', () => {
     expect(result.symbolId).toBe('s1');
     expect(result.points).toHaveLength(20);
     expect(result.points[0]?.date).toBe('2026-01-02');
+    expect(pricesService.listWithLookback).toHaveBeenCalledWith('s1', {
+      from: undefined,
+      to: undefined,
+      lookback: 20,
+      interval: '1d',
+    });
     expect(global.fetch).toHaveBeenCalledWith(
       'http://analysis.test/indicators',
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+
+  it('passes weekly interval to prices lookback', async () => {
+    const bars = Array.from({ length: 21 }, (_, i) => ({
+      id: `p${i}`,
+      symbolId: 's1',
+      date: `2026-01-${String(i + 1).padStart(2, '0')}`,
+      open: 1,
+      high: 1,
+      low: 1,
+      close: i + 1,
+      volume: 0,
+      createdAt: '',
+      updatedAt: '',
+    }));
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        indicators: [{ type: 'sma', period: 20 }],
+        points: bars.map((bar) => ({ date: bar.date, sma: 10 })),
+      }),
+    }) as unknown as typeof fetch;
+
+    await service.getForSymbol('s1', { indicators: 'sma', interval: '1w' });
+    expect(pricesService.listWithLookback).toHaveBeenCalledWith('s1', {
+      from: undefined,
+      to: undefined,
+      lookback: 20,
+      interval: '1w',
+    });
   });
 
   it('throws INSUFFICIENT_PRICE_DATA when bars are too few', async () => {

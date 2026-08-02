@@ -5,7 +5,7 @@
  */
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class GetIndicatorsQueryDto {
   @ApiPropertyOptional({ example: '2026-01-01', description: '開始日 YYYY-MM-DD' })
@@ -17,6 +17,16 @@ export class GetIndicatorsQueryDto {
   @IsOptional()
   @IsString()
   to?: string;
+
+  @ApiPropertyOptional({
+    example: '1d',
+    enum: ['1d', '1w'],
+    description: '足種。省略時は 1d。1w は日足から集約してから指標計算',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['1d', '1w'])
+  interval?: '1d' | '1w';
 
   @ApiPropertyOptional({
     example: 'sma,ema,rsi,macd',
