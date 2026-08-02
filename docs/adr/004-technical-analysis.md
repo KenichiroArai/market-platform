@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Accepted（Phase 4）
+Accepted（v0.1.0 / Phase 4）
 
 ## コンテキスト
 
@@ -37,6 +37,6 @@ Phase 4 でテクニカル指標の計算と、NestJS 経由での結果返却�
 
 ## 関連
 
-- [開発ロードマップ](../roadmap.md) Phase 4
+- [開発ロードマップ](../roadmap/v0/v0.1/v0.1.0.md) Phase 4
 - [アーキテクチャ概要](../architecture/overview.md)
 - [ADR 002: 市場データプロバイダ](002-market-data-provider.md)

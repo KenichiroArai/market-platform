@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Accepted（Phase 1）
+Accepted（v0.1.0 / Phase 1）
 
 ## コンテキスト
 
@@ -39,5 +39,5 @@ Phase 1 でユーザー認証の方針を確定する必要がある。アーキ
 
 ## 関連
 
-- [開発ロードマップ](../roadmap.md) Phase 1
+- [開発ロードマップ](../roadmap/v0/v0.1/v0.1.0.md) Phase 1
 - [アーキテクチャ概要](../architecture/overview.md)

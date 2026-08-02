@@ -46,8 +46,9 @@ market-platform/
 ├── docs/
 │   ├── README.md
 │   ├── architecture/
-│   ├── adr/                 # Architecture Decision Records（後続）
-│   └── roadmap.md
+│   ├── adr/                 # Architecture Decision Records（フラット連番）
+│   ├── roadmap/             # バージョン別ロードマップ（vX/vX.Y/vX.Y.Z.md）
+│   └── roadmap.md           # 現行版への案内スタブ
 ├── docker/
 │   ├── Dockerfile.web
 │   ├── Dockerfile.api
@@ -235,7 +236,7 @@ ESLint 本体は必要になったタイミングで最小構成で入れる。
 ## 関連ドキュメント
 
 - [ドキュメント索引](../README.md)
-- [開発ロードマップ](../roadmap.md)
+- [開発ロードマップ](../roadmap/README.md)（現行: [v0.1.0](../roadmap/v0/v0.1/v0.1.0.md)）
 - [ADR 001: JWT 認証](../adr/001-authentication-jwt.md)
 - [ADR 002: 市場データプロバイダ](../adr/002-market-data-provider.md)
 - [ADR 003: ウォッチリスト / ポートフォリオ](../adr/003-watchlist-portfolio.md)

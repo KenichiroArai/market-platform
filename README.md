@@ -130,7 +130,7 @@ pnpm test
 
 - [ドキュメント索引](docs/README.md)
 - [アーキテクチャ概要](docs/architecture/overview.md)
-- [開発ロードマップ](docs/roadmap.md)
+- [開発ロードマップ](docs/roadmap/README.md)（現行: [v0.1.0](docs/roadmap/v0/v0.1/v0.1.0.md)）
 - [ADR 001: JWT 認証](docs/adr/001-authentication-jwt.md)
 - [ADR 002: 市場データプロバイダ](docs/adr/002-market-data-provider.md)
 - [ADR 003: ウォッチリスト / ポートフォリオ](docs/adr/003-watchlist-portfolio.md)

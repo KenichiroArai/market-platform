@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Accepted（Phase 6）
+Accepted（v0.1.0 / Phase 6）
 
 ## コンテキスト
 
@@ -47,6 +47,6 @@ Phase 6 では銘柄指定の分析画面を充実させ、ローソク足・出
 
 ## 関連
 
-- [開発ロードマップ](../roadmap.md) Phase 6
+- [開発ロードマップ](../roadmap/v0/v0.1/v0.1.0.md) Phase 6
 - [ADR 004: テクニカル分析](004-technical-analysis.md)
 - [アーキテクチャ概要](../architecture/overview.md)

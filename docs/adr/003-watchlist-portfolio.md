@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Accepted（Phase 3）
+Accepted（v0.1.0 / Phase 3）
 
 ## コンテキスト
 
@@ -38,7 +38,7 @@ Phase 3 でユーザー向けの基本ドメイン機能としてウォッチリ
 
 ## 関連
 
-- [開発ロードマップ](../roadmap.md) Phase 3
+- [開発ロードマップ](../roadmap/v0/v0.1/v0.1.0.md) Phase 3
 - [アーキテクチャ概要](../architecture/overview.md)
 - [ADR 001: JWT 認証](001-authentication-jwt.md)
 - [ADR 002: 市場データプロバイダ](002-market-data-provider.md)

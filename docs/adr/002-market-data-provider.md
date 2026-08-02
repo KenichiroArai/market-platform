@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Accepted（Phase 2）
+Accepted（v0.1.0 / Phase 2）
 
 ## コンテキスト
 
@@ -34,5 +34,5 @@ Phase 2 で銘柄マスタと日足価格の取得・永続化が必要になる
 
 ## 関連
 
-- [開発ロードマップ](../roadmap.md) Phase 2
+- [開発ロードマップ](../roadmap/v0/v0.1/v0.1.0.md) Phase 2
 - [アーキテクチャ概要](../architecture/overview.md)
