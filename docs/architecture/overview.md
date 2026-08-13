@@ -190,7 +190,7 @@ packages:
 | `.gitattributes` | LF 強制・バイナリ定義 |
 | `.prettierignore` | 生成物・venv 除外 |
 | `.gitignore` | モノレポ向け ignore |
-| `package.json` / `pnpm-workspace.yaml` / `turbo.json` | モノレポ基盤 |
+| `package.json` / `pnpm-workspace.yaml` / `turbo.json` | モノレポ基盤（製品バージョン正本はルート `package.json` の `version`） |
 | `prettier.config.mjs` / `.nvmrc` / `.env.example` | 開発設定（JWT 含む） |
 | `docker-compose.yml` / `docker/Dockerfile.*` | コンテナ構成 |
 | `packages/shared-config` | 共有 `tsconfig.base.json` |

@@ -31,13 +31,14 @@ from app.schemas import (
     SignalPoint,
     SignalSpec,
 )
+from app.version import read_app_version
 
 # プロセス起動時刻。uptimeSeconds 算出用。
 _STARTED_AT = time.time()
 
 app = FastAPI(
     title="market-analysis",
-    version="0.1.0",
+    version=read_app_version(),
     description="market-platform 分析 API（FastAPI）。NestJS から内部 HTTP で呼ばれる。",
 )
 

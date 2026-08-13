@@ -8,6 +8,8 @@ WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+# 製品バージョン正本（ルート package.json）。app.version が参照する。
+COPY package.json ./package.json
 COPY apps/analysis/pyproject.toml ./
 COPY apps/analysis/app ./app
 

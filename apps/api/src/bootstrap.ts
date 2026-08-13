@@ -9,6 +9,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { readAppVersion } from './app-version';
 import { ApiExceptionFilter } from './common/api-exception.filter';
 import { LoggingInterceptor } from './common/logging.interceptor';
 
@@ -35,7 +36,7 @@ export function setupSwagger(app: {
   const config = new DocumentBuilder()
     .setTitle('market-api')
     .setDescription('market-platform NestJS Web API（Phase 2 Market Data）')
-    .setVersion('0.1.0')
+    .setVersion(readAppVersion())
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(nestApp, config);
