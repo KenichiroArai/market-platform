@@ -12,11 +12,9 @@ import {
   fetchSymbols,
   removePortfolioHolding,
   updatePortfolioHolding,
-} from '../../lib/api-client';
-import { getAccessToken } from '../../lib/auth-token';
-import { useRouter } from 'next/navigation';
+} from '../../../lib/api-client';
 
-jest.mock('../../lib/api-client', () => ({
+jest.mock('../../../lib/api-client', () => ({
   fetchPortfolios: jest.fn(),
   fetchSymbols: jest.fn(),
   createPortfolio: jest.fn(),
@@ -34,10 +32,6 @@ jest.mock('../../lib/api-client', () => ({
       this.name = 'ApiClientError';
     }
   },
-}));
-
-jest.mock('../../lib/auth-token', () => ({
-  getAccessToken: jest.fn(),
 }));
 
 const symbol = {
@@ -85,23 +79,11 @@ const portfolio = {
 };
 
 describe('PortfoliosPage', () => {
-  const replace = jest.fn();
-
   beforeEach(() => {
     jest.clearAllMocks();
-    (useRouter as jest.Mock).mockReturnValue({ replace });
-  });
-
-  it('redirects to login when token is missing', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue(null);
-    render(<PortfoliosPage />);
-    await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith('/login');
-    });
   });
 
   it('loads portfolios and supports CRUD flows', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchPortfolios as jest.Mock).mockResolvedValue([portfolio]);
     (fetchSymbols as jest.Mock).mockResolvedValue([symbol]);
     (createPortfolio as jest.Mock).mockResolvedValue({
@@ -159,7 +141,6 @@ describe('PortfoliosPage', () => {
   });
 
   it('shows load and mutation error messages', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchPortfolios as jest.Mock).mockRejectedValue(new ApiClientError(500, 'X', 'load-fail'));
     (fetchSymbols as jest.Mock).mockResolvedValue([]);
 
@@ -177,12 +158,13 @@ describe('PortfoliosPage', () => {
   });
 
   it('covers create / holding / delete error branches', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchPortfolios as jest.Mock).mockResolvedValue([portfolio]);
     (fetchSymbols as jest.Mock).mockResolvedValue([symbol]);
     (createPortfolio as jest.Mock).mockRejectedValue(new ApiClientError(400, 'X', 'create-fail'));
     (addPortfolioHolding as jest.Mock).mockRejectedValue(new Error('x'));
-    (updatePortfolioHolding as jest.Mock).mockRejectedValue(new ApiClientError(400, 'X', 'upd-fail'));
+    (updatePortfolioHolding as jest.Mock).mockRejectedValue(
+      new ApiClientError(400, 'X', 'upd-fail'),
+    );
     (removePortfolioHolding as jest.Mock).mockRejectedValue(new Error('x'));
     (deletePortfolio as jest.Mock).mockRejectedValue(new ApiClientError(400, 'X', 'del-fail'));
 
@@ -234,7 +216,9 @@ describe('PortfoliosPage', () => {
       expect(screen.getByText('保有更新に失敗しました')).toBeInTheDocument();
     });
 
-    (removePortfolioHolding as jest.Mock).mockRejectedValue(new ApiClientError(400, 'X', 'rm-fail'));
+    (removePortfolioHolding as jest.Mock).mockRejectedValue(
+      new ApiClientError(400, 'X', 'rm-fail'),
+    );
     fireEvent.click(screen.getByRole('button', { name: '削除' }));
     await waitFor(() => {
       expect(screen.getByText('rm-fail')).toBeInTheDocument();
@@ -248,7 +232,6 @@ describe('PortfoliosPage', () => {
   });
 
   it('shows empty totals and n/a prices', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchPortfolios as jest.Mock).mockResolvedValue([
       {
         ...portfolio,
@@ -277,7 +260,6 @@ describe('PortfoliosPage', () => {
   });
 
   it('loads empty portfolios and deletes the last one', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchPortfolios as jest.Mock).mockResolvedValue([]);
     (fetchSymbols as jest.Mock).mockResolvedValue([]);
 

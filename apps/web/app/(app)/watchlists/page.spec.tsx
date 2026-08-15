@@ -11,11 +11,9 @@ import {
   fetchSymbols,
   fetchWatchlists,
   removeWatchlistItem,
-} from '../../lib/api-client';
-import { getAccessToken } from '../../lib/auth-token';
-import { useRouter } from 'next/navigation';
+} from '../../../lib/api-client';
 
-jest.mock('../../lib/api-client', () => ({
+jest.mock('../../../lib/api-client', () => ({
   fetchWatchlists: jest.fn(),
   fetchSymbols: jest.fn(),
   createWatchlist: jest.fn(),
@@ -32,10 +30,6 @@ jest.mock('../../lib/api-client', () => ({
       this.name = 'ApiClientError';
     }
   },
-}));
-
-jest.mock('../../lib/auth-token', () => ({
-  getAccessToken: jest.fn(),
 }));
 
 const symbol = {
@@ -69,23 +63,11 @@ const watchlist = {
 };
 
 describe('WatchlistsPage', () => {
-  const replace = jest.fn();
-
   beforeEach(() => {
     jest.clearAllMocks();
-    (useRouter as jest.Mock).mockReturnValue({ replace });
-  });
-
-  it('redirects to login when token is missing', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue(null);
-    render(<WatchlistsPage />);
-    await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith('/login');
-    });
   });
 
   it('loads lists and supports create / add / remove / delete', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchWatchlists as jest.Mock).mockResolvedValue([watchlist]);
     (fetchSymbols as jest.Mock).mockResolvedValue([symbol]);
     (createWatchlist as jest.Mock).mockResolvedValue({
@@ -129,7 +111,6 @@ describe('WatchlistsPage', () => {
   });
 
   it('shows ApiClientError on load failure', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchWatchlists as jest.Mock).mockRejectedValue(new ApiClientError(500, 'X', 'boom'));
     (fetchSymbols as jest.Mock).mockResolvedValue([]);
 
@@ -140,7 +121,6 @@ describe('WatchlistsPage', () => {
   });
 
   it('shows fallback error on load failure', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchWatchlists as jest.Mock).mockRejectedValue(new Error('x'));
     (fetchSymbols as jest.Mock).mockResolvedValue([]);
 
@@ -151,7 +131,6 @@ describe('WatchlistsPage', () => {
   });
 
   it('shows create / add / remove / delete error messages', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchWatchlists as jest.Mock).mockResolvedValue([{ ...watchlist, items: [] }]);
     (fetchSymbols as jest.Mock).mockResolvedValue([symbol]);
     (createWatchlist as jest.Mock).mockRejectedValue(new ApiClientError(400, 'X', 'create-fail'));
@@ -182,7 +161,6 @@ describe('WatchlistsPage', () => {
   });
 
   it('handles empty symbols and delete/create fallbacks', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchWatchlists as jest.Mock).mockResolvedValue([]);
     (fetchSymbols as jest.Mock).mockResolvedValue([]);
     (createWatchlist as jest.Mock).mockRejectedValue(new Error('x'));
@@ -202,7 +180,6 @@ describe('WatchlistsPage', () => {
   });
 
   it('deletes the last watchlist and reports ApiClientError on item remove', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchWatchlists as jest.Mock).mockResolvedValue([watchlist]);
     (fetchSymbols as jest.Mock).mockResolvedValue([symbol]);
     (deleteWatchlist as jest.Mock).mockResolvedValue(undefined);
@@ -227,7 +204,6 @@ describe('WatchlistsPage', () => {
   });
 
   it('covers delete and remove fallbacks with selected list', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchWatchlists as jest.Mock).mockResolvedValue([watchlist]);
     (fetchSymbols as jest.Mock).mockResolvedValue([
       symbol,

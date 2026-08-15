@@ -1,12 +1,11 @@
 /**
  * ポートフォリオ画面（クライアント）。
  *
- * 一覧・作成・削除、保有の追加／更新／削除、通貨別集計を表示する。未ログインは /login へ誘導する。
+ * 一覧・作成・削除、保有の追加／更新／削除、通貨別集計を表示する。
+ * 未ログイン誘導は共通レイアウト側。
  */
 'use client';
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState, type CSSProperties } from 'react';
 import type { PortfolioDto, SymbolDto } from '@market/shared-types';
 import {
@@ -18,11 +17,9 @@ import {
   fetchSymbols,
   removePortfolioHolding,
   updatePortfolioHolding,
-} from '../../lib/api-client';
-import { getAccessToken } from '../../lib/auth-token';
+} from '../../../lib/api-client';
 
 export default function PortfoliosPage() {
-  const router = useRouter();
   const [portfolios, setPortfolios] = useState<PortfolioDto[]>([]);
   const [symbols, setSymbols] = useState<SymbolDto[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -37,11 +34,6 @@ export default function PortfoliosPage() {
   const selected = portfolios.find((p) => p.id === selectedId) ?? null;
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      router.replace('/login');
-      return;
-    }
-
     let cancelled = false;
     void (async () => {
       try {
@@ -66,7 +58,7 @@ export default function PortfoliosPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, []);
 
   function replacePortfolio(updated: PortfolioDto) {
     setPortfolios((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -155,13 +147,7 @@ export default function PortfoliosPage() {
 
   return (
     <main style={pageStyle}>
-      <h1 style={brandStyle}>market-platform</h1>
-      <p style={leadStyle}>ポートフォリオ</p>
-      <nav style={navStyle}>
-        <Link href="/">トップ</Link>
-        <Link href="/me">プロフィール</Link>
-        <Link href="/watchlists">ウォッチリスト</Link>
-      </nav>
+      <h1 style={titleStyle}>ポートフォリオ</h1>
 
       {loading ? <p style={{ opacity: 0.8 }}>読み込み中…</p> : null}
       {error ? <p style={errorStyle}>{error}</p> : null}
@@ -294,18 +280,13 @@ export default function PortfoliosPage() {
 }
 
 const pageStyle: CSSProperties = {
-  minHeight: '100vh',
-  padding: '3rem 1.5rem',
-  background: 'linear-gradient(160deg, #0f1c2e 0%, #1a334d 45%, #243b55 100%)',
-  color: '#e8eef5',
+  padding: '2rem 1.5rem',
 };
-const brandStyle: CSSProperties = {
-  fontSize: 'clamp(2rem, 5vw, 3rem)',
+const titleStyle: CSSProperties = {
+  fontSize: 'clamp(1.75rem, 4vw, 2.5rem)',
   margin: 0,
   letterSpacing: '-0.03em',
 };
-const leadStyle: CSSProperties = { marginTop: '0.75rem', opacity: 0.9 };
-const navStyle: CSSProperties = { marginTop: '1rem', display: 'flex', gap: '1rem' };
 const sectionStyle: CSSProperties = { marginTop: '2rem', maxWidth: '44rem' };
 const sectionTitleStyle: CSSProperties = { fontSize: '1.1rem', fontWeight: 600 };
 const subTitleStyle: CSSProperties = { fontSize: '1rem', marginTop: '1.25rem' };

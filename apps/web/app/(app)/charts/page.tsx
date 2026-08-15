@@ -3,11 +3,10 @@
  *
  * 銘柄（ウォッチリスト / 検索）・期間・足種・指標トグルを選び、
  * 価格と指標を並列取得して AnalysisChart に渡す。
+ * 未ログイン誘導は共通レイアウト側。
  */
 'use client';
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type {
   ChartInterval,
@@ -20,18 +19,16 @@ import {
   AnalysisChart,
   DEFAULT_OVERLAYS,
   type AnalysisChartOverlays,
-} from '../../components/analysis-chart';
+} from '../../../components/analysis-chart';
 import {
   ApiClientError,
   fetchSymbolIndicators,
   fetchSymbolPrices,
   fetchSymbols,
   fetchWatchlists,
-} from '../../lib/api-client';
-import { getAccessToken } from '../../lib/auth-token';
+} from '../../../lib/api-client';
 
 export default function ChartsPage() {
-  const router = useRouter();
   const [symbols, setSymbols] = useState<SymbolDto[]>([]);
   const [watchlists, setWatchlists] = useState<WatchlistDto[]>([]);
   const [watchlistId, setWatchlistId] = useState('');
@@ -66,8 +63,7 @@ export default function ChartsPage() {
       return watchlistSymbols;
     }
     return watchlistSymbols.filter(
-      (s) =>
-        s.ticker.toLowerCase().includes(q) || s.name.toLowerCase().includes(q),
+      (s) => s.ticker.toLowerCase().includes(q) || s.name.toLowerCase().includes(q),
     );
   }, [watchlistSymbols, symbolQuery]);
 
@@ -82,17 +78,10 @@ export default function ChartsPage() {
   }, [overlays]);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      router.replace('/login');
-      return;
-    }
     let cancelled = false;
     void (async () => {
       try {
-        const [symbolRows, listRows] = await Promise.all([
-          fetchSymbols(),
-          fetchWatchlists(),
-        ]);
+        const [symbolRows, listRows] = await Promise.all([fetchSymbols(), fetchWatchlists()]);
         if (!cancelled) {
           setSymbols(symbolRows);
           setWatchlists(listRows);
@@ -112,7 +101,7 @@ export default function ChartsPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, []);
 
   // 銘柄・期間・足種・指標セットが変わったらチャートデータを再取得
   useEffect(() => {
@@ -136,10 +125,7 @@ export default function ChartsPage() {
               })
             : Promise.resolve({ points: [] as IndicatorSeriesPoint[] });
 
-        const [priceRows, indicatorRes] = await Promise.all([
-          pricePromise,
-          indicatorPromise,
-        ]);
+        const [priceRows, indicatorRes] = await Promise.all([pricePromise, indicatorPromise]);
         if (!cancelled) {
           setPrices(priceRows);
           setIndicatorPoints(indicatorRes.points);
@@ -169,12 +155,7 @@ export default function ChartsPage() {
 
   return (
     <main style={pageStyle}>
-      <p style={{ margin: 0 }}>
-        <Link href="/" style={{ color: '#e8eef5' }}>
-          ← トップ
-        </Link>
-      </p>
-      <h1 style={{ fontSize: '1.75rem', margin: '1rem 0 0.5rem' }}>チャート分析</h1>
+      <h1 style={{ fontSize: '1.75rem', margin: '0 0 0.5rem' }}>チャート分析</h1>
       <p style={{ margin: '0 0 1.25rem', opacity: 0.85, maxWidth: '40rem' }}>
         銘柄を選び、ローソク足・出来高・テクニカル指標を一体で確認します。ズーム・パンはチャート上で操作できます。
       </p>
@@ -306,11 +287,7 @@ export default function ChartsPage() {
 }
 
 const pageStyle: CSSProperties = {
-  minHeight: '100vh',
   padding: '2rem 1.5rem',
-  background: 'linear-gradient(160deg, #0f1c2e 0%, #1a334d 45%, #243b55 100%)',
-  color: '#e8eef5',
-  fontFamily: 'Georgia, "Times New Roman", serif',
 };
 
 const controlsStyle: CSSProperties = {

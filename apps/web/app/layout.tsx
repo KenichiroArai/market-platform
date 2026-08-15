@@ -1,6 +1,8 @@
 /**
  * アプリ全体のレイアウト。
- * Phase 0 はブランド確認用の最小構成（html/body + 基本タイポグラフィのみ）。
+ *
+ * html/body と基本タイポグラフィのみ。
+ * ログイン後シェルと認証画面のゲートは (app) / (guest) のネストレイアウトに置く。
  */
 import type { ReactNode } from 'react';
 

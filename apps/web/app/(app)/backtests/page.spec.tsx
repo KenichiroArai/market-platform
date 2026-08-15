@@ -2,7 +2,6 @@
  * @jest-environment jsdom
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useRouter } from 'next/navigation';
 import BacktestsPage from './page';
 import {
   ApiClientError,
@@ -13,10 +12,9 @@ import {
   fetchSymbolPrices,
   fetchSymbols,
   runBacktest,
-} from '../../lib/api-client';
-import { getAccessToken } from '../../lib/auth-token';
+} from '../../../lib/api-client';
 
-jest.mock('../../lib/api-client', () => ({
+jest.mock('../../../lib/api-client', () => ({
   fetchSignalDefinitions: jest.fn(),
   fetchBacktestRuns: jest.fn(),
   fetchSymbols: jest.fn(),
@@ -36,18 +34,13 @@ jest.mock('../../lib/api-client', () => ({
   },
 }));
 
-jest.mock('../../components/price-chart', () => ({
+jest.mock('../../../components/price-chart', () => ({
   PriceChart: ({ loading }: { loading?: boolean }) => (
     <div data-testid="price-chart-stub">{loading ? 'loading' : 'ready'}</div>
   ),
 }));
 
-jest.mock('../../lib/auth-token', () => ({
-  getAccessToken: jest.fn(),
-}));
-
 describe('BacktestsPage', () => {
-  const replace = jest.fn();
   const symbol = {
     id: 'sym_1',
     ticker: 'AAPL',
@@ -94,24 +87,18 @@ describe('BacktestsPage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (useRouter as jest.Mock).mockReturnValue({ replace });
     (fetchSymbolPrices as jest.Mock).mockResolvedValue([]);
   });
 
-  it('redirects when token missing', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue(null);
-    render(<BacktestsPage />);
-    await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith('/login');
-    });
-  });
-
   it('loads data and supports create/run/delete', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchSignalDefinitions as jest.Mock).mockResolvedValue([signal]);
     (fetchBacktestRuns as jest.Mock).mockResolvedValue([run]);
     (fetchSymbols as jest.Mock).mockResolvedValue([symbol]);
-    (createSignalDefinition as jest.Mock).mockResolvedValue({ ...signal, id: 'sig_2', name: 'New' });
+    (createSignalDefinition as jest.Mock).mockResolvedValue({
+      ...signal,
+      id: 'sig_2',
+      name: 'New',
+    });
     (runBacktest as jest.Mock).mockResolvedValue({ ...run, id: 'run_2' });
     (deleteSignalDefinition as jest.Mock).mockResolvedValue(null);
 
@@ -132,7 +119,6 @@ describe('BacktestsPage', () => {
   });
 
   it('shows ApiClientError on load failure', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchSignalDefinitions as jest.Mock).mockRejectedValue(new ApiClientError(500, 'X', 'boom'));
     (fetchBacktestRuns as jest.Mock).mockResolvedValue([]);
     (fetchSymbols as jest.Mock).mockResolvedValue([]);
@@ -141,7 +127,6 @@ describe('BacktestsPage', () => {
   });
 
   it('shows fallback create error', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue('tok');
     (fetchSignalDefinitions as jest.Mock).mockResolvedValue([]);
     (fetchBacktestRuns as jest.Mock).mockResolvedValue([]);
     (fetchSymbols as jest.Mock).mockResolvedValue([]);

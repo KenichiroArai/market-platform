@@ -2,14 +2,18 @@
 /**
  * Phase 5: シグナル定義とバックテスト実行画面。
  * 銘柄・期間の選択に連動して日足終値チャートを表示する。
+ * 未ログイン誘導は共通レイアウト側。
  */
 'use client';
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState, type CSSProperties } from 'react';
-import type { BacktestRunDto, DailyPriceDto, SignalDefinitionDto, SymbolDto } from '@market/shared-types';
-import { PriceChart } from '../../components/price-chart';
+import type {
+  BacktestRunDto,
+  DailyPriceDto,
+  SignalDefinitionDto,
+  SymbolDto,
+} from '@market/shared-types';
+import { PriceChart } from '../../../components/price-chart';
 import {
   ApiClientError,
   createSignalDefinition,
@@ -19,11 +23,9 @@ import {
   fetchSymbolPrices,
   fetchSymbols,
   runBacktest,
-} from '../../lib/api-client';
-import { getAccessToken } from '../../lib/auth-token';
+} from '../../../lib/api-client';
 
 export default function BacktestsPage() {
-  const router = useRouter();
   const [signals, setSignals] = useState<SignalDefinitionDto[]>([]);
   const [runs, setRuns] = useState<BacktestRunDto[]>([]);
   const [symbols, setSymbols] = useState<SymbolDto[]>([]);
@@ -40,10 +42,6 @@ export default function BacktestsPage() {
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      router.replace('/login');
-      return;
-    }
     let cancelled = false;
     void (async () => {
       try {
@@ -72,7 +70,7 @@ export default function BacktestsPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, []);
 
   /** 銘柄・期間が変わったら価格を取り直しチャートを更新する。 */
   useEffect(() => {
@@ -174,13 +172,7 @@ export default function BacktestsPage() {
 
   return (
     <main style={pageStyle}>
-      <h1 style={brandStyle}>market-platform</h1>
-      <p style={leadStyle}>Signals / Backtest</p>
-      <nav style={navStyle}>
-        <Link href="/">トップ</Link>
-        <Link href="/watchlists">ウォッチリスト</Link>
-        <Link href="/portfolios">ポートフォリオ</Link>
-      </nav>
+      <h1 style={titleStyle}>Signals / Backtest</h1>
 
       {loading ? <p style={{ opacity: 0.85 }}>読み込み中…</p> : null}
       {error ? <p style={errorStyle}>{error}</p> : null}
@@ -193,7 +185,12 @@ export default function BacktestsPage() {
               <button type="button" style={buttonStyle} onClick={() => setSignalId(signal.id)}>
                 {signal.name} ({signal.strategyType})
               </button>
-              <button type="button" style={buttonStyle} disabled={pending} onClick={() => void onDeleteSignal(signal.id)}>
+              <button
+                type="button"
+                style={buttonStyle}
+                disabled={pending}
+                onClick={() => void onDeleteSignal(signal.id)}
+              >
                 削除
               </button>
             </li>
@@ -232,14 +229,26 @@ export default function BacktestsPage() {
               </option>
             ))}
           </select>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={inputStyle} />
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={inputStyle} />
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            style={inputStyle}
+          />
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            style={inputStyle}
+          />
           <button type="submit" disabled={pending} style={buttonStyle}>
             実行
           </button>
         </form>
         {!symbolId ? (
-          <p style={{ marginTop: '0.75rem', opacity: 0.85 }}>銘柄を選択するとチャートを表示します</p>
+          <p style={{ marginTop: '0.75rem', opacity: 0.85 }}>
+            銘柄を選択するとチャートを表示します
+          </p>
         ) : (
           <>
             {chartError ? <p style={errorStyle}>{chartError}</p> : null}
@@ -265,20 +274,26 @@ export default function BacktestsPage() {
 }
 
 const pageStyle: CSSProperties = {
-  minHeight: '100vh',
-  padding: '3rem 1.5rem',
-  background: 'linear-gradient(160deg, #0f1c2e 0%, #1a334d 45%, #243b55 100%)',
-  color: '#e8eef5',
+  padding: '2rem 1.5rem',
 };
-const brandStyle: CSSProperties = { fontSize: 'clamp(2rem, 5vw, 3rem)', margin: 0 };
-const leadStyle: CSSProperties = { marginTop: '0.75rem', opacity: 0.9 };
-const navStyle: CSSProperties = { marginTop: '1rem', display: 'flex', gap: '1rem' };
+const titleStyle: CSSProperties = { fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', margin: 0 };
 const sectionStyle: CSSProperties = { marginTop: '2rem', maxWidth: '48rem' };
 const sectionTitleStyle: CSSProperties = { fontSize: '1.1rem', fontWeight: 600 };
-const listStyle: CSSProperties = { listStyle: 'none', padding: 0, margin: '0.75rem 0', display: 'grid', gap: '0.5rem' };
+const listStyle: CSSProperties = {
+  listStyle: 'none',
+  padding: 0,
+  margin: '0.75rem 0',
+  display: 'grid',
+  gap: '0.5rem',
+};
 const itemRowStyle: CSSProperties = { display: 'flex', gap: '0.75rem', alignItems: 'center' };
 const formRowStyle: CSSProperties = { display: 'flex', gap: '0.75rem', flexWrap: 'wrap' };
-const formColStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '20rem' };
+const formColStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.75rem',
+  maxWidth: '20rem',
+};
 const inputStyle: CSSProperties = {
   padding: '0.65rem 0.75rem',
   border: '1px solid rgba(232, 238, 245, 0.35)',

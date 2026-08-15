@@ -1,28 +1,19 @@
 /**
  * ログイン後の簡易プロフィール画面。
  *
- * GET /auth/me で認証配線を確認する。未ログイン時は /login へ誘導する。
+ * GET /auth/me で現在のユーザーを表示する。未ログイン誘導とログアウトは共通レイアウト側。
  */
 'use client';
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { AuthUser } from '@market/shared-types';
-import { ApiClientError, fetchCurrentUser } from '../../lib/api-client';
-import { clearAccessToken, getAccessToken } from '../../lib/auth-token';
+import { ApiClientError, fetchCurrentUser } from '../../../lib/api-client';
 
 export default function MePage() {
-  const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      router.replace('/login');
-      return;
-    }
-
     let cancelled = false;
     void (async () => {
       try {
@@ -40,16 +31,11 @@ export default function MePage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
-
-  function onLogout() {
-    clearAccessToken();
-    router.push('/login');
-  }
+  }, []);
 
   return (
     <main style={pageStyle}>
-      <h1 style={brandStyle}>market-platform</h1>
+      <h1 style={titleStyle}>プロフィール</h1>
       <p style={leadStyle}>ログイン中のユーザー</p>
       {error ? <p style={errorStyle}>{error}</p> : null}
       {user ? (
@@ -57,33 +43,16 @@ export default function MePage() {
       ) : !error ? (
         <p style={{ opacity: 0.8 }}>読み込み中…</p>
       ) : null}
-      <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-        <button type="button" onClick={onLogout} style={buttonStyle}>
-          ログアウト
-        </button>
-        <Link href="/watchlists" style={{ color: '#e8eef5' }}>
-          ウォッチリスト
-        </Link>
-        <Link href="/portfolios" style={{ color: '#e8eef5' }}>
-          ポートフォリオ
-        </Link>
-        <Link href="/" style={{ color: '#e8eef5' }}>
-          トップへ
-        </Link>
-      </div>
     </main>
   );
 }
 
 const pageStyle: CSSProperties = {
-  minHeight: '100vh',
-  padding: '3rem 1.5rem',
-  background: 'linear-gradient(160deg, #0f1c2e 0%, #1a334d 45%, #243b55 100%)',
-  color: '#e8eef5',
+  padding: '2rem 1.5rem',
 };
 
-const brandStyle: CSSProperties = {
-  fontSize: 'clamp(2rem, 5vw, 3rem)',
+const titleStyle: CSSProperties = {
+  fontSize: 'clamp(1.75rem, 4vw, 2.5rem)',
   margin: 0,
   letterSpacing: '-0.03em',
 };
@@ -95,12 +64,4 @@ const preStyle: CSSProperties = {
   padding: '1rem',
   background: 'rgba(0, 0, 0, 0.25)',
   overflow: 'auto',
-};
-const buttonStyle: CSSProperties = {
-  padding: '0.6rem 1rem',
-  border: '1px solid rgba(232, 238, 245, 0.55)',
-  background: 'transparent',
-  color: '#e8eef5',
-  font: 'inherit',
-  cursor: 'pointer',
 };

@@ -3,11 +3,11 @@
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RegisterPage from './page';
-import { ApiClientError, registerUser } from '../../lib/api-client';
-import { setAccessToken } from '../../lib/auth-token';
+import { ApiClientError, registerUser } from '../../../lib/api-client';
+import { setAccessToken } from '../../../lib/auth-token';
 import { useRouter } from 'next/navigation';
 
-jest.mock('../../lib/api-client', () => ({
+jest.mock('../../../lib/api-client', () => ({
   registerUser: jest.fn(),
   ApiClientError: class ApiClientError extends Error {
     constructor(
@@ -21,7 +21,7 @@ jest.mock('../../lib/api-client', () => ({
   },
 }));
 
-jest.mock('../../lib/auth-token', () => ({
+jest.mock('../../../lib/auth-token', () => ({
   setAccessToken: jest.fn(),
 }));
 
@@ -33,7 +33,7 @@ describe('RegisterPage', () => {
     (useRouter as jest.Mock).mockReturnValue({ push, replace: jest.fn() });
   });
 
-  it('registers and navigates to /me', async () => {
+  it('registers and navigates to /', async () => {
     (registerUser as jest.Mock).mockResolvedValue({
       accessToken: 'tok',
       tokenType: 'Bearer',
@@ -49,7 +49,7 @@ describe('RegisterPage', () => {
 
     await waitFor(() => {
       expect(setAccessToken).toHaveBeenCalledWith('tok');
-      expect(push).toHaveBeenCalledWith('/me');
+      expect(push).toHaveBeenCalledWith('/');
     });
   });
 

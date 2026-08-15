@@ -2,7 +2,6 @@
  * @jest-environment jsdom
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useRouter } from 'next/navigation';
 import ChartsPage from './page';
 import {
   ApiClientError,
@@ -10,10 +9,9 @@ import {
   fetchSymbolPrices,
   fetchSymbols,
   fetchWatchlists,
-} from '../../lib/api-client';
-import { getAccessToken } from '../../lib/auth-token';
+} from '../../../lib/api-client';
 
-jest.mock('../../lib/api-client', () => ({
+jest.mock('../../../lib/api-client', () => ({
   fetchSymbols: jest.fn(),
   fetchWatchlists: jest.fn(),
   fetchSymbolPrices: jest.fn(),
@@ -30,19 +28,14 @@ jest.mock('../../lib/api-client', () => ({
   },
 }));
 
-jest.mock('../../components/analysis-chart', () => ({
+jest.mock('../../../components/analysis-chart', () => ({
   DEFAULT_OVERLAYS: { sma: true, ema: true, rsi: true, macd: true },
   AnalysisChart: ({ loading }: { loading?: boolean }) => (
     <div data-testid="analysis-chart-stub">{loading ? 'loading' : 'ready'}</div>
   ),
 }));
 
-jest.mock('../../lib/auth-token', () => ({
-  getAccessToken: jest.fn(),
-}));
-
 describe('ChartsPage', () => {
-  const replace = jest.fn();
   const symbol = {
     id: 'sym_1',
     ticker: 'AAPL',
@@ -80,8 +73,6 @@ describe('ChartsPage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (useRouter as jest.Mock).mockReturnValue({ replace });
-    (getAccessToken as jest.Mock).mockReturnValue('token');
     (fetchSymbols as jest.Mock).mockResolvedValue([symbol, symbol2]);
     (fetchWatchlists as jest.Mock).mockResolvedValue([watchlist]);
     (fetchSymbolPrices as jest.Mock).mockResolvedValue([
@@ -105,16 +96,12 @@ describe('ChartsPage', () => {
     });
   });
 
-  it('redirects to login when unauthenticated', async () => {
-    (getAccessToken as jest.Mock).mockReturnValue(null);
-    render(<ChartsPage />);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'));
-  });
-
   it('loads symbols and chart data', async () => {
     render(<ChartsPage />);
     expect(screen.getByText('読み込み中…')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByTestId('analysis-chart-stub')).toHaveTextContent('ready'));
+    await waitFor(() =>
+      expect(screen.getByTestId('analysis-chart-stub')).toHaveTextContent('ready'),
+    );
     expect(fetchSymbolPrices).toHaveBeenCalledWith('sym_1', {
       from: '2026-01-01',
       to: '2026-06-30',
@@ -137,9 +124,7 @@ describe('ChartsPage', () => {
   it('shows generic load error for unknown failures', async () => {
     (fetchSymbols as jest.Mock).mockRejectedValue(new Error('boom'));
     render(<ChartsPage />);
-    await waitFor(() =>
-      expect(screen.getByText('読み込みに失敗しました')).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText('読み込みに失敗しました')).toBeInTheDocument());
   });
 
   it('filters symbols by search and switches interval/overlays', async () => {

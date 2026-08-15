@@ -1,12 +1,11 @@
 /**
  * ウォッチリスト画面（クライアント）。
  *
- * 一覧・作成・削除、選択中リストへの銘柄追加／削除を行う。未ログインは /login へ誘導する。
+ * 一覧・作成・削除、選択中リストへの銘柄追加／削除を行う。
+ * 未ログイン誘導は共通レイアウト側。
  */
 'use client';
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState, type CSSProperties } from 'react';
 import type { SymbolDto, WatchlistDto } from '@market/shared-types';
 import {
@@ -17,11 +16,9 @@ import {
   fetchSymbols,
   fetchWatchlists,
   removeWatchlistItem,
-} from '../../lib/api-client';
-import { getAccessToken } from '../../lib/auth-token';
+} from '../../../lib/api-client';
 
 export default function WatchlistsPage() {
-  const router = useRouter();
   const [watchlists, setWatchlists] = useState<WatchlistDto[]>([]);
   const [symbols, setSymbols] = useState<SymbolDto[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -34,11 +31,6 @@ export default function WatchlistsPage() {
   const selected = watchlists.find((w) => w.id === selectedId) ?? null;
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      router.replace('/login');
-      return;
-    }
-
     let cancelled = false;
     void (async () => {
       try {
@@ -63,7 +55,7 @@ export default function WatchlistsPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, []);
 
   async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -128,13 +120,7 @@ export default function WatchlistsPage() {
 
   return (
     <main style={pageStyle}>
-      <h1 style={brandStyle}>market-platform</h1>
-      <p style={leadStyle}>ウォッチリスト</p>
-      <nav style={navStyle}>
-        <Link href="/">トップ</Link>
-        <Link href="/me">プロフィール</Link>
-        <Link href="/portfolios">ポートフォリオ</Link>
-      </nav>
+      <h1 style={titleStyle}>ウォッチリスト</h1>
 
       {loading ? <p style={{ opacity: 0.8 }}>読み込み中…</p> : null}
       {error ? <p style={errorStyle}>{error}</p> : null}
@@ -220,18 +206,13 @@ export default function WatchlistsPage() {
 }
 
 const pageStyle: CSSProperties = {
-  minHeight: '100vh',
-  padding: '3rem 1.5rem',
-  background: 'linear-gradient(160deg, #0f1c2e 0%, #1a334d 45%, #243b55 100%)',
-  color: '#e8eef5',
+  padding: '2rem 1.5rem',
 };
-const brandStyle: CSSProperties = {
-  fontSize: 'clamp(2rem, 5vw, 3rem)',
+const titleStyle: CSSProperties = {
+  fontSize: 'clamp(1.75rem, 4vw, 2.5rem)',
   margin: 0,
   letterSpacing: '-0.03em',
 };
-const leadStyle: CSSProperties = { marginTop: '0.75rem', opacity: 0.9 };
-const navStyle: CSSProperties = { marginTop: '1rem', display: 'flex', gap: '1rem' };
 const sectionStyle: CSSProperties = { marginTop: '2rem', maxWidth: '40rem' };
 const sectionTitleStyle: CSSProperties = { fontSize: '1.1rem', fontWeight: 600 };
 const listStyle: CSSProperties = {

@@ -63,11 +63,11 @@ market-platform/
 
 ### 初期案からの改善点
 
-| 追加 | 理由 |
-|------|------|
-| `packages/database` | Prisma を NestJS 内に閉じ込めず、マイグレーション責務を独立させる。将来の worker / BFF でも同一 Client を再利用しやすい |
-| `docs/adr/` | 「なぜこの境界か」を残し、マイクロサービス化時の判断根拠にする（認証は ADR 001、市場データは ADR 002） |
-| Compose はルート `docker-compose.yml` + `docker/Dockerfile.*` | 開発時の `docker compose up` が最短 |
+| 追加                                                          | 理由                                                                                                                    |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `packages/database`                                           | Prisma を NestJS 内に閉じ込めず、マイグレーション責務を独立させる。将来の worker / BFF でも同一 Client を再利用しやすい |
+| `docs/adr/`                                                   | 「なぜこの境界か」を残し、マイクロサービス化時の判断根拠にする（認証は ADR 001、市場データは ADR 002）                  |
+| Compose はルート `docker-compose.yml` + `docker/Dockerfile.*` | 開発時の `docker compose up` が最短                                                                                     |
 
 ## 各ディレクトリの責務
 
@@ -88,17 +88,17 @@ flowchart LR
   api -.-> types
 ```
 
-| パス | 責務 |
-|------|------|
-| `apps/web` | UI・認証画面・データ表示。ビジネスロジックや DB 直接アクセスは持たない。NestJS API のみを呼ぶ |
-| `apps/api` | ドメイン API（ウォッチリスト、ポートフォリオ、マスタ、通知設定など）。PostgreSQL は Prisma 経由。分析処理は FastAPI に委譲 |
-| `apps/analysis` | テクニカル分析・シグナル・バックテスト・AI 分析。Python 専用。原則 DB 書き込みは NestJS 側に寄せ、分析結果は API レスポンスまたは NestJS 経由で永続化する |
-| `packages/database` | `schema.prisma`、マイグレーション、生成 Client。NestJS が依存する |
-| `packages/shared-types` | TypeScript 間の API 契約・共有型。Python とは OpenAPI / 明示的な JSON スキーマで同期する（無理に型共有しない） |
-| `packages/shared-config` | 共有 `tsconfig`、ESLint、Prettier 設定。アプリ実装は持たない |
-| `docs/` | アーキテクチャ、ADR、ロードマップなど設計の正本。認証は [ADR 001](../adr/001-authentication-jwt.md)、市場データは [ADR 002](../adr/002-market-data-provider.md)、ウォッチリスト/ポートフォリオは [ADR 003](../adr/003-watchlist-portfolio.md)、テクニカル分析は [ADR 004](../adr/004-technical-analysis.md) |
-| `docker/` | 各アプリの Dockerfile |
-| `scripts/` | ローカル初期化、DB 待機などの開発用ユーティリティ（アプリロジックは置かない） |
+| パス                     | 責務                                                                                                                                                                                                                                                                                                        |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web`               | UI・認証画面・データ表示。ビジネスロジックや DB 直接アクセスは持たない。NestJS API のみを呼ぶ                                                                                                                                                                                                               |
+| `apps/api`               | ドメイン API（ウォッチリスト、ポートフォリオ、マスタ、通知設定など）。PostgreSQL は Prisma 経由。分析処理は FastAPI に委譲                                                                                                                                                                                  |
+| `apps/analysis`          | テクニカル分析・シグナル・バックテスト・AI 分析。Python 専用。原則 DB 書き込みは NestJS 側に寄せ、分析結果は API レスポンスまたは NestJS 経由で永続化する                                                                                                                                                   |
+| `packages/database`      | `schema.prisma`、マイグレーション、生成 Client。NestJS が依存する                                                                                                                                                                                                                                           |
+| `packages/shared-types`  | TypeScript 間の API 契約・共有型。Python とは OpenAPI / 明示的な JSON スキーマで同期する（無理に型共有しない）                                                                                                                                                                                              |
+| `packages/shared-config` | 共有 `tsconfig`、ESLint、Prettier 設定。アプリ実装は持たない                                                                                                                                                                                                                                                |
+| `docs/`                  | アーキテクチャ、ADR、ロードマップなど設計の正本。認証は [ADR 001](../adr/001-authentication-jwt.md)、市場データは [ADR 002](../adr/002-market-data-provider.md)、ウォッチリスト/ポートフォリオは [ADR 003](../adr/003-watchlist-portfolio.md)、テクニカル分析は [ADR 004](../adr/004-technical-analysis.md) |
+| `docker/`                | 各アプリの Dockerfile                                                                                                                                                                                                                                                                                       |
+| `scripts/`               | ローカル初期化、DB 待機などの開発用ユーティリティ（アプリロジックは置かない）                                                                                                                                                                                                                               |
 
 ## Turborepo 構成
 
@@ -142,8 +142,8 @@ flowchart LR
 
 ```yaml
 packages:
-  - "apps/*"
-  - "packages/*"
+  - 'apps/*'
+  - 'packages/*'
 ```
 
 ルート `package.json` の想定スクリプト:
@@ -163,12 +163,12 @@ packages:
 
 最小サービス構成:
 
-| サービス | 役割 | 公開ポート（開発） |
-|----------|------|-------------------|
-| `postgres` | PostgreSQL 16 | `5432` |
-| `api` | NestJS | `3001` |
-| `web` | Next.js | `3000` |
-| `analysis` | FastAPI | `8000` |
+| サービス   | 役割          | 公開ポート（開発） |
+| ---------- | ------------- | ------------------ |
+| `postgres` | PostgreSQL 16 | `5432`             |
+| `api`      | NestJS        | `3001`             |
+| `web`      | Next.js       | `3000`             |
+| `analysis` | FastAPI       | `8000`             |
 
 通信:
 
@@ -184,20 +184,20 @@ packages:
 
 ### 整備済み（初期 + Phase 0 + Phase 1）
 
-| ファイル | 内容 |
-|----------|------|
-| `.editorconfig` | TS/Python 共通のインデント・LF |
-| `.gitattributes` | LF 強制・バイナリ定義 |
-| `.prettierignore` | 生成物・venv 除外 |
-| `.gitignore` | モノレポ向け ignore |
-| `package.json` / `pnpm-workspace.yaml` / `turbo.json` | モノレポ基盤（製品バージョン正本はルート `package.json` の `version`） |
-| `prettier.config.mjs` / `.nvmrc` / `.env.example` | 開発設定（JWT 含む） |
-| `docker-compose.yml` / `docker/Dockerfile.*` | コンテナ構成 |
-| `packages/shared-config` | 共有 `tsconfig.base.json` |
-| `packages/database` | Prisma 7 schema / config / Client（User / Symbol / DailyPrice / Watchlist / Portfolio） |
-| `packages/shared-types` | Health / ApiErrorBody / Auth / Market / Watchlist / Portfolio / Analysis DTO |
-| `apps/analysis/pyproject.toml` | FastAPI + uv（Docker）/ pip 可 |
-| `.github/workflows/ci.yml` | lint / typecheck / test |
+| ファイル                                              | 内容                                                                                    |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `.editorconfig`                                       | TS/Python 共通のインデント・LF                                                          |
+| `.gitattributes`                                      | LF 強制・バイナリ定義                                                                   |
+| `.prettierignore`                                     | 生成物・venv 除外                                                                       |
+| `.gitignore`                                          | モノレポ向け ignore                                                                     |
+| `package.json` / `pnpm-workspace.yaml` / `turbo.json` | モノレポ基盤（製品バージョン正本はルート `package.json` の `version`）                  |
+| `prettier.config.mjs` / `.nvmrc` / `.env.example`     | 開発設定（JWT 含む）                                                                    |
+| `docker-compose.yml` / `docker/Dockerfile.*`          | コンテナ構成                                                                            |
+| `packages/shared-config`                              | 共有 `tsconfig.base.json`                                                               |
+| `packages/database`                                   | Prisma 7 schema / config / Client（User / Symbol / DailyPrice / Watchlist / Portfolio） |
+| `packages/shared-types`                               | Health / ApiErrorBody / Auth / Market / Watchlist / Portfolio / Analysis DTO            |
+| `apps/analysis/pyproject.toml`                        | FastAPI + uv（Docker）/ pip 可                                                          |
+| `.github/workflows/ci.yml`                            | lint / typecheck / test                                                                 |
 
 ### 基盤（Phase 1）
 
@@ -226,6 +226,12 @@ packages:
 - **ゲートウェイ**: NestJS が日足を lookback 付きで読み、analysis に委譲して返却（結果は永続化しない）
 - **公開 API**: `GET /symbols/:id/indicators`（JWT。[ADR 004](../adr/004-technical-analysis.md)）
 
+### 認証 UX（v0.2.0 / Phase 1）
+
+- **未ログイン**: `/login`・`/register` 以外は `/login` へ誘導する（トップ `/` を含む）
+- **ログイン後**: 共通ヘッダーに機能メニューとログアウトを置く。ログイン／登録リンクは認証画面同士のみ
+- **方式**: JWT は [ADR 001](../adr/001-authentication-jwt.md) のまま（localStorage + Bearer）。httpOnly Cookie は対象外
+
 ### 後続で追加予定
 
 - ESLint flat config（shared-config への集約）
@@ -236,7 +242,7 @@ ESLint 本体は必要になったタイミングで最小構成で入れる。
 ## 関連ドキュメント
 
 - [ドキュメント索引](../README.md)
-- [開発ロードマップ](../roadmap/README.md)（現行: [v0.1.0](../roadmap/v0/v0.1/v0.1.0.md)）
+- [開発ロードマップ](../roadmap/README.md)（現行: [v0.2.0](../roadmap/v0/v0.2/v0.2.0.md)）
 - [ADR 001: JWT 認証](../adr/001-authentication-jwt.md)
 - [ADR 002: 市場データプロバイダ](../adr/002-market-data-provider.md)
 - [ADR 003: ウォッチリスト / ポートフォリオ](../adr/003-watchlist-portfolio.md)

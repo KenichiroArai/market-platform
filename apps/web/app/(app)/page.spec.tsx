@@ -3,9 +3,9 @@
  */
 import { render, screen } from '@testing-library/react';
 import HomePage from './page';
-import { fetchApiHealth } from '../lib/fetch-api-health';
+import { fetchApiHealth } from '../../lib/fetch-api-health';
 
-jest.mock('../lib/fetch-api-health', () => ({
+jest.mock('../../lib/fetch-api-health', () => ({
   fetchApiHealth: jest.fn(),
 }));
 
@@ -33,6 +33,9 @@ describe('HomePage', () => {
 
     expect(screen.getByRole('heading', { name: 'market-platform' })).toBeInTheDocument();
     expect(screen.getByText(/"database": "up"/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'ログイン' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '登録' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'ウォッチリスト' })).not.toBeInTheDocument();
   });
 
   it('renders connection error when health is unavailable', async () => {

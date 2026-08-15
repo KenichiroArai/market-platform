@@ -1,50 +1,21 @@
 /**
- * トップページ（Phase 1）。
+ * トップページ（ログイン後）。
  *
- * プロダクト名をヒーロー級で示し、API ヘルスと認証導線を表示する。
+ * プロダクト名と API ヘルスを示す。機能への導線は共通ヘッダーに集約する。
  */
-import Link from 'next/link';
-import { fetchApiHealth } from '../lib/fetch-api-health';
+import { fetchApiHealth } from '../../lib/fetch-api-health';
 
 export default async function HomePage() {
   // サーバー側で取得。失敗してもページ全体は 200 で返す
   const health = await fetchApiHealth();
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        padding: '3rem 1.5rem',
-        // フラット単色を避け、第一画面にわずかな奥行きを出す
-        background: 'linear-gradient(160deg, #0f1c2e 0%, #1a334d 45%, #243b55 100%)',
-        color: '#e8eef5',
-      }}
-    >
+    <main style={{ padding: '2rem 1.5rem' }}>
       <h1 style={{ fontSize: 'clamp(2.5rem, 6vw, 4rem)', margin: 0, letterSpacing: '-0.03em' }}>
         market-platform
       </h1>
       <p style={{ marginTop: '1rem', maxWidth: '36rem', lineHeight: 1.6, opacity: 0.9 }}>
         株式・ETF・指数などの市場データと分析基盤のモノレポです。チャート分析ではローソク足とテクニカル指標を一体で確認できます。
-      </p>
-      <p style={{ marginTop: '1.25rem', display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
-        <Link href="/login" style={{ color: '#e8eef5' }}>
-          ログイン
-        </Link>
-        <Link href="/register" style={{ color: '#e8eef5' }}>
-          登録
-        </Link>
-        <Link href="/watchlists" style={{ color: '#e8eef5' }}>
-          ウォッチリスト
-        </Link>
-        <Link href="/portfolios" style={{ color: '#e8eef5' }}>
-          ポートフォリオ
-        </Link>
-        <Link href="/backtests" style={{ color: '#e8eef5' }}>
-          Signals / Backtest
-        </Link>
-        <Link href="/charts" style={{ color: '#e8eef5' }}>
-          チャート分析
-        </Link>
       </p>
       <section style={{ marginTop: '2.5rem' }}>
         <h2 style={{ fontSize: '1.1rem', fontWeight: 600 }}>API health</h2>

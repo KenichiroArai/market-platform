@@ -1,15 +1,16 @@
 /**
  * ユーザー登録画面（クライアント）。
  *
- * 成功時は JWT を保存し /me へ遷移する。
+ * 成功時は JWT を保存し、アプリ本体（/）へ進む。
+ * ログインへのリンクだけ残し、機能メニューは出さない。
  */
 'use client';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState, type CSSProperties } from 'react';
-import { ApiClientError, registerUser } from '../../lib/api-client';
-import { setAccessToken } from '../../lib/auth-token';
+import { ApiClientError, registerUser } from '../../../lib/api-client';
+import { setAccessToken } from '../../../lib/auth-token';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function RegisterPage() {
     try {
       const result = await registerUser({ email, password });
       setAccessToken(result.accessToken);
-      router.push('/me');
+      router.push('/');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : '登録に失敗しました');
     } finally {

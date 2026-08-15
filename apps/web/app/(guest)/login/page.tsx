@@ -1,15 +1,16 @@
 /**
  * ログイン画面（クライアント）。
  *
- * 成功時は JWT を localStorage に保存し /me へ遷移する。
+ * 成功時は JWT を localStorage に保存し、アプリ本体（/）へ進む。
+ * 登録へのリンクだけ残し、機能メニューは出さない。
  */
 'use client';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState, type CSSProperties } from 'react';
-import { ApiClientError, loginUser } from '../../lib/api-client';
-import { setAccessToken } from '../../lib/auth-token';
+import { ApiClientError, loginUser } from '../../../lib/api-client';
+import { setAccessToken } from '../../../lib/auth-token';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function LoginPage() {
     try {
       const result = await loginUser({ email, password });
       setAccessToken(result.accessToken);
-      router.push('/me');
+      router.push('/');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'ログインに失敗しました');
     } finally {
