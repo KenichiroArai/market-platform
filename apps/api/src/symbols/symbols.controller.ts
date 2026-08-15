@@ -81,7 +81,7 @@ export class SymbolsController {
     });
   }
 
-  /** 銘柄作成。 */
+  /** 銘柄作成。ティッカーと市場だけ受け、メタデータは quote で補完する。 */
   @Post()
   @ApiOkResponse({ description: 'Created symbol' })
   create(@Body() dto: CreateSymbolDto): Promise<SymbolDto> {

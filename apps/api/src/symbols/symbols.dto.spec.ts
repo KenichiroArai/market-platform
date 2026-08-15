@@ -10,8 +10,6 @@ describe('market DTOs', () => {
     const create = new CreateSymbolDto();
     create.ticker = 'AAPL';
     create.market = 'US';
-    create.name = 'Apple';
-    create.currency = 'USD';
     expect(create.ticker).toBe('AAPL');
 
     const update = new UpdateSymbolDto();

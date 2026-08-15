@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { PriceSyncService } from '../market-data/price-sync.service';
 import { PrismaService } from '../prisma.service';
 import { PricesService } from './prices.service';
 
@@ -11,12 +12,20 @@ describe('PricesService', () => {
       dailyPrice: dailyPriceDelegate,
     },
   } as unknown as PrismaService;
+  const priceSyncService = {
+    syncPrices: jest.fn(),
+  } as unknown as PriceSyncService;
 
   let service: PricesService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new PricesService(prismaService);
+    (priceSyncService.syncPrices as jest.Mock).mockResolvedValue({
+      processedSymbols: 1,
+      upsertedBars: 0,
+      failures: [],
+    });
+    service = new PricesService(prismaService, priceSyncService);
   });
 
   it('lists prices for an existing symbol', async () => {
@@ -42,12 +51,18 @@ describe('PricesService', () => {
     });
     expect(result).toHaveLength(1);
     expect(result[0]?.close).toBe(1.5);
+    expect(priceSyncService.syncPrices).toHaveBeenCalledWith({
+      symbolIds: ['s1'],
+      from: '2026-01-01',
+      to: '2026-01-31',
+    });
   });
 
   it('lists without date range', async () => {
     symbolDelegate.findUnique.mockResolvedValue({ id: 's1' });
     dailyPriceDelegate.findMany.mockResolvedValue([]);
     await service.listBySymbolId('s1');
+    expect(priceSyncService.syncPrices).not.toHaveBeenCalled();
     expect(dailyPriceDelegate.findMany).toHaveBeenCalledWith({
       where: {
         symbolId: 's1',
@@ -311,5 +326,58 @@ describe('PricesService', () => {
     });
     expect(result.bars).toHaveLength(1);
     expect(result.rangeStartIndex).toBe(1);
+  });
+
+  it('ensures coverage with default from/to ends and skips inverted ranges', async () => {
+    symbolDelegate.findUnique.mockResolvedValue({ id: 's1' });
+    dailyPriceDelegate.findMany.mockResolvedValue([]);
+
+    await service.listBySymbolId('s1', { from: '2026-01-01' });
+    expect(priceSyncService.syncPrices).toHaveBeenCalledWith({
+      symbolIds: ['s1'],
+      from: '2026-01-01',
+      to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    });
+
+    (priceSyncService.syncPrices as jest.Mock).mockClear();
+    await service.listBySymbolId('s1', { to: '2099-12-31' });
+    expect(priceSyncService.syncPrices).toHaveBeenCalledWith({
+      symbolIds: ['s1'],
+      from: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      to: '2099-12-31',
+    });
+
+    (priceSyncService.syncPrices as jest.Mock).mockClear();
+    await service.listBySymbolId('s1', { from: '2026-06-01', to: '2026-01-01' });
+    expect(priceSyncService.syncPrices).not.toHaveBeenCalled();
+  });
+
+  it('shifts ensure from by lookback days for indicator warmup', async () => {
+    symbolDelegate.findUnique.mockResolvedValue({ id: 's1' });
+    dailyPriceDelegate.findMany.mockResolvedValue([]);
+
+    await service.listWithLookback('s1', {
+      from: '2026-01-10',
+      to: '2026-01-31',
+      lookback: 5,
+    });
+    expect(priceSyncService.syncPrices).toHaveBeenCalledWith({
+      symbolIds: ['s1'],
+      from: '2026-01-05',
+      to: '2026-01-31',
+    });
+
+    (priceSyncService.syncPrices as jest.Mock).mockClear();
+    await service.listWithLookback('s1', {
+      from: '2026-01-10',
+      to: '2026-01-31',
+      lookback: 1,
+      interval: '1w',
+    });
+    expect(priceSyncService.syncPrices).toHaveBeenCalledWith({
+      symbolIds: ['s1'],
+      from: '2026-01-03',
+      to: '2026-01-31',
+    });
   });
 });

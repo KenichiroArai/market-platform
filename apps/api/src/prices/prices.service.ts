@@ -1,8 +1,8 @@
 /**
  * 日足価格の参照サービス。
  *
- * 書き込みは PriceSyncService（外部取得ジョブ）に寄せ、ここは読み取り専用。
- * テクニカル分析用には lookback 付き取得も提供する。
+ * 永続化（upsert）は PriceSyncService に寄せる。期間付き読み取りでは
+ * 不足期間の差分取得を先に依頼してから SELECT する。
  * 週足は DB に持たず、日足取得後に集約する（ADR 005）。
  */
 import { Injectable, NotFoundException } from '@nestjs/common';
@@ -13,9 +13,13 @@ import {
   type DailyPriceDto,
 } from '@market/shared-types';
 import {
+  addDays,
+  lookbackFromDate,
   parseDateOnly,
   toDailyPriceDto,
+  todayDateOnly,
 } from '../market-data/market-data.mapper';
+import { PriceSyncService, resolveLookbackDays } from '../market-data/price-sync.service';
 import { PrismaService } from '../prisma.service';
 
 /** 週足 lookback 用: 1 週あたりの概算取引日数（余裕込み）。 */
@@ -23,18 +27,23 @@ const TRADING_DAYS_PER_WEEK = 5;
 
 @Injectable()
 export class PricesService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly priceSyncService: PriceSyncService,
+  ) {}
 
   /**
    * 銘柄 ID に紐づく価格を期間・足種フィルタ付きで返す。
    * interval=1w のときは日足取得後に週集約する。
    * 銘柄が無ければ SYMBOL_NOT_FOUND。
+   * from / to があるときは不足期間を差分取得してから返す。
    */
   async listBySymbolId(
     symbolId: string,
     range?: { from?: string; to?: string; interval?: ChartInterval },
   ): Promise<DailyPriceDto[]> {
     await this.assertSymbolExists(symbolId);
+    await this.ensureCoverage(symbolId, { from: range?.from, to: range?.to });
 
     const interval = range?.interval ?? '1d';
     const rows = await this.prismaService.prisma.dailyPrice.findMany({
@@ -72,6 +81,14 @@ export class PricesService {
     },
   ): Promise<{ bars: DailyPriceDto[]; rangeStartIndex: number }> {
     const interval = options.interval ?? '1d';
+    // 指標ウォームアップ用に from を lookback 分だけ前倒しして不足期間を埋める
+    const extraLookbackDays = interval === '1w' ? options.lookback * 7 : options.lookback;
+    await this.assertSymbolExists(symbolId);
+    await this.ensureCoverage(symbolId, {
+      from: options.from,
+      to: options.to,
+      extraLookbackDays,
+    });
     if (interval === '1w') {
       return this.listWeeklyWithLookback(symbolId, options);
     }
@@ -209,5 +226,29 @@ export class PricesService {
         message: 'Symbol not found',
       });
     }
+  }
+
+  /**
+   * 期間指定があるときだけ差分同期を先に走らせる。
+   * from/to の欠けは lookback〜今日で埋め、lookback 付き取得では from をさらに前倒しする。
+   */
+  private async ensureCoverage(
+    symbolId: string,
+    range?: { from?: string; to?: string; extraLookbackDays?: number },
+  ): Promise<void> {
+    if (!range?.from && !range?.to) {
+      return;
+    }
+
+    const lookbackDays = resolveLookbackDays(process.env.MARKET_DATA_LOOKBACK_DAYS);
+    const fromBase = range.from ?? lookbackFromDate(lookbackDays);
+    const extra = range.extraLookbackDays ?? 0;
+    const from = extra > 0 ? addDays(fromBase, -extra) : fromBase;
+    const to = range.to ?? todayDateOnly();
+    if (from > to) {
+      return;
+    }
+
+    await this.priceSyncService.syncPrices({ symbolIds: [symbolId], from, to });
   }
 }

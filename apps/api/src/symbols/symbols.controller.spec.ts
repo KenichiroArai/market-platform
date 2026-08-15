@@ -62,8 +62,6 @@ describe('SymbolsController', () => {
       controller.create({
         ticker: 'AAPL',
         market: 'US',
-        name: 'Apple',
-        currency: 'USD',
       }),
     ).resolves.toEqual({ id: 's1' });
     await expect(controller.update('s1', { isActive: false })).resolves.toEqual({ id: 's1' });

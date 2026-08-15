@@ -21,4 +21,20 @@ describe('StubMarketDataProvider', () => {
     const second = await provider.fetchDailyBars('7203.T', '2026-02-01', '2026-02-01');
     expect(first).toEqual(second);
   });
+
+  it('returns US quote metadata for non-.T tickers', async () => {
+    await expect(provider.fetchQuote('AAPL')).resolves.toEqual({
+      name: 'Stub AAPL',
+      currency: 'USD',
+      exchange: 'NASDAQ',
+    });
+  });
+
+  it('returns JP quote metadata for .T tickers', async () => {
+    await expect(provider.fetchQuote('7203.t')).resolves.toEqual({
+      name: 'Stub 7203.t',
+      currency: 'JPY',
+      exchange: 'TSE',
+    });
+  });
 });

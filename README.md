@@ -96,9 +96,10 @@ pnpm dev
 
 市場データ（Phase 2、いずれも Bearer 必須）:
 
-- 銘柄: `GET|POST /symbols` / `GET|PATCH /symbols/:id`
-- 日足: `GET /symbols/:id/prices?from=&to=`
-- 価格同期: `POST /market-data/jobs/sync-prices`
+- 銘柄: `GET|POST /symbols` / `GET|PATCH /symbols/:id` / 画面 http://localhost:3000/symbols
+- 追加: `POST /symbols` はティッカー + 市場のみ。名称・通貨・取引所は Yahoo quote で補完
+- 日足: `GET /symbols/:id/prices?from=&to=`（期間指定時は不足期間を差分取得してから返す）
+- 価格同期: `POST /market-data/jobs/sync-prices`（保存済み min より前・max より後のみ取得）
 - シード: `pnpm db:seed`（代表的な US/JP 銘柄）
 
 ウォッチリスト / ポートフォリオ（Phase 3、Bearer 必須）:

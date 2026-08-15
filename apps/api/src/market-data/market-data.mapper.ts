@@ -108,3 +108,13 @@ export function todayDateOnly(now = new Date()): string {
     new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())),
   );
 }
+
+/**
+ * YYYY-MM-DD に日数を足す（負なら戻す）。
+ * 差分同期で min-1 / max+1 を計算するために使う。
+ */
+export function addDays(dateOnly: string, days: number): string {
+  const date = parseDateOnly(dateOnly);
+  date.setUTCDate(date.getUTCDate() + days);
+  return formatDateOnly(date);
+}

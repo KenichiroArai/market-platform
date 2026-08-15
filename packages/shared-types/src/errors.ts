@@ -19,6 +19,8 @@ export const API_ERROR_CODES = {
   SYMBOL_NOT_FOUND: 'SYMBOL_NOT_FOUND',
   /** 銘柄の ticker+market が既に存在する */
   SYMBOL_ALREADY_EXISTS: 'SYMBOL_ALREADY_EXISTS',
+  /** プロバイダから銘柄メタデータ（quote）を取得できない */
+  SYMBOL_QUOTE_NOT_FOUND: 'SYMBOL_QUOTE_NOT_FOUND',
   /** ウォッチリストが見つからない（他人所有も含む） */
   WATCHLIST_NOT_FOUND: 'WATCHLIST_NOT_FOUND',
   /** ウォッチリスト内の銘柄行が見つからない */

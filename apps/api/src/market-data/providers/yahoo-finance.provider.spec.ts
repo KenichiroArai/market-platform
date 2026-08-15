@@ -1,8 +1,10 @@
 const chartMock = jest.fn();
+const quoteMock = jest.fn();
 
 jest.mock('yahoo-finance2', () =>
   jest.fn().mockImplementation(() => ({
     chart: chartMock,
+    quote: quoteMock,
   })),
 );
 
@@ -11,6 +13,7 @@ import { YahooFinanceProvider } from './yahoo-finance.provider';
 describe('YahooFinanceProvider', () => {
   beforeEach(() => {
     chartMock.mockReset();
+    quoteMock.mockReset();
   });
 
   it('maps chart quotes to DailyBar and skips incomplete rows', async () => {
@@ -111,5 +114,63 @@ describe('YahooFinanceProvider', () => {
     });
     expect(bars).toHaveLength(1);
     expect(bars[0]?.close).toBe(1.5);
+  });
+
+  it('maps quote preferring shortName and fullExchangeName', async () => {
+    quoteMock.mockResolvedValue({
+      shortName: 'Apple Inc.',
+      longName: 'Apple Inc. Long',
+      displayName: 'Apple',
+      currency: 'USD',
+      fullExchangeName: 'NasdaqGS',
+      exchange: 'NMS',
+    });
+
+    const provider = new YahooFinanceProvider();
+    await expect(provider.fetchQuote('AAPL')).resolves.toEqual({
+      name: 'Apple Inc.',
+      currency: 'USD',
+      exchange: 'NasdaqGS',
+    });
+  });
+
+  it('falls back through name and exchange fields', async () => {
+    quoteMock
+      .mockResolvedValueOnce({
+        shortName: '  ',
+        longName: 'Toyota Motor',
+        currency: 'JPY',
+        exchange: 'JPX',
+      })
+      .mockResolvedValueOnce({
+        displayName: 'Sony',
+        currency: 'JPY',
+      })
+      .mockResolvedValueOnce({
+        currency: 'USD',
+      });
+
+    const provider = new YahooFinanceProvider();
+    await expect(provider.fetchQuote('7203.T')).resolves.toEqual({
+      name: 'Toyota Motor',
+      currency: 'JPY',
+      exchange: 'JPX',
+    });
+    await expect(provider.fetchQuote('6758.T')).resolves.toEqual({
+      name: 'Sony',
+      currency: 'JPY',
+      exchange: null,
+    });
+    await expect(provider.fetchQuote('MSFT')).resolves.toEqual({
+      name: 'MSFT',
+      currency: 'USD',
+      exchange: null,
+    });
+  });
+
+  it('throws when quote has no currency', async () => {
+    quoteMock.mockResolvedValue({ shortName: 'X', currency: null });
+    const provider = new YahooFinanceProvider();
+    await expect(provider.fetchQuote('X')).rejects.toThrow('Yahoo quote missing currency for X');
   });
 });

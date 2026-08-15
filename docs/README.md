@@ -14,7 +14,7 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
 | [architecture/overview.md](architecture/overview.md)               | ディレクトリ構成、責務、通信、Turborepo、pnpm、Docker Compose、設定ファイル一覧 |
 | [roadmap/](roadmap/README.md)                                      | バージョン別ロードマップの索引                                                  |
-| [roadmap/v0/v0.2/v0.2.0.md](roadmap/v0/v0.2/v0.2.0.md)             | 現行ロードマップ（Phase 1: 認証 UX）                                            |
+| [roadmap/v0/v0.2/v0.2.0.md](roadmap/v0/v0.2/v0.2.0.md)             | 現行ロードマップ（Phase 1: 認証 UX / Phase 2: 銘柄追加）                        |
 | [adr/001-authentication-jwt.md](adr/001-authentication-jwt.md)     | 認証方針（JWT + メール/パスワード）                                             |
 | [adr/002-market-data-provider.md](adr/002-market-data-provider.md) | 市場データ取得（Provider 抽象 + Yahoo / Stub）                                  |
 | [adr/003-watchlist-portfolio.md](adr/003-watchlist-portfolio.md)   | ウォッチリスト / ポートフォリオ（複数・日足終値集計）                           |

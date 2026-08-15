@@ -1,13 +1,13 @@
 /**
- * Yahoo Finance 経由の日足取得プロバイダ。
+ * Yahoo Finance 経由の日足・銘柄メタデータ取得プロバイダ。
  *
- * yahoo-finance2 の chart API を使い、quotes を DailyBar に正規化する。
+ * yahoo-finance2 の chart（日足）と quote（名称・通貨・取引所）を使う。
  * コンストラクタ引数は持たない（Nest DI が optional 引数を依存として解釈するため）。
  * 単体テストでは yahoo-finance2 モジュールを mock する。
  */
 import { Injectable, Logger } from '@nestjs/common';
 import YahooFinance from 'yahoo-finance2';
-import type { DailyBar, MarketDataProvider } from './market-data.provider';
+import type { DailyBar, MarketDataProvider, SymbolQuote } from './market-data.provider';
 
 /** chart 応答の最小形（テストの mock と揃える）。 */
 type YahooChartResult = {
@@ -19,6 +19,16 @@ type YahooChartResult = {
     close: number | null;
     volume: number | null;
   }>;
+};
+
+/** quote 応答の最小形。名称は複数フィールドのどれかが入る。 */
+type YahooQuoteResult = {
+  shortName?: string | null;
+  longName?: string | null;
+  displayName?: string | null;
+  currency?: string | null;
+  fullExchangeName?: string | null;
+  exchange?: string | null;
 };
 
 @Injectable()
@@ -62,6 +72,41 @@ export class YahooFinanceProvider implements MarketDataProvider {
 
     return bars;
   }
+
+  /**
+   * Yahoo quote から名称・通貨・取引所を返す。
+   * 名称は shortName → longName → displayName → ティッカーの順。
+   * 通貨が無い場合は呼び出し側で銘柄未検出として扱う。
+   */
+  async fetchQuote(ticker: string): Promise<SymbolQuote> {
+    this.logger.debug(`Fetching Yahoo quote: ${ticker}`);
+    const result = (await this.client.quote(ticker)) as YahooQuoteResult;
+    const name =
+      firstNonEmpty(result.shortName) ??
+      firstNonEmpty(result.longName) ??
+      firstNonEmpty(result.displayName) ??
+      ticker;
+    const currency = firstNonEmpty(result.currency);
+    if (!currency) {
+      throw new Error(`Yahoo quote missing currency for ${ticker}`);
+    }
+
+    return {
+      name,
+      currency,
+      exchange:
+        firstNonEmpty(result.fullExchangeName) ?? firstNonEmpty(result.exchange) ?? null,
+    };
+  }
+}
+
+/** 空白のみの文字列は未設定として扱う。 */
+function firstNonEmpty(value: string | null | undefined): string | undefined {
+  if (value == null) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 /** YYYY-MM-DD の翌日を返す。 */

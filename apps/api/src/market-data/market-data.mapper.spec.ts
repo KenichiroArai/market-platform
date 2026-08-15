@@ -5,6 +5,7 @@ import {
   toDailyPriceDto,
   toSymbolDto,
   todayDateOnly,
+  addDays,
 } from './market-data.mapper';
 
 describe('market-data.mapper', () => {
@@ -73,5 +74,10 @@ describe('market-data.mapper', () => {
     const now = new Date('2026-01-31T15:00:00.000Z');
     expect(todayDateOnly(now)).toBe('2026-01-31');
     expect(lookbackFromDate(10, now)).toBe('2026-01-21');
+  });
+
+  it('adds and subtracts calendar days in UTC', () => {
+    expect(addDays('2026-01-01', 1)).toBe('2026-01-02');
+    expect(addDays('2026-01-01', -1)).toBe('2025-12-31');
   });
 });

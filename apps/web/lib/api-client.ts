@@ -26,6 +26,7 @@ import {
   type SignalDefinitionDto,
   type SignalStrategyParams,
   type SignalStrategyType,
+  type CreateSymbolRequest,
   type SymbolDto,
   type WatchlistDto,
 } from '@market/shared-types';
@@ -145,6 +146,22 @@ export async function fetchCurrentUser(fetchImpl?: typeof fetch): Promise<AuthUs
 export async function fetchSymbols(fetchImpl?: typeof fetch): Promise<SymbolDto[]> {
   const result = await apiFetch<unknown>('/symbols', { method: 'GET' }, fetchImpl);
   return assertArray(result, isSymbolDto, 'symbols');
+}
+
+/** POST /symbols（ティッカー + 市場。メタデータはサーバが quote で補完する） */
+export async function createSymbol(
+  body: CreateSymbolRequest,
+  fetchImpl?: typeof fetch,
+): Promise<SymbolDto> {
+  const result = await apiFetch<unknown>(
+    '/symbols',
+    { method: 'POST', body: JSON.stringify(body) },
+    fetchImpl,
+  );
+  if (!isSymbolDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected create symbol response', result);
+  }
+  return result;
 }
 
 /**

@@ -16,6 +16,7 @@ import {
   fetchSymbolPrices,
   fetchSymbolIndicators,
   fetchSymbols,
+  createSymbol,
   fetchWatchlists,
   loginUser,
   registerUser,
@@ -201,6 +202,9 @@ describe('api-client', () => {
     await expect(
       fetchSymbols(okJson([symbol]) as unknown as typeof fetch),
     ).resolves.toEqual([symbol]);
+    await expect(
+      createSymbol({ ticker: 'AAPL', market: 'US' }, okJson(symbol) as unknown as typeof fetch),
+    ).resolves.toEqual(symbol);
     await expect(
       fetchWatchlists(okJson([watchlist]) as unknown as typeof fetch),
     ).resolves.toEqual([watchlist]);
@@ -401,6 +405,12 @@ describe('api-client', () => {
   it('rejects invalid list and entity responses', async () => {
     await expect(
       fetchSymbols(okJson([{ id: 1 }]) as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      createSymbol(
+        { ticker: 'AAPL', market: 'US' },
+        okJson({ id: 1 }) as unknown as typeof fetch,
+      ),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     await expect(
       createWatchlist('x', okJson({ id: 1 }) as unknown as typeof fetch),

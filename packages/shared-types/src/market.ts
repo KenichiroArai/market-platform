@@ -21,14 +21,13 @@ export interface SymbolDto {
   updatedAt: string;
 }
 
-/** 銘柄作成リクエスト。 */
+/**
+ * 銘柄作成リクエスト。
+ * 名称・通貨・取引所はサーバが quote で補完するため送らない。
+ */
 export interface CreateSymbolRequest {
   ticker: string;
   market: Market;
-  name: string;
-  currency: string;
-  exchange?: string | null;
-  isActive?: boolean;
 }
 
 /** 銘柄更新リクエスト（部分更新）。 */

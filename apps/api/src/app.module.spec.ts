@@ -43,7 +43,7 @@ describe('AppModule', () => {
           $queryRaw: jest.fn(),
           user: { findUnique: jest.fn() },
           symbol: { findMany: jest.fn(), findUnique: jest.fn() },
-          dailyPrice: { findMany: jest.fn(), findFirst: jest.fn(), upsert: jest.fn() },
+          dailyPrice: { findMany: jest.fn(), findFirst: jest.fn(), upsert: jest.fn(), aggregate: jest.fn() },
           watchlist: { findMany: jest.fn(), findFirst: jest.fn() },
           watchlistItem: { findUnique: jest.fn(), findFirst: jest.fn() },
           portfolio: { findMany: jest.fn(), findFirst: jest.fn() },
@@ -53,7 +53,7 @@ describe('AppModule', () => {
         onModuleDestroy: jest.fn(),
       })
       .overrideProvider(YahooFinanceProvider)
-      .useValue({ fetchDailyBars: jest.fn() })
+      .useValue({ fetchDailyBars: jest.fn(), fetchQuote: jest.fn() })
       .compile();
 
     expect(moduleRef.get(HealthController)).toBeDefined();

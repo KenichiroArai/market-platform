@@ -12,6 +12,7 @@ import type { CSSProperties } from 'react';
 /** ヘッダーに出す機能メニュー。URL はルートグループを使っても変わらない。 */
 export const APP_NAV_ITEMS = [
   { href: '/', label: 'トップ' },
+  { href: '/symbols', label: '銘柄' },
   { href: '/watchlists', label: 'ウォッチリスト' },
   { href: '/portfolios', label: 'ポートフォリオ' },
   { href: '/backtests', label: 'Signals / Backtest' },

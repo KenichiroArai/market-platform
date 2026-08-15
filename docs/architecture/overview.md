@@ -212,6 +212,7 @@ packages:
 - **取得**: `MarketDataProvider` 抽象 + Yahoo / Stub（[ADR 002](../adr/002-market-data-provider.md)）
 - **ジョブ**: `@nestjs/schedule` 日次 cron + `POST /market-data/jobs/sync-prices`
 - **API**: `GET|POST|PATCH /symbols`、`GET /symbols/:id/prices`
+- **差分同期（v0.2.0）**: 保存済み min より前・max より後のみ取得。期間付き GET でも不足期間を補完
 
 ### ウォッチリスト / ポートフォリオ（Phase 3）
 
@@ -231,6 +232,12 @@ packages:
 - **未ログイン**: `/login`・`/register` 以外は `/login` へ誘導する（トップ `/` を含む）
 - **ログイン後**: 共通ヘッダーに機能メニューとログアウトを置く。ログイン／登録リンクは認証画面同士のみ
 - **方式**: JWT は [ADR 001](../adr/001-authentication-jwt.md) のまま（localStorage + Bearer）。httpOnly Cookie は対象外
+
+### 銘柄追加（v0.2.0 / Phase 2）
+
+- **入力**: ティッカー + 市場（US/JP）。名称・通貨・取引所は Yahoo / Stub の `fetchQuote`
+- **Web**: `/symbols`（共通ヘッダーの「銘柄」）
+- **日足**: `DailyPrice` の最小日より前・最大日より後だけ取得（[ADR 002](../adr/002-market-data-provider.md)）
 
 ### 後続で追加予定
 

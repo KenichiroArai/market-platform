@@ -5,7 +5,7 @@
  * ティッカー文字列と日付からハッシュ風のシードを作り、再現可能な価格列を生成する。
  */
 import { Injectable } from '@nestjs/common';
-import type { DailyBar, MarketDataProvider } from './market-data.provider';
+import type { DailyBar, MarketDataProvider, SymbolQuote } from './market-data.provider';
 
 @Injectable()
 export class StubMarketDataProvider implements MarketDataProvider {
@@ -34,6 +34,19 @@ export class StubMarketDataProvider implements MarketDataProvider {
     }
 
     return bars;
+  }
+
+  /**
+   * ティッカーから決定論的なメタデータを返す。
+   * `.T` 終わりは JP（JPY / TSE）、それ以外は US（USD / NASDAQ）とみなす。
+   */
+  async fetchQuote(ticker: string): Promise<SymbolQuote> {
+    const isJp = ticker.toUpperCase().endsWith('.T');
+    return {
+      name: `Stub ${ticker}`,
+      currency: isJp ? 'JPY' : 'USD',
+      exchange: isJp ? 'TSE' : 'NASDAQ',
+    };
   }
 }
 
