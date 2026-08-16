@@ -2,6 +2,21 @@ import { BadGatewayException, UnprocessableEntityException } from '@nestjs/commo
 import { PricesService } from '../prices/prices.service';
 import { IndicatorsService } from './indicators.service';
 
+function makeBars(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `p${i}`,
+    symbolId: 's1',
+    date: `2026-01-${String(i + 1).padStart(2, '0')}`,
+    open: 1,
+    high: 1,
+    low: 1,
+    close: i + 1,
+    volume: 0,
+    createdAt: '',
+    updatedAt: '',
+  }));
+}
+
 describe('IndicatorsService', () => {
   const pricesService = {
     listWithLookback: jest.fn(),
@@ -26,53 +41,33 @@ describe('IndicatorsService', () => {
     }
   });
 
-  it('builds default specs and custom periods', () => {
-    expect(service.buildSpecs({})).toEqual([
-      { type: 'sma', period: 20 },
-      { type: 'ema', period: 50 },
-      { type: 'rsi', period: 14 },
-      { type: 'macd', fast: 12, slow: 26, signal: 9 },
+  it('parses catalog ids and rejects unknowns / elliott / empty', () => {
+    expect(service.parseCatalogIds(undefined)).toEqual([
+      'sma25',
+      'sma75',
+      'sma200',
+      'macd',
+      'ichimoku',
+      'rsi',
+      'bb',
+      'obv',
     ]);
-    expect(
-      service.buildSpecs({
-        indicators: 'sma,macd',
-        smaPeriod: 10,
-        macdFast: 8,
-        macdSlow: 17,
-        macdSignal: 5,
-      }),
-    ).toEqual([
-      { type: 'sma', period: 10 },
-      { type: 'macd', fast: 8, slow: 17, signal: 5 },
-    ]);
+    expect(service.parseCatalogIds(' sma25 , macd ')).toEqual(['sma25', 'macd']);
+    expect(service.parseCatalogIds('sma25,sma25')).toEqual(['sma25']);
+    expect(() => service.parseCatalogIds('nope')).toThrow(UnprocessableEntityException);
+    expect(() => service.parseCatalogIds('elliott')).toThrow(UnprocessableEntityException);
+    expect(() => service.parseCatalogIds(' , ')).toThrow(UnprocessableEntityException);
   });
 
-  it('parses indicator types and rejects unknowns', () => {
-    expect(service.parseIndicatorTypes(undefined)).toEqual([
-      'sma',
-      'ema',
-      'rsi',
-      'macd',
-    ]);
-    expect(service.parseIndicatorTypes(' sma , ema ')).toEqual(['sma', 'ema']);
-    expect(service.parseIndicatorTypes('sma,sma')).toEqual(['sma']);
-    expect(() => service.parseIndicatorTypes('bb')).toThrow(UnprocessableEntityException);
-    expect(() => service.parseIndicatorTypes(' , ')).toThrow(UnprocessableEntityException);
+  it('skips analysis when only volume is requested', async () => {
+    const result = await service.getForSymbol('s1', { indicators: 'volume' });
+    expect(result.points).toEqual([]);
+    expect(pricesService.listWithLookback).not.toHaveBeenCalled();
+    expect(global.fetch).toBe(originalFetch);
   });
 
   it('returns trimmed indicator points from analysis', async () => {
-    const bars = Array.from({ length: 21 }, (_, i) => ({
-      id: `p${i}`,
-      symbolId: 's1',
-      date: `2026-01-${String(i + 1).padStart(2, '0')}`,
-      open: 1,
-      high: 1,
-      low: 1,
-      close: i + 1,
-      volume: 0,
-      createdAt: '',
-      updatedAt: '',
-    }));
+    const bars = makeBars(26);
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
       bars,
       rangeStartIndex: 1,
@@ -81,22 +76,32 @@ describe('IndicatorsService', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        indicators: [{ type: 'sma', period: 20 }],
+        indicators: [{ id: 'sma25', type: 'sma', params: { period: 25 } }],
         points: bars.map((bar, index) => ({
           date: bar.date,
-          sma: index < 19 ? null : 10,
+          values: { sma25: index < 24 ? null : 10 },
         })),
+        drawings: {
+          fibonacci: {
+            high: 2,
+            low: 1,
+            highDate: '2026-01-02',
+            lowDate: '2026-01-01',
+            levels: [{ ratio: 0.5, price: 1.5 }],
+          },
+        },
       }),
     }) as unknown as typeof fetch;
 
-    const result = await service.getForSymbol('s1', { indicators: 'sma' });
+    const result = await service.getForSymbol('s1', { indicators: 'sma25' });
     expect(result.symbolId).toBe('s1');
-    expect(result.points).toHaveLength(20);
+    expect(result.points).toHaveLength(25);
     expect(result.points[0]?.date).toBe('2026-01-02');
+    expect(result.drawings?.fibonacci?.high).toBe(2);
     expect(pricesService.listWithLookback).toHaveBeenCalledWith('s1', {
       from: undefined,
       to: undefined,
-      lookback: 20,
+      lookback: 25,
       interval: '1d',
     });
     expect(global.fetch).toHaveBeenCalledWith(
@@ -106,18 +111,7 @@ describe('IndicatorsService', () => {
   });
 
   it('passes weekly interval to prices lookback', async () => {
-    const bars = Array.from({ length: 21 }, (_, i) => ({
-      id: `p${i}`,
-      symbolId: 's1',
-      date: `2026-01-${String(i + 1).padStart(2, '0')}`,
-      open: 1,
-      high: 1,
-      low: 1,
-      close: i + 1,
-      volume: 0,
-      createdAt: '',
-      updatedAt: '',
-    }));
+    const bars = makeBars(26);
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
       bars,
       rangeStartIndex: 0,
@@ -125,16 +119,16 @@ describe('IndicatorsService', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        indicators: [{ type: 'sma', period: 20 }],
-        points: bars.map((bar) => ({ date: bar.date, sma: 10 })),
+        indicators: [{ id: 'sma25', type: 'sma', params: { period: 25 } }],
+        points: bars.map((bar) => ({ date: bar.date, values: { sma25: 10 } })),
       }),
     }) as unknown as typeof fetch;
 
-    await service.getForSymbol('s1', { indicators: 'sma', interval: '1w' });
+    await service.getForSymbol('s1', { indicators: 'sma25', interval: '1w' });
     expect(pricesService.listWithLookback).toHaveBeenCalledWith('s1', {
       from: undefined,
       to: undefined,
-      lookback: 20,
+      lookback: 25,
       interval: '1w',
     });
   });
@@ -145,7 +139,7 @@ describe('IndicatorsService', () => {
       rangeStartIndex: 0,
     });
 
-    await expect(service.getForSymbol('s1', { indicators: 'sma', smaPeriod: 20 })).rejects.toBeInstanceOf(
+    await expect(service.getForSymbol('s1', { indicators: 'sma25' })).rejects.toBeInstanceOf(
       UnprocessableEntityException,
     );
   });
@@ -156,48 +150,26 @@ describe('IndicatorsService', () => {
       rangeStartIndex: 0,
     });
 
-    await expect(service.getForSymbol('s1', { indicators: 'sma' })).rejects.toBeInstanceOf(
+    await expect(service.getForSymbol('s1', { indicators: 'sma25' })).rejects.toBeInstanceOf(
       UnprocessableEntityException,
     );
   });
 
   it('maps fetch network failure to ANALYSIS_UPSTREAM_ERROR', async () => {
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
-      bars: Array.from({ length: 20 }, (_, i) => ({
-        id: `p${i}`,
-        symbolId: 's1',
-        date: `2026-01-${String(i + 1).padStart(2, '0')}`,
-        open: 1,
-        high: 1,
-        low: 1,
-        close: 1,
-        volume: 0,
-        createdAt: '',
-        updatedAt: '',
-      })),
+      bars: makeBars(25),
       rangeStartIndex: 0,
     });
     global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED')) as unknown as typeof fetch;
 
-    await expect(service.getForSymbol('s1', { indicators: 'sma' })).rejects.toBeInstanceOf(
+    await expect(service.getForSymbol('s1', { indicators: 'sma25' })).rejects.toBeInstanceOf(
       BadGatewayException,
     );
   });
 
   it('maps non-ok analysis response to ANALYSIS_UPSTREAM_ERROR', async () => {
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
-      bars: Array.from({ length: 20 }, (_, i) => ({
-        id: `p${i}`,
-        symbolId: 's1',
-        date: `2026-01-${String(i + 1).padStart(2, '0')}`,
-        open: 1,
-        high: 1,
-        low: 1,
-        close: 1,
-        volume: 0,
-        createdAt: '',
-        updatedAt: '',
-      })),
+      bars: makeBars(25),
       rangeStartIndex: 0,
     });
     global.fetch = jest.fn().mockResolvedValue({
@@ -206,25 +178,14 @@ describe('IndicatorsService', () => {
       json: async () => ({ code: 'INTERNAL_ERROR' }),
     }) as unknown as typeof fetch;
 
-    await expect(service.getForSymbol('s1', { indicators: 'sma' })).rejects.toBeInstanceOf(
+    await expect(service.getForSymbol('s1', { indicators: 'sma25' })).rejects.toBeInstanceOf(
       BadGatewayException,
     );
   });
 
   it('maps invalid JSON body to ANALYSIS_UPSTREAM_ERROR', async () => {
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
-      bars: Array.from({ length: 20 }, (_, i) => ({
-        id: `p${i}`,
-        symbolId: 's1',
-        date: `2026-01-${String(i + 1).padStart(2, '0')}`,
-        open: 1,
-        high: 1,
-        low: 1,
-        close: 1,
-        volume: 0,
-        createdAt: '',
-        updatedAt: '',
-      })),
+      bars: makeBars(25),
       rangeStartIndex: 0,
     });
     global.fetch = jest.fn().mockResolvedValue({
@@ -234,25 +195,14 @@ describe('IndicatorsService', () => {
       },
     }) as unknown as typeof fetch;
 
-    await expect(service.getForSymbol('s1', { indicators: 'sma' })).rejects.toBeInstanceOf(
+    await expect(service.getForSymbol('s1', { indicators: 'sma25' })).rejects.toBeInstanceOf(
       BadGatewayException,
     );
   });
 
   it('maps non-Error invalid JSON rejection', async () => {
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
-      bars: Array.from({ length: 20 }, (_, i) => ({
-        id: `p${i}`,
-        symbolId: 's1',
-        date: `2026-01-${String(i + 1).padStart(2, '0')}`,
-        open: 1,
-        high: 1,
-        low: 1,
-        close: 1,
-        volume: 0,
-        createdAt: '',
-        updatedAt: '',
-      })),
+      bars: makeBars(25),
       rangeStartIndex: 0,
     });
     global.fetch = jest.fn().mockResolvedValue({
@@ -262,25 +212,14 @@ describe('IndicatorsService', () => {
       },
     }) as unknown as typeof fetch;
 
-    await expect(service.getForSymbol('s1', { indicators: 'sma' })).rejects.toBeInstanceOf(
+    await expect(service.getForSymbol('s1', { indicators: 'sma25' })).rejects.toBeInstanceOf(
       BadGatewayException,
     );
   });
 
   it('maps non-ok response when error body is not JSON', async () => {
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
-      bars: Array.from({ length: 20 }, (_, i) => ({
-        id: `p${i}`,
-        symbolId: 's1',
-        date: `2026-01-${String(i + 1).padStart(2, '0')}`,
-        open: 1,
-        high: 1,
-        low: 1,
-        close: 1,
-        volume: 0,
-        createdAt: '',
-        updatedAt: '',
-      })),
+      bars: makeBars(25),
       rangeStartIndex: 0,
     });
     global.fetch = jest.fn().mockResolvedValue({
@@ -291,7 +230,7 @@ describe('IndicatorsService', () => {
       },
     }) as unknown as typeof fetch;
 
-    await expect(service.getForSymbol('s1', { indicators: 'sma' })).rejects.toBeInstanceOf(
+    await expect(service.getForSymbol('s1', { indicators: 'sma25' })).rejects.toBeInstanceOf(
       BadGatewayException,
     );
   });
@@ -299,18 +238,7 @@ describe('IndicatorsService', () => {
   it('uses default ANALYSIS_URL when env is unset', async () => {
     delete process.env.ANALYSIS_URL;
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
-      bars: Array.from({ length: 20 }, (_, i) => ({
-        id: `p${i}`,
-        symbolId: 's1',
-        date: `2026-01-${String(i + 1).padStart(2, '0')}`,
-        open: 1,
-        high: 1,
-        low: 1,
-        close: 1,
-        volume: 0,
-        createdAt: '',
-        updatedAt: '',
-      })),
+      bars: makeBars(25),
       rangeStartIndex: 0,
     });
     global.fetch = jest.fn().mockResolvedValue({
@@ -318,7 +246,7 @@ describe('IndicatorsService', () => {
       json: async () => ({ indicators: [], points: [] }),
     }) as unknown as typeof fetch;
 
-    await service.getForSymbol('s1', { indicators: 'sma' });
+    await service.getForSymbol('s1', { indicators: 'sma25' });
     expect(global.fetch).toHaveBeenCalledWith(
       'http://localhost:8000/indicators',
       expect.any(Object),
@@ -327,23 +255,12 @@ describe('IndicatorsService', () => {
 
   it('maps non-Error fetch rejection', async () => {
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
-      bars: Array.from({ length: 20 }, (_, i) => ({
-        id: `p${i}`,
-        symbolId: 's1',
-        date: `2026-01-${String(i + 1).padStart(2, '0')}`,
-        open: 1,
-        high: 1,
-        low: 1,
-        close: 1,
-        volume: 0,
-        createdAt: '',
-        updatedAt: '',
-      })),
+      bars: makeBars(25),
       rangeStartIndex: 0,
     });
     global.fetch = jest.fn().mockRejectedValue('boom') as unknown as typeof fetch;
 
-    await expect(service.getForSymbol('s1', { indicators: 'sma' })).rejects.toBeInstanceOf(
+    await expect(service.getForSymbol('s1', { indicators: 'sma25' })).rejects.toBeInstanceOf(
       BadGatewayException,
     );
   });

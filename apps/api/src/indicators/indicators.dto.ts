@@ -1,11 +1,11 @@
 /**
  * テクニカル指標のクエリ DTO。
  *
- * GET のため class-validator で数値・文字列を検証する。
+ * GET のため class-validator で文字列を検証する。
+ * 期間パラメータはカタログ既定に一本化した（ADR 006）。
  */
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class GetIndicatorsQueryDto {
   @ApiPropertyOptional({ example: '2026-01-01', description: '開始日 YYYY-MM-DD' })
@@ -29,52 +29,10 @@ export class GetIndicatorsQueryDto {
   interval?: '1d' | '1w';
 
   @ApiPropertyOptional({
-    example: 'sma,ema,rsi,macd',
-    description: 'カンマ区切り。省略時は全指標',
+    example: 'sma25,sma75,sma200,macd,rsi,bb,obv,ichimoku',
+    description: 'カタログ ID のカンマ区切り。省略時はおすすめ構成',
   })
   @IsOptional()
   @IsString()
   indicators?: string;
-
-  @ApiPropertyOptional({ example: 20, default: 20 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  smaPeriod?: number;
-
-  @ApiPropertyOptional({ example: 50, default: 50 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  emaPeriod?: number;
-
-  @ApiPropertyOptional({ example: 14, default: 14 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  rsiPeriod?: number;
-
-  @ApiPropertyOptional({ example: 12, default: 12 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  macdFast?: number;
-
-  @ApiPropertyOptional({ example: 26, default: 26 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  macdSlow?: number;
-
-  @ApiPropertyOptional({ example: 9, default: 9 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  macdSignal?: number;
 }

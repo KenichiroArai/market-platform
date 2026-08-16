@@ -45,8 +45,15 @@ Phase 6 では銘柄指定の分析画面を充実させ、ローソク足・出
 - 指標パラメータの UI 編集は Phase 6 では既定値（ADR 004）固定。トグル ON/OFF のみ
 - 自動売買・注文執行は引き続き対象外
 
+## 追記（v0.2.0 / Phase 3）
+
+`/charts` の指標 UI とパネル構成は [ADR 006](006-indicator-catalog.md) のカタログに合わせて拡張した。
+パラメータの自由編集は引き続き対象外。トグルはカタログ ID 単位。初期 ON はおすすめ構成。
+
 ## 関連
 
 - [開発ロードマップ](../roadmap/v0/v0.1/v0.1.0.md) Phase 6
+- [v0.2.0 Phase 3](../roadmap/v0/v0.2/v0.2.0.md)
 - [ADR 004: テクニカル分析](004-technical-analysis.md)
+- [ADR 006: テクニカル指標カタログ](006-indicator-catalog.md)
 - [アーキテクチャ概要](../architecture/overview.md)

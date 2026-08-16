@@ -13,5 +13,6 @@ export * from './market';
 export * from './watchlist';
 export * from './portfolio';
 export * from './analysis';
+export * from './indicator-catalog';
 export * from './signals';
 export * from './chart';

@@ -8,24 +8,19 @@ describe('GetIndicatorsQueryDto', () => {
     expect(await validate(dto)).toHaveLength(0);
   });
 
-  it('accepts valid periods and indicator list', async () => {
+  it('accepts valid indicator list and interval', async () => {
     const dto = plainToInstance(GetIndicatorsQueryDto, {
       from: '2026-01-01',
       to: '2026-06-30',
-      indicators: 'sma,ema',
-      smaPeriod: '20',
-      emaPeriod: '50',
-      rsiPeriod: '14',
-      macdFast: '12',
-      macdSlow: '26',
-      macdSignal: '9',
+      interval: '1w',
+      indicators: 'sma25,macd',
     });
     expect(await validate(dto)).toHaveLength(0);
-    expect(dto.smaPeriod).toBe(20);
+    expect(dto.indicators).toBe('sma25,macd');
   });
 
-  it('rejects period below 1', async () => {
-    const dto = plainToInstance(GetIndicatorsQueryDto, { smaPeriod: 0 });
+  it('rejects invalid interval', async () => {
+    const dto = plainToInstance(GetIndicatorsQueryDto, { interval: '1m' });
     const errors = await validate(dto);
     expect(errors.length).toBeGreaterThan(0);
   });

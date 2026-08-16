@@ -271,8 +271,8 @@ describe('api-client', () => {
   it('fetches symbol indicators with query options', async () => {
     const indicatorsResponse = {
       symbolId: 'sym_1',
-      indicators: [{ type: 'sma' as const, period: 20 }],
-      points: [{ date: '2026-01-02', sma: 10 }],
+      indicators: [{ id: 'sma25' as const, type: 'sma' as const, params: { period: 25 } }],
+      points: [{ date: '2026-01-02', values: { sma25: 10 } }],
     };
     const full = okJson(indicatorsResponse);
     await expect(
@@ -282,13 +282,7 @@ describe('api-client', () => {
           from: '2026-01-01',
           to: '2026-06-30',
           interval: '1d',
-          indicators: 'sma,ema',
-          smaPeriod: 10,
-          emaPeriod: 20,
-          rsiPeriod: 14,
-          macdFast: 12,
-          macdSlow: 26,
-          macdSignal: 9,
+          indicators: 'sma25,ema50',
         },
         full as unknown as typeof fetch,
       ),
@@ -301,13 +295,7 @@ describe('api-client', () => {
     expect(calledUrl).toContain('from=2026-01-01');
     expect(calledUrl).toContain('to=2026-06-30');
     expect(calledUrl).toContain('interval=1d');
-    expect(calledUrl).toContain('indicators=sma%2Cema');
-    expect(calledUrl).toContain('smaPeriod=10');
-    expect(calledUrl).toContain('emaPeriod=20');
-    expect(calledUrl).toContain('rsiPeriod=14');
-    expect(calledUrl).toContain('macdFast=12');
-    expect(calledUrl).toContain('macdSlow=26');
-    expect(calledUrl).toContain('macdSignal=9');
+    expect(calledUrl).toContain('indicators=sma25%2Cema50');
 
     const bare = okJson(indicatorsResponse);
     await expect(

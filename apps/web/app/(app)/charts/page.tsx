@@ -1,8 +1,7 @@
 /**
- * Phase 6: チャート分析画面。
+ * チャート分析画面（v0.2.0 Phase 3）。
  *
- * 銘柄（ウォッチリスト / 検索）・期間・足種・指標トグルを選び、
- * 価格と指標を並列取得して AnalysisChart に渡す。
+ * 銘柄・期間・足種は上段、左に分類カタログ、右にローソクチャート。
  * 未ログイン誘導は共通レイアウト側。
  */
 'use client';
@@ -11,15 +10,18 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type {
   ChartInterval,
   DailyPriceDto,
+  IndicatorCatalogId,
+  IndicatorDrawings,
   IndicatorSeriesPoint,
   SymbolDto,
   WatchlistDto,
 } from '@market/shared-types';
+import { computeCatalogIds } from '@market/shared-types';
+import { AnalysisChart } from '../../../components/analysis-chart';
 import {
-  AnalysisChart,
-  DEFAULT_OVERLAYS,
-  type AnalysisChartOverlays,
-} from '../../../components/analysis-chart';
+  INITIAL_ENABLED_IDS,
+  IndicatorCatalog,
+} from '../../../components/indicator-catalog';
 import {
   ApiClientError,
   fetchSymbolIndicators,
@@ -37,26 +39,26 @@ export default function ChartsPage() {
   const [from, setFrom] = useState('2026-01-01');
   const [to, setTo] = useState('2026-06-30');
   const [interval, setInterval] = useState<ChartInterval>('1d');
-  const [overlays, setOverlays] = useState<AnalysisChartOverlays>(DEFAULT_OVERLAYS);
+  const [enabledIds, setEnabledIds] = useState<Set<IndicatorCatalogId>>(
+    () => new Set(INITIAL_ENABLED_IDS),
+  );
   const [prices, setPrices] = useState<DailyPriceDto[]>([]);
   const [indicatorPoints, setIndicatorPoints] = useState<IndicatorSeriesPoint[]>([]);
+  const [drawings, setDrawings] = useState<IndicatorDrawings | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [chartError, setChartError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(false);
 
-  // ウォッチリスト選択時は候補をその銘柄に絞る
   const watchlistSymbols = useMemo(() => {
     if (!watchlistId) {
       return symbols;
     }
-    // option 由来の ID のみ想定。一致なしなら空配列（flatMap）
     return watchlists
       .filter((w) => w.id === watchlistId)
       .flatMap((w) => w.items.map((item) => item.symbol));
   }, [watchlistId, watchlists, symbols]);
 
-  // ticker / name のクライアント側フィルタ（新規検索 API は作らない）
   const filteredSymbols = useMemo(() => {
     const q = symbolQuery.trim().toLowerCase();
     if (!q) {
@@ -67,15 +69,9 @@ export default function ChartsPage() {
     );
   }, [watchlistSymbols, symbolQuery]);
 
-  // トグル ON の指標だけ API に要求する（不要計算を避ける）
   const indicatorsQuery = useMemo(() => {
-    const types: string[] = [];
-    if (overlays.sma) types.push('sma');
-    if (overlays.ema) types.push('ema');
-    if (overlays.rsi) types.push('rsi');
-    if (overlays.macd) types.push('macd');
-    return types.join(',');
-  }, [overlays]);
+    return computeCatalogIds([...enabledIds]).join(',');
+  }, [enabledIds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,7 +99,6 @@ export default function ChartsPage() {
     };
   }, []);
 
-  // 銘柄・期間・足種・指標セットが変わったらチャートデータを再取得
   useEffect(() => {
     if (!symbolId || loading) {
       return;
@@ -114,7 +109,6 @@ export default function ChartsPage() {
       setChartError(null);
       try {
         const pricePromise = fetchSymbolPrices(symbolId, { from, to, interval });
-        // 指標がすべて OFF のときは API を呼ばず空系列にする
         const indicatorPromise =
           indicatorsQuery.length > 0
             ? fetchSymbolIndicators(symbolId, {
@@ -123,17 +117,19 @@ export default function ChartsPage() {
                 interval,
                 indicators: indicatorsQuery,
               })
-            : Promise.resolve({ points: [] as IndicatorSeriesPoint[] });
+            : Promise.resolve({ points: [] as IndicatorSeriesPoint[], drawings: undefined });
 
         const [priceRows, indicatorRes] = await Promise.all([pricePromise, indicatorPromise]);
         if (!cancelled) {
           setPrices(priceRows);
           setIndicatorPoints(indicatorRes.points);
+          setDrawings(indicatorRes.drawings);
         }
       } catch (err) {
         if (!cancelled) {
           setPrices([]);
           setIndicatorPoints([]);
+          setDrawings(undefined);
           setChartError(
             err instanceof ApiClientError ? err.message : 'チャートの取得に失敗しました',
           );
@@ -149,15 +145,11 @@ export default function ChartsPage() {
     };
   }, [symbolId, from, to, interval, indicatorsQuery, loading]);
 
-  function toggleOverlay(key: keyof AnalysisChartOverlays) {
-    setOverlays((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
-
   return (
     <main style={pageStyle}>
       <h1 style={{ fontSize: '1.75rem', margin: '0 0 0.5rem' }}>チャート分析</h1>
-      <p style={{ margin: '0 0 1.25rem', opacity: 0.85, maxWidth: '40rem' }}>
-        銘柄を選び、ローソク足・出来高・テクニカル指標を一体で確認します。ズーム・パンはチャート上で操作できます。
+      <p style={{ margin: '0 0 1.25rem', opacity: 0.85, maxWidth: '46rem' }}>
+        分類からテクニカル指標を選び、ローソク足と一緒に確認します。初期表示はおすすめ構成です。ズーム・パンはチャート上で操作できます。
       </p>
 
       {error ? <p style={errorStyle}>{error}</p> : null}
@@ -254,33 +246,22 @@ export default function ChartsPage() {
               週足
             </label>
           </fieldset>
-
-          <fieldset style={fieldsetStyle}>
-            <legend>指標</legend>
-            {(['sma', 'ema', 'rsi', 'macd'] as const).map((key) => (
-              <label key={key} style={checkLabelStyle}>
-                <input
-                  type="checkbox"
-                  checked={overlays[key]}
-                  onChange={() => toggleOverlay(key)}
-                  data-testid={`overlay-${key}`}
-                />
-                {key.toUpperCase()}
-              </label>
-            ))}
-          </fieldset>
         </section>
       ) : null}
 
       {chartError ? <p style={errorStyle}>{chartError}</p> : null}
 
       {!loading && symbolId ? (
-        <AnalysisChart
-          prices={prices}
-          indicatorPoints={indicatorPoints}
-          overlays={overlays}
-          loading={chartLoading}
-        />
+        <div style={bodyStyle}>
+          <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
+          <AnalysisChart
+            prices={prices}
+            indicatorPoints={indicatorPoints}
+            enabledIds={enabledIds}
+            drawings={drawings}
+            loading={chartLoading}
+          />
+        </div>
       ) : null}
     </main>
   );
@@ -296,6 +277,13 @@ const controlsStyle: CSSProperties = {
   gap: '1rem',
   alignItems: 'flex-end',
   marginBottom: '1rem',
+};
+
+const bodyStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '1.25rem',
+  alignItems: 'flex-start',
 };
 
 const labelStyle: CSSProperties = {

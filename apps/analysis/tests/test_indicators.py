@@ -114,36 +114,28 @@ def test_macd_rejects_bad_params() -> None:
 
 
 def test_indicator_spec_validation() -> None:
-    """Pydantic が type ごとの必須パラメータを検証すること。"""
+    """未知 type は ValidationError。正規スペックは通る。"""
     with pytest.raises(ValidationError):
-        IndicatorSpec(type="sma", period=0)
-    with pytest.raises(ValidationError):
-        IndicatorSpec(type="sma")  # period 欠如
-    with pytest.raises(ValidationError):
-        IndicatorSpec(type="macd", fast=12, slow=10, signal=9)
-    with pytest.raises(ValidationError):
-        IndicatorSpec(type="macd", fast=12)  # slow/signal 欠如
-    with pytest.raises(ValidationError):
-        IndicatorSpec(type="macd", fast=0, slow=26, signal=9)
-    ok = IndicatorSpec(type="ema", period=50)
-    assert ok.period == 50
-    macd_ok = IndicatorSpec(type="macd", fast=12, slow=26, signal=9)
-    assert macd_ok.fast == 12
+        IndicatorSpec(id="sma25", type="nope", params={})  # type: ignore[arg-type]
+    ok = IndicatorSpec(id="ema50", type="ema", params={"period": 50})
+    assert ok.params["period"] == 50
+    macd_ok = IndicatorSpec(id="macd", type="macd", params={"fast": 12, "slow": 26, "signal": 9})
+    assert macd_ok.params["fast"] == 12
 
 
 def test_post_indicators_endpoint() -> None:
-    """POST /indicators が SMA を返すこと。"""
+    """POST /indicators が SMA を values に返すこと。"""
     client = TestClient(app)
     payload = {
         "bars": _bars([1.0, 2.0, 3.0, 4.0, 5.0]),
-        "indicators": [{"type": "sma", "period": 3}],
+        "indicators": [{"id": "sma25", "type": "sma", "params": {"period": 3}}],
     }
     response = client.post("/indicators", json=payload)
     assert response.status_code == 200
     body = response.json()
     assert len(body["points"]) == 5
-    assert body["points"][2]["sma"] == pytest.approx(2.0)
-    assert body["points"][0]["sma"] is None
+    assert body["points"][2]["values"]["sma25"] == pytest.approx(2.0)
+    assert body["points"][0]["values"]["sma25"] is None
 
 
 def test_post_indicators_all_types() -> None:
@@ -153,17 +145,17 @@ def test_post_indicators_all_types() -> None:
     payload = {
         "bars": _bars(closes),
         "indicators": [
-            {"type": "sma", "period": 20},
-            {"type": "ema", "period": 50},
-            {"type": "rsi", "period": 14},
-            {"type": "macd", "fast": 12, "slow": 26, "signal": 9},
+            {"id": "sma25", "type": "sma", "params": {"period": 20}},
+            {"id": "ema50", "type": "ema", "params": {"period": 50}},
+            {"id": "rsi", "type": "rsi", "params": {"period": 14}},
+            {"id": "macd", "type": "macd", "params": {"fast": 12, "slow": 26, "signal": 9}},
         ],
     }
     response = client.post("/indicators", json=payload)
     assert response.status_code == 200
-    last = response.json()["points"][-1]
-    assert last["sma"] is not None
-    assert last["ema"] is not None
+    last = response.json()["points"][-1]["values"]
+    assert last["sma25"] is not None
+    assert last["ema50"] is not None
     assert last["rsi"] is not None
     assert last["macd"] is not None
     assert last["macdSignal"] is not None
@@ -183,7 +175,7 @@ def test_post_indicators_empty_bars() -> None:
     client = TestClient(app)
     response = client.post(
         "/indicators",
-        json={"bars": [], "indicators": [{"type": "sma", "period": 5}]},
+        json={"bars": [], "indicators": [{"id": "sma25", "type": "sma", "params": {"period": 5}}]},
     )
     assert response.status_code == 200
     assert response.json()["points"] == []
@@ -194,11 +186,11 @@ def test_compute_indicators_direct() -> None:
     bars = [OhlcBar(**b) for b in _bars([1.0, 2.0, 3.0])]
     body = ComputeIndicatorsRequest(
         bars=bars,
-        indicators=[IndicatorSpec(type="sma", period=2)],
+        indicators=[IndicatorSpec(id="sma25", type="sma", params={"period": 2})],
     )
     result = compute_indicators(body)
     assert len(result.points) == 3
-    assert result.points[1].sma == pytest.approx(1.5)
+    assert result.points[1].values["sma25"] == pytest.approx(1.5)
 
 
 def test_post_signals_compute_sma_cross() -> None:

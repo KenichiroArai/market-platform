@@ -29,7 +29,6 @@ jest.mock('../../../lib/api-client', () => ({
 }));
 
 jest.mock('../../../components/analysis-chart', () => ({
-  DEFAULT_OVERLAYS: { sma: true, ema: true, rsi: true, macd: true },
   AnalysisChart: ({ loading }: { loading?: boolean }) => (
     <div data-testid="analysis-chart-stub">{loading ? 'loading' : 'ready'}</div>
   ),
@@ -92,7 +91,7 @@ describe('ChartsPage', () => {
     (fetchSymbolIndicators as jest.Mock).mockResolvedValue({
       symbolId: 'sym_1',
       indicators: [],
-      points: [{ date: '2026-01-02', sma: 1.2 }],
+      points: [{ date: '2026-01-02', values: { sma25: 1.2 } }],
     });
   });
 
@@ -109,7 +108,10 @@ describe('ChartsPage', () => {
     });
     expect(fetchSymbolIndicators).toHaveBeenCalledWith(
       'sym_1',
-      expect.objectContaining({ indicators: 'sma,ema,rsi,macd', interval: '1d' }),
+      expect.objectContaining({
+        indicators: 'sma25,sma75,sma200,macd,ichimoku,rsi,bb,obv',
+        interval: '1d',
+      }),
     );
   });
 
@@ -168,13 +170,16 @@ describe('ChartsPage', () => {
       ),
     );
 
-    fireEvent.click(screen.getByTestId('overlay-sma'));
-    fireEvent.click(screen.getByTestId('overlay-ema'));
-    fireEvent.click(screen.getByTestId('overlay-rsi'));
-    fireEvent.click(screen.getByTestId('overlay-macd'));
+    fireEvent.click(screen.getByTestId('overlay-sma25'));
+    fireEvent.click(screen.getByTestId('clear-indicators'));
     await waitFor(() => {
       const lastPricesCall = (fetchSymbolPrices as jest.Mock).mock.calls.at(-1);
       expect(lastPricesCall?.[0]).toBe('sym_2');
+    });
+    await waitFor(() => {
+      const indicatorCalls = (fetchSymbolIndicators as jest.Mock).mock.calls;
+      const last = indicatorCalls.at(-1);
+      expect(last === undefined || last[0] === 'sym_2').toBe(true);
     });
   });
 

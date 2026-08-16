@@ -13,10 +13,11 @@ import {
   API_ERROR_CODES,
   computeIndicatorLookback,
   createIndicatorsResponseDto,
-  DEFAULT_INDICATOR_PARAMS,
+  parseIndicatorCatalogQuery,
+  specsFromCatalogIds,
   type AnalysisOhlcBar,
+  type IndicatorCatalogId,
   type IndicatorRequestSpec,
-  type IndicatorType,
   type IndicatorsResponseDto,
 } from '@market/shared-types';
 import { PricesService } from '../prices/prices.service';
@@ -25,6 +26,7 @@ import { PricesService } from '../prices/prices.service';
 type AnalysisComputeRequest = {
   bars: AnalysisOhlcBar[];
   indicators: IndicatorRequestSpec[];
+  rangeStartIndex: number;
 };
 
 @Injectable()
@@ -34,10 +36,10 @@ export class IndicatorsService {
   /**
    * 銘柄のテクニカル指標を返す。
    *
-   * 1. クエリから IndicatorRequestSpec を組み立て
+   * 1. クエリからカタログ ID → IndicatorRequestSpec
    * 2. lookback 付き日足を取得
-   * 3. analysis POST /indicators
-   * 4. 表示期間にトリムして symbolId を付与
+   * 3. analysis POST /indicators（計算対象が無いときは呼ばない）
+   * 4. 表示期間より前を切り、一目の未来点は残す
    */
   async getForSymbol(
     symbolId: string,
@@ -46,24 +48,26 @@ export class IndicatorsService {
       to?: string;
       interval?: '1d' | '1w';
       indicators?: string;
-      smaPeriod?: number;
-      emaPeriod?: number;
-      rsiPeriod?: number;
-      macdFast?: number;
-      macdSlow?: number;
-      macdSignal?: number;
     },
   ): Promise<IndicatorsResponseDto> {
-    const specs = this.buildSpecs(query);
+    const ids = this.parseCatalogIds(query.indicators);
+    const specs = specsFromCatalogIds(ids);
     const lookback = computeIndicatorLookback(specs);
     const interval = query.interval === '1w' ? '1w' : '1d';
+
+    if (specs.length === 0) {
+      return createIndicatorsResponseDto({
+        symbolId,
+        indicators: [],
+        points: [],
+      });
+    }
 
     const { bars, rangeStartIndex } = await this.pricesService.listWithLookback(
       symbolId,
       { from: query.from, to: query.to, lookback, interval },
     );
 
-    // 計算に必要な最短本数に満たない（ウォームアップすら足りない）場合
     if (bars.length === 0 || (lookback > 0 && bars.length < lookback)) {
       throw new UnprocessableEntityException({
         code: API_ERROR_CODES.INSUFFICIENT_PRICE_DATA,
@@ -82,98 +86,39 @@ export class IndicatorsService {
         volume: bar.volume,
       })),
       indicators: specs,
+      rangeStartIndex,
     };
 
     const upstream = await this.callAnalysis(analysisBody);
-
-    // lookback 区間を落とし、クライアント指定の from〜to だけ返す
     const trimmedPoints = upstream.points.slice(rangeStartIndex);
 
     return createIndicatorsResponseDto({
       symbolId,
       indicators: specs,
       points: trimmedPoints,
+      drawings: upstream.drawings,
     });
   }
 
   /**
-   * クエリ文字列から指標スペック配列を組み立てる。
-   * indicators 省略時は sma,ema,rsi,macd の全部。
+   * クエリ文字列からカタログ ID を取る。
+   * 省略時はおすすめ構成。未知 ID・エリオットは VALIDATION_FAILED。
    */
-  buildSpecs(query: {
-    indicators?: string;
-    smaPeriod?: number;
-    emaPeriod?: number;
-    rsiPeriod?: number;
-    macdFast?: number;
-    macdSlow?: number;
-    macdSignal?: number;
-  }): IndicatorRequestSpec[] {
-    const requested = this.parseIndicatorTypes(query.indicators);
-    const specs: IndicatorRequestSpec[] = [];
-
-    for (const type of requested) {
-      if (type === 'sma') {
-        specs.push({
-          type: 'sma',
-          period: query.smaPeriod ?? DEFAULT_INDICATOR_PARAMS.smaPeriod,
-        });
-      } else if (type === 'ema') {
-        specs.push({
-          type: 'ema',
-          period: query.emaPeriod ?? DEFAULT_INDICATOR_PARAMS.emaPeriod,
-        });
-      } else if (type === 'rsi') {
-        specs.push({
-          type: 'rsi',
-          period: query.rsiPeriod ?? DEFAULT_INDICATOR_PARAMS.rsiPeriod,
-        });
-      } else {
-        specs.push({
-          type: 'macd',
-          fast: query.macdFast ?? DEFAULT_INDICATOR_PARAMS.macdFast,
-          slow: query.macdSlow ?? DEFAULT_INDICATOR_PARAMS.macdSlow,
-          signal: query.macdSignal ?? DEFAULT_INDICATOR_PARAMS.macdSignal,
-        });
-      }
-    }
-
-    return specs;
-  }
-
-  /** `sma,ema` 形式をパース。空・未指定は全指標。不正トークンは無視しないで VALIDATION 相当に落とす。 */
-  parseIndicatorTypes(raw?: string): IndicatorType[] {
-    if (raw === undefined || raw.trim() === '') {
-      return ['sma', 'ema', 'rsi', 'macd'];
-    }
-
-    const allowed: IndicatorType[] = ['sma', 'ema', 'rsi', 'macd'];
-    const parts = raw
-      .split(',')
-      .map((part) => part.trim().toLowerCase())
-      .filter((part) => part.length > 0);
-
-    const types: IndicatorType[] = [];
-    for (const part of parts) {
-      if (!allowed.includes(part as IndicatorType)) {
-        throw new UnprocessableEntityException({
-          code: API_ERROR_CODES.VALIDATION_FAILED,
-          message: `Unknown indicator type: ${part}`,
-        });
-      }
-      if (!types.includes(part as IndicatorType)) {
-        types.push(part as IndicatorType);
-      }
-    }
-
-    if (types.length === 0) {
+  parseCatalogIds(raw?: string): IndicatorCatalogId[] {
+    const parsed = parseIndicatorCatalogQuery(raw);
+    if (!parsed.ok) {
+      const message =
+        parsed.reason === 'unknown'
+          ? `Unknown indicator type: ${parsed.token}`
+          : parsed.reason === 'disabled'
+            ? `Indicator is not computable: ${parsed.token}`
+            : 'indicators query must list at least one type';
       throw new UnprocessableEntityException({
         code: API_ERROR_CODES.VALIDATION_FAILED,
-        message: 'indicators query must list at least one type',
+        message,
       });
     }
-
-    return types;
+    return parsed.ids;
   }
 
   /** analysis の POST /indicators を呼び、失敗時は ANALYSIS_UPSTREAM_ERROR。 */

@@ -1,5 +1,6 @@
 import {
   API_ERROR_CODES,
+  computeIndicatorFutureBars,
   computeIndicatorLookback,
   createApiErrorBody,
   createAuthTokenResponse,
@@ -13,11 +14,17 @@ import {
   createSymbolDto,
   createWatchlistDto,
   createWatchlistItemDto,
+  defaultEnabledIndicatorIds,
+  definitionsForCategory,
   isApiErrorBody,
   isAuthTokenResponse,
   isAuthUser,
   isDailyPriceDto,
   isHealthStatus,
+  isIndicatorCatalogId,
+  isIndicatorCategoryId,
+  isIndicatorComputeType,
+  isIndicatorDrawings,
   isIndicatorRequestSpec,
   isIndicatorSeriesPoint,
   isIndicatorType,
@@ -35,6 +42,9 @@ import {
   isWatchlistItemDto,
   isChartInterval,
   aggregateDailyBarsToWeekly,
+  parseIndicatorCatalogQuery,
+  recommendedIndicatorIds,
+  specsFromCatalogIds,
 } from './index';
 
 describe('shared-types health', () => {
@@ -433,46 +443,98 @@ describe('shared-types portfolio', () => {
 });
 
 describe('shared-types analysis', () => {
-  const specs = [
-    { type: 'sma' as const, period: 20 },
-    { type: 'ema' as const, period: 50 },
-    { type: 'rsi' as const, period: 14 },
-    { type: 'macd' as const, fast: 12, slow: 26, signal: 9 },
-  ];
+  const specs = specsFromCatalogIds(['sma25', 'ema50', 'rsi', 'macd']);
 
   const point = {
     date: '2026-01-02',
-    sma: 100,
-    ema: null,
-    rsi: 55.5,
-    macd: 1.2,
-    macdSignal: 1.0,
-    macdHistogram: 0.2,
+    values: {
+      sma25: 100,
+      ema50: null,
+      rsi: 55.5,
+      macd: 1.2,
+      macdSignal: 1.0,
+      macdHistogram: 0.2,
+    },
   };
 
-  it('validates IndicatorType', () => {
+  it('validates IndicatorType / compute type', () => {
     expect(isIndicatorType('sma')).toBe(true);
     expect(isIndicatorType('ema')).toBe(true);
     expect(isIndicatorType('rsi')).toBe(true);
     expect(isIndicatorType('macd')).toBe(true);
-    expect(isIndicatorType('bb')).toBe(false);
+    expect(isIndicatorType('bb')).toBe(true);
+    expect(isIndicatorType('elliott')).toBe(false);
+    expect(isIndicatorComputeType('ichimoku')).toBe(true);
+    expect(isIndicatorComputeType(1)).toBe(false);
   });
 
   it('validates IndicatorRequestSpec', () => {
-    expect(isIndicatorRequestSpec({ type: 'sma', period: 20 })).toBe(true);
-    expect(isIndicatorRequestSpec({ type: 'macd', fast: 12, slow: 26, signal: 9 })).toBe(true);
-    expect(isIndicatorRequestSpec({ type: 'sma', period: 'x' })).toBe(false);
-    expect(isIndicatorRequestSpec({ type: 'macd', fast: 12 })).toBe(false);
+    expect(isIndicatorRequestSpec({ id: 'sma25', type: 'sma', params: { period: 25 } })).toBe(
+      true,
+    );
+    expect(
+      isIndicatorRequestSpec({ id: 'macd', type: 'macd', params: { fast: 12, slow: 26, signal: 9 } }),
+    ).toBe(true);
+    expect(isIndicatorRequestSpec({ id: 'sma25', type: 'sma', params: { period: 'x' } })).toBe(
+      false,
+    );
+    expect(isIndicatorRequestSpec({ id: 'macd', type: 'macd', params: null })).toBe(false);
     expect(isIndicatorRequestSpec(null)).toBe(false);
     expect(isIndicatorRequestSpec({ type: 'bb' })).toBe(false);
+    expect(isIndicatorRequestSpec({ id: 'sma25', type: 'sma', params: [] })).toBe(false);
   });
 
   it('validates IndicatorSeriesPoint', () => {
     expect(isIndicatorSeriesPoint(point)).toBe(true);
-    expect(isIndicatorSeriesPoint({ date: '2026-01-02' })).toBe(true);
+    expect(isIndicatorSeriesPoint({ date: '2026-01-02', values: {} })).toBe(true);
     expect(isIndicatorSeriesPoint(null)).toBe(false);
     expect(isIndicatorSeriesPoint({ date: 1 })).toBe(false);
-    expect(isIndicatorSeriesPoint({ date: '2026-01-02', sma: 'x' })).toBe(false);
+    expect(isIndicatorSeriesPoint({ date: '2026-01-02', values: { sma25: 'x' } })).toBe(false);
+    expect(isIndicatorSeriesPoint({ date: '2026-01-02', values: [] })).toBe(false);
+  });
+
+  it('validates drawings', () => {
+    expect(
+      isIndicatorDrawings({
+        fibonacci: {
+          high: 10,
+          low: 5,
+          highDate: '2026-01-02',
+          lowDate: '2026-01-01',
+          levels: [{ ratio: 0.5, price: 7.5 }],
+        },
+        volumeProfile: { bins: [{ priceLow: 1, priceHigh: 2, volume: 3 }] },
+      }),
+    ).toBe(true);
+    expect(isIndicatorDrawings({ fibonacci: null })).toBe(false);
+    expect(isIndicatorDrawings({ volumeProfile: { bins: [null] } })).toBe(false);
+    expect(isIndicatorDrawings({ volumeProfile: { bins: 'x' } })).toBe(false);
+    expect(isIndicatorDrawings({ volumeProfile: 1 })).toBe(false);
+    expect(
+      isIndicatorDrawings({
+        fibonacci: {
+          high: 10,
+          low: 5,
+          highDate: '2026-01-02',
+          lowDate: '2026-01-01',
+          levels: [{ ratio: 0.5 }],
+        },
+      }),
+    ).toBe(false);
+    expect(isIndicatorDrawings({ volumeProfile: null })).toBe(false);
+    expect(isIndicatorDrawings(null)).toBe(false);
+    expect(isIndicatorDrawings([])).toBe(false);
+    expect(
+      isIndicatorDrawings({
+        fibonacci: {
+          high: 10,
+          low: 5,
+          highDate: '2026-01-02',
+          lowDate: '2026-01-01',
+          levels: [null],
+        },
+      }),
+    ).toBe(false);
   });
 
   it('creates and validates IndicatorsResponseDto', () => {
@@ -480,8 +542,18 @@ describe('shared-types analysis', () => {
       symbolId: 'sym_1',
       indicators: specs,
       points: [point],
+      drawings: {
+        fibonacci: {
+          high: 2,
+          low: 1,
+          highDate: '2026-01-02',
+          lowDate: '2026-01-01',
+          levels: [{ ratio: 0, price: 2 }],
+        },
+      },
     });
     expect(withSymbol.symbolId).toBe('sym_1');
+    expect(withSymbol.drawings?.fibonacci?.high).toBe(2);
     expect(isIndicatorsResponseDto(withSymbol)).toBe(true);
 
     const withoutSymbol = createIndicatorsResponseDto({
@@ -506,16 +578,61 @@ describe('shared-types analysis', () => {
         points: [{ date: 1 }],
       }),
     ).toBe(false);
+    expect(
+      isIndicatorsResponseDto({
+        indicators: [],
+        points: [],
+        drawings: { fibonacci: { high: 1 } },
+      }),
+    ).toBe(false);
   });
 
-  it('computes lookback from the longest indicator requirement', () => {
-    expect(computeIndicatorLookback([{ type: 'sma', period: 20 }])).toBe(20);
-    // EMA 50 が MACD(slow+signal=35) より長い
+  it('computes lookback and future bars from the catalog', () => {
+    expect(computeIndicatorLookback(specsFromCatalogIds(['sma25']))).toBe(25);
     expect(computeIndicatorLookback(specs)).toBe(50);
-    expect(computeIndicatorLookback([{ type: 'macd', fast: 12, slow: 26, signal: 9 }])).toBe(
-      35,
-    );
+    expect(computeIndicatorLookback(specsFromCatalogIds(['macd']))).toBe(35);
+    expect(computeIndicatorLookback(specsFromCatalogIds(['ichimoku']))).toBe(78);
     expect(computeIndicatorLookback([])).toBe(0);
+    expect(computeIndicatorFutureBars(specsFromCatalogIds(['ichimoku']))).toBe(26);
+    expect(computeIndicatorFutureBars(specsFromCatalogIds(['sma25']))).toBe(0);
+  });
+});
+
+describe('shared-types indicator catalog', () => {
+  it('validates catalog and category IDs', () => {
+    expect(isIndicatorCatalogId('sma25')).toBe(true);
+    expect(isIndicatorCatalogId('elliott')).toBe(true);
+    expect(isIndicatorCatalogId('sma')).toBe(false);
+    expect(isIndicatorCategoryId('trend')).toBe(true);
+    expect(isIndicatorCategoryId('unknown')).toBe(false);
+  });
+
+  it('parses indicator query strings', () => {
+    const parsedDefault = parseIndicatorCatalogQuery();
+    expect(parsedDefault).toEqual({ ok: true, ids: recommendedIndicatorIds() });
+    expect(parseIndicatorCatalogQuery(' sma25 , macd ').ok).toBe(true);
+    expect(parseIndicatorCatalogQuery('sma25,sma25')).toEqual({ ok: true, ids: ['sma25'] });
+    expect(parseIndicatorCatalogQuery('nope')).toEqual({
+      ok: false,
+      reason: 'unknown',
+      token: 'nope',
+    });
+    expect(parseIndicatorCatalogQuery(' , ')).toEqual({ ok: false, reason: 'empty' });
+    expect(parseIndicatorCatalogQuery('elliott')).toEqual({
+      ok: false,
+      reason: 'disabled',
+      token: 'elliott',
+    });
+  });
+
+  it('builds specs and category lists', () => {
+    expect(specsFromCatalogIds(['volume', 'sma25', 'elliott'])).toEqual([
+      { id: 'sma25', type: 'sma', params: { period: 25 } },
+    ]);
+    expect(defaultEnabledIndicatorIds()).toContain('volume');
+    expect(recommendedIndicatorIds()).not.toContain('volume');
+    expect(definitionsForCategory('oscillator').some((d) => d.id === 'rsi')).toBe(true);
+    expect(definitionsForCategory('trend').some((d) => d.id === 'macd')).toBe(true);
   });
 });
 

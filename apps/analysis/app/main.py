@@ -1,7 +1,7 @@
 """
 分析 API（FastAPI）のエントリ。
 
-Phase 4 ではヘルスに加え、テクニカル指標（SMA/EMA/RSI/MACD）の計算エンドポイントを提供する。
+ヘルスに加え、テクニカル指標・シグナル・バックテストの計算エンドポイントを提供する。
 NestJS（api）からは内部 HTTP（ANALYSIS_URL）経由で呼ばれる想定（認証なし）。
 永続化は持たず、受け取った OHLC に対してオンデマンド計算するだけ。
 """
@@ -12,7 +12,10 @@ import time
 
 from fastapi import FastAPI
 
-from app import indicators as indicator_calc
+from app.indicators.compute import compute_indicator_series
+from app.indicators.core import macd as macd_calc
+from app.indicators.core import rsi as rsi_calc
+from app.indicators.core import sma as sma_calc
 from app.errors import register_exception_handlers
 from app.logging_middleware import RequestLoggingMiddleware
 from app.schemas import (
@@ -24,8 +27,6 @@ from app.schemas import (
     ComputeSignalsRequest,
     ComputeSignalsResponse,
     HealthResponse,
-    IndicatorSeriesPoint,
-    IndicatorSpec,
     RunBacktestRequest,
     RunBacktestResponse,
     SignalPoint,
@@ -69,18 +70,16 @@ def compute_indicators(body: ComputeIndicatorsRequest) -> ComputeIndicatorsRespo
     bars は日付昇順であること（Nest 側でソート済みを渡す）。
     ウォームアップ不足の値は null。空の bars でも 200 + 空 points を返す。
     """
-    closes = [bar.close for bar in body.bars]
-    dates = [bar.date for bar in body.bars]
-
-    # 日付ごとにマージする箱を用意（要求キーだけ後で埋める）
-    points: list[IndicatorSeriesPoint] = [
-        IndicatorSeriesPoint(date=date) for date in dates
-    ]
-
-    for spec in body.indicators:
-        _apply_indicator(spec, closes, points)
-
-    return ComputeIndicatorsResponse(indicators=body.indicators, points=points)
+    points, drawings = compute_indicator_series(
+        body.bars,
+        body.indicators,
+        range_start_index=max(0, body.rangeStartIndex),
+    )
+    return ComputeIndicatorsResponse(
+        indicators=body.indicators,
+        points=points,
+        drawings=drawings,
+    )
 
 
 @app.post(
@@ -119,52 +118,17 @@ def run_backtest(body: RunBacktestRequest) -> RunBacktestResponse:
     return RunBacktestResponse(summary=summary, trades=trades, equityPoints=equity_points)
 
 
-def _apply_indicator(
-    spec: IndicatorSpec,
-    closes: list[float],
-    points: list[IndicatorSeriesPoint],
-) -> None:
-    """1 指標の計算結果を points に書き込む。"""
-    if spec.type == "sma":
-        assert spec.period is not None
-        values = indicator_calc.sma(closes, spec.period)
-        for point, value in zip(points, values, strict=True):
-            point.sma = value
-    elif spec.type == "ema":
-        assert spec.period is not None
-        values = indicator_calc.ema(closes, spec.period)
-        for point, value in zip(points, values, strict=True):
-            point.ema = value
-    elif spec.type == "rsi":
-        assert spec.period is not None
-        values = indicator_calc.rsi(closes, spec.period)
-        for point, value in zip(points, values, strict=True):
-            point.rsi = value
-    elif spec.type == "macd":
-        assert spec.fast is not None and spec.slow is not None and spec.signal is not None
-        macd_line, signal_line, histogram = indicator_calc.macd(
-            closes,
-            fast=spec.fast,
-            slow=spec.slow,
-            signal=spec.signal,
-        )
-        for point, m, s, h in zip(points, macd_line, signal_line, histogram, strict=True):
-            point.macd = m
-            point.macdSignal = s
-            point.macdHistogram = h
-
-
 def _build_signal_points(dates: list[str], closes: list[float], spec: SignalSpec) -> list[SignalPoint]:
     """戦略種別ごとの売買シグナルを統一形式に変換する。"""
     if spec.strategyType == "smaCross":
         assert spec.shortPeriod is not None and spec.longPeriod is not None
-        short = indicator_calc.sma(closes, spec.shortPeriod)
-        long = indicator_calc.sma(closes, spec.longPeriod)
+        short = sma_calc(closes, spec.shortPeriod)
+        long = sma_calc(closes, spec.longPeriod)
         return _cross_signal_points(dates, short, long, direction="golden_dead")
 
     if spec.strategyType == "rsiThreshold":
         assert spec.period is not None and spec.lower is not None and spec.upper is not None
-        rsi_values = indicator_calc.rsi(closes, spec.period)
+        rsi_values = rsi_calc(closes, spec.period)
         out: list[SignalPoint] = []
         for d, value in zip(dates, rsi_values, strict=True):
             if value is None:
@@ -174,7 +138,7 @@ def _build_signal_points(dates: list[str], closes: list[float], spec: SignalSpec
         return out
 
     assert spec.fast is not None and spec.slow is not None and spec.signal is not None
-    macd_line, signal_line, _ = indicator_calc.macd(
+    macd_line, signal_line, _ = macd_calc(
         closes,
         fast=spec.fast,
         slow=spec.slow,

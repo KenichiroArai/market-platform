@@ -12,7 +12,29 @@ from pydantic import BaseModel, Field, model_validator
 
 
 HealthStatus = Literal["ok", "degraded", "error"]
-IndicatorType = Literal["sma", "ema", "rsi", "macd"]
+IndicatorComputeType = Literal[
+    "sma",
+    "ema",
+    "macd",
+    "ichimoku",
+    "psar",
+    "momentum",
+    "roc",
+    "rsi",
+    "cci",
+    "stoch",
+    "willr",
+    "psy",
+    "bb",
+    "atr",
+    "stdev",
+    "keltner",
+    "obv",
+    "vwap",
+    "mfi",
+    "volumeProfile",
+    "fibonacci",
+]
 SignalStrategyType = Literal["smaCross", "rsiThreshold", "macdCross"]
 TradeSide = Literal["buy", "sell"]
 
@@ -48,44 +70,56 @@ class OhlcBar(BaseModel):
 
 
 class IndicatorSpec(BaseModel):
-    """
-    1 指標の計算指定。
+    """1 指標の計算指定（カタログ ID + 種類 + 既定パラメータ）。"""
 
-    type に応じて period または fast/slow/signal を使う。
-    """
-
-    type: IndicatorType
-    period: int | None = None
-    fast: int | None = None
-    slow: int | None = None
-    signal: int | None = None
-
-    @model_validator(mode="after")
-    def validate_params(self) -> IndicatorSpec:
-        """type ごとの必須パラメータを検証する。"""
-        if self.type in ("sma", "ema", "rsi"):
-            if self.period is None or self.period < 1:
-                raise ValueError(f"{self.type} requires period >= 1")
-        elif self.type == "macd":
-            if self.fast is None or self.slow is None or self.signal is None:
-                raise ValueError("macd requires fast, slow, and signal")
-            if self.fast < 1 or self.slow < 1 or self.signal < 1:
-                raise ValueError("macd fast/slow/signal must be >= 1")
-            if self.fast >= self.slow:
-                raise ValueError("macd fast must be < slow")
-        return self
+    id: str
+    type: IndicatorComputeType
+    params: dict[str, float] = Field(default_factory=dict)
 
 
 class IndicatorSeriesPoint(BaseModel):
-    """1 日分の指標値。要求されたキーだけが埋まる。"""
+    """1 日分の指標値。キーは series.key（sma25, bbUpper など）。"""
 
     date: str
-    sma: float | None = None
-    ema: float | None = None
-    rsi: float | None = None
-    macd: float | None = None
-    macdSignal: float | None = None
-    macdHistogram: float | None = None
+    values: dict[str, float | None] = Field(default_factory=dict)
+
+
+class FibonacciLevel(BaseModel):
+    """フィボナッチ 1 本。"""
+
+    ratio: float
+    price: float
+
+
+class FibonacciDrawing(BaseModel):
+    """表示期間の高値〜安値から引く水平線。"""
+
+    high: float
+    low: float
+    highDate: str
+    lowDate: str
+    levels: list[FibonacciLevel]
+
+
+class VolumeProfileBin(BaseModel):
+    """Volume Profile の 1 ビン。"""
+
+    priceLow: float
+    priceHigh: float
+    volume: float
+
+
+class VolumeProfileDrawing(BaseModel):
+    """価格帯ごとの出来高。"""
+
+    bins: list[VolumeProfileBin]
+
+
+class IndicatorDrawings(BaseModel):
+    """日付列ではない描画データ。"""
+
+    fibonacci: FibonacciDrawing | None = None
+    volumeProfile: VolumeProfileDrawing | None = None
 
 
 class ComputeIndicatorsRequest(BaseModel):
@@ -93,6 +127,7 @@ class ComputeIndicatorsRequest(BaseModel):
 
     bars: list[OhlcBar]
     indicators: list[IndicatorSpec] = Field(min_length=1)
+    rangeStartIndex: int = 0
 
 
 class ComputeIndicatorsResponse(BaseModel):
@@ -100,6 +135,7 @@ class ComputeIndicatorsResponse(BaseModel):
 
     indicators: list[IndicatorSpec]
     points: list[IndicatorSeriesPoint]
+    drawings: IndicatorDrawings | None = None
 
 
 class SignalSpec(BaseModel):

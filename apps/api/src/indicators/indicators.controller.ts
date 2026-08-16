@@ -15,7 +15,7 @@ import { IndicatorsService } from './indicators.service';
 export class IndicatorsController {
   constructor(private readonly indicatorsService: IndicatorsService) {}
 
-  /** 銘柄のテクニカル指標（SMA/EMA/RSI/MACD）。 */
+  /** 銘柄のテクニカル指標（カタログ ID。ADR 006）。 */
   @Get(':symbolId/indicators')
   @ApiOkResponse({ description: 'Technical indicators for symbol' })
   getIndicators(

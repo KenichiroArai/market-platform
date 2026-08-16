@@ -1,18 +1,22 @@
 /**
- * チャート分析用のローソク足コンポーネント（ADR 005）。
+ * チャート分析用のローソク足コンポーネント（ADR 005 / 006）。
  *
- * TradingView lightweight-charts v5 で:
- * - Pane 0: ローソク + SMA / EMA
- * - Pane 1: Volume
- * - Pane 2: RSI
- * - Pane 3: MACD
- * ズーム・パンは timeScale の標準操作に任せる。
+ * TradingView lightweight-charts v5 でローソク・出来高・カタログ指標を描画する。
+ * Volume Profile と一目の雲は価格ペイン上の HTML オーバーレイ。
  */
 'use client';
 
 import type { CSSProperties } from 'react';
 import { useEffect, useRef } from 'react';
-import type { DailyPriceDto, IndicatorSeriesPoint } from '@market/shared-types';
+import {
+  INDICATOR_CATALOG,
+  INDICATOR_CATALOG_BY_ID,
+  type DailyPriceDto,
+  type IndicatorCatalogId,
+  type IndicatorDrawings,
+  type IndicatorSeriesPoint,
+  type VolumeProfileBin,
+} from '@market/shared-types';
 import {
   CandlestickSeries,
   ColorType,
@@ -24,39 +28,33 @@ import {
   type Time,
 } from 'lightweight-charts';
 
-/** 表示する指標のトグル。 */
-export type AnalysisChartOverlays = {
-  sma: boolean;
-  ema: boolean;
-  rsi: boolean;
-  macd: boolean;
-};
-
 export type AnalysisChartProps = {
   prices: DailyPriceDto[];
   indicatorPoints: IndicatorSeriesPoint[];
-  overlays?: AnalysisChartOverlays;
+  enabledIds?: Set<IndicatorCatalogId>;
+  drawings?: IndicatorDrawings;
   loading?: boolean;
-  /** チャート領域の高さ（px）。省略時は 520。 */
   height?: number;
-};
-
-export const DEFAULT_OVERLAYS: AnalysisChartOverlays = {
-  sma: true,
-  ema: true,
-  rsi: true,
-  macd: true,
 };
 
 const UP_COLOR = '#26a69a';
 const DOWN_COLOR = '#ef5350';
-const SMA_COLOR = '#f5c542';
-const EMA_COLOR = '#7eb8ff';
-const RSI_COLOR = '#c79bff';
-const MACD_COLOR = '#7eb8ff';
-const MACD_SIGNAL_COLOR = '#f5c542';
 const MACD_HIST_UP = 'rgba(38, 166, 154, 0.55)';
 const MACD_HIST_DOWN = 'rgba(239, 83, 80, 0.55)';
+const PRICE_PANE_PX = 320;
+const SUB_PANE_PX = 90;
+
+/** サブペイン数に応じたチャート高さ。 */
+export function computeAnalysisChartHeight(enabledIds: Set<IndicatorCatalogId>): number {
+  const volumeOn = enabledIds.has('volume');
+  let oscillators = 0;
+  for (const def of INDICATOR_CATALOG) {
+    if (def.pane === 'oscillator' && enabledIds.has(def.id)) {
+      oscillators += 1;
+    }
+  }
+  return PRICE_PANE_PX + (volumeOn ? SUB_PANE_PX : 0) + oscillators * SUB_PANE_PX;
+}
 
 /** ローソク足シリーズ用データへ変換する。 */
 export function toCandlestickData(prices: DailyPriceDto[]) {
@@ -82,13 +80,10 @@ export function toVolumeData(prices: DailyPriceDto[]) {
  * 指標ポイントから null を除いた線系列を作る。
  * ウォームアップ中の null は lightweight-charts に渡さない。
  */
-export function toLineData(
-  points: IndicatorSeriesPoint[],
-  key: 'sma' | 'ema' | 'rsi' | 'macd' | 'macdSignal',
-) {
+export function toLineData(points: IndicatorSeriesPoint[], key: string) {
   const data: { time: Time; value: number }[] = [];
   for (const point of points) {
-    const value = point[key];
+    const value = point.values[key];
     if (typeof value === 'number') {
       data.push({ time: point.date as Time, value });
     }
@@ -96,11 +91,11 @@ export function toLineData(
   return data;
 }
 
-/** MACD ヒストグラム（符号で色分け）。 */
-export function toMacdHistogramData(points: IndicatorSeriesPoint[]) {
+/** 符号で色分けしたヒストグラム。 */
+export function toSignedHistogramData(points: IndicatorSeriesPoint[], key: string) {
   const data: { time: Time; value: number; color: string }[] = [];
   for (const point of points) {
-    const value = point.macdHistogram;
+    const value = point.values[key];
     if (typeof value === 'number') {
       data.push({
         time: point.date as Time,
@@ -112,15 +107,98 @@ export function toMacdHistogramData(points: IndicatorSeriesPoint[]) {
   return data;
 }
 
+/** MACD ヒストグラム（符号で色分け）。 */
+export function toMacdHistogramData(points: IndicatorSeriesPoint[]) {
+  return toSignedHistogramData(points, 'macdHistogram');
+}
+
+/** Volume Profile を価格ペイン右端に置くためのレイアウト。 */
+export function volumeProfileLayout(
+  bins: VolumeProfileBin[],
+  pricePaneRatio: number,
+): { topPct: number; heightPct: number; widthPct: number }[] {
+  if (bins.length === 0) {
+    return [];
+  }
+  const priceMin = Math.min(...bins.map((bin) => bin.priceLow));
+  const priceMax = Math.max(...bins.map((bin) => bin.priceHigh));
+  const span = priceMax - priceMin;
+  const maxVol = Math.max(...bins.map((bin) => bin.volume), 0);
+  if (span === 0 || maxVol === 0) {
+    return bins.map(() => ({
+      topPct: 0,
+      heightPct: pricePaneRatio * 100,
+      widthPct: maxVol === 0 ? 0 : 18,
+    }));
+  }
+  return bins.map((bin) => ({
+    topPct: ((priceMax - bin.priceHigh) / span) * pricePaneRatio * 100,
+    heightPct: ((bin.priceHigh - bin.priceLow) / span) * pricePaneRatio * 100,
+    widthPct: (bin.volume / maxVol) * 18,
+  }));
+}
+
+/** 一目の雲（先行A/B の間）を価格レンジ比で塗る。 */
+export function ichimokuCloudSegments(
+  points: IndicatorSeriesPoint[],
+  priceMin: number,
+  priceMax: number,
+  pricePaneRatio: number,
+): { leftPct: number; widthPct: number; topPct: number; heightPct: number; bullish: boolean }[] {
+  const span = priceMax - priceMin;
+  if (points.length === 0 || span === 0) {
+    return [];
+  }
+  const segments: {
+    leftPct: number;
+    widthPct: number;
+    topPct: number;
+    heightPct: number;
+    bullish: boolean;
+  }[] = [];
+  const widthPct = 100 / points.length;
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i]?.values.ichimokuSenkouA;
+    const b = points[i]?.values.ichimokuSenkouB;
+    if (typeof a !== 'number' || typeof b !== 'number') {
+      continue;
+    }
+    const high = Math.max(a, b);
+    const low = Math.min(a, b);
+    segments.push({
+      leftPct: i * widthPct,
+      widthPct,
+      topPct: ((priceMax - high) / span) * pricePaneRatio * 100,
+      heightPct: ((high - low) / span) * pricePaneRatio * 100,
+      bullish: a >= b,
+    });
+  }
+  return segments;
+}
+
 /** 価格・指標をまとめた分析チャート。空／読込中はメッセージのみ返す。 */
 export function AnalysisChart({
   prices,
   indicatorPoints,
-  overlays = DEFAULT_OVERLAYS,
+  enabledIds = new Set(),
+  drawings,
   loading = false,
-  height = 520,
+  height,
 }: AnalysisChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const chartHeight = height ?? computeAnalysisChartHeight(enabledIds);
+  const volumeOn = enabledIds.has('volume');
+  const pricePaneRatio = PRICE_PANE_PX / chartHeight;
+  const priceMin = prices.length === 0 ? 0 : Math.min(...prices.map((p) => p.low));
+  const priceMax = prices.length === 0 ? 1 : Math.max(...prices.map((p) => p.high));
+  const vpLayout =
+    enabledIds.has('volumeProfile') && drawings?.volumeProfile
+      ? volumeProfileLayout(drawings.volumeProfile.bins, pricePaneRatio)
+      : [];
+  const cloud =
+    enabledIds.has('ichimoku')
+      ? ichimokuCloudSegments(indicatorPoints, priceMin, priceMax, pricePaneRatio)
+      : [];
 
   useEffect(() => {
     if (loading || prices.length === 0 || !containerRef.current) {
@@ -130,7 +208,7 @@ export function AnalysisChart({
     const container = containerRef.current;
     const chart: IChartApi = createChart(container, {
       width: container.clientWidth,
-      height,
+      height: chartHeight,
       layout: {
         background: { type: ColorType.Solid, color: '#12263a' },
         textColor: '#e8eef5',
@@ -143,7 +221,6 @@ export function AnalysisChart({
       timeScale: { borderVisible: false },
     });
 
-    // Pane 0: ローソク
     const candles = chart.addSeries(
       CandlestickSeries,
       {
@@ -154,87 +231,95 @@ export function AnalysisChart({
         wickDownColor: DOWN_COLOR,
       },
       0,
-    );
+    ) as ISeriesApi<'Candlestick'> & {
+      createPriceLine?: (opts: { price: number; color: string; title: string }) => void;
+    };
     candles.setData(toCandlestickData(prices));
 
-    if (overlays.sma) {
-      const sma = chart.addSeries(
-        LineSeries,
-        { color: SMA_COLOR, lineWidth: 2, title: 'SMA', priceLineVisible: false },
-        0,
-      );
-      sma.setData(toLineData(indicatorPoints, 'sma'));
+    if (enabledIds.has('fibonacci') && drawings?.fibonacci) {
+      for (const level of drawings.fibonacci.levels) {
+        candles.createPriceLine?.({
+          price: level.price,
+          color: 'rgba(232, 238, 245, 0.45)',
+          title: `${(level.ratio * 100).toFixed(1)}%`,
+        });
+      }
     }
 
-    if (overlays.ema) {
-      const ema = chart.addSeries(
-        LineSeries,
-        { color: EMA_COLOR, lineWidth: 2, title: 'EMA', priceLineVisible: false },
-        0,
-      );
-      ema.setData(toLineData(indicatorPoints, 'ema'));
+    for (const def of INDICATOR_CATALOG) {
+      if (!enabledIds.has(def.id) || def.pane !== 'overlay') {
+        continue;
+      }
+      for (const series of def.series) {
+        const line = chart.addSeries(
+          LineSeries,
+          {
+            color: series.color,
+            lineWidth: (series.style === 'dots' ? 1 : 2) as 1 | 2,
+            title: series.label,
+            priceLineVisible: false,
+          },
+          0,
+        );
+        line.setData(toLineData(indicatorPoints, series.key));
+      }
     }
 
-    // Pane 1: Volume
-    const volume = chart.addSeries(
-      HistogramSeries,
-      {
-        priceFormat: { type: 'volume' },
-        priceScaleId: 'volume',
-        title: 'Volume',
-      },
-      1,
-    ) as ISeriesApi<'Histogram'>;
-    volume.setData(toVolumeData(prices));
-
-    // Pane 2: RSI（トグル OFF でも空パネルを作らず、ON のときだけ追加）
-    let nextPane = 2;
-    if (overlays.rsi) {
-      const rsi = chart.addSeries(
-        LineSeries,
-        { color: RSI_COLOR, lineWidth: 2, title: 'RSI', priceLineVisible: false },
+    let nextPane = 1;
+    if (volumeOn) {
+      const volume = chart.addSeries(
+        HistogramSeries,
+        {
+          priceFormat: { type: 'volume' },
+          priceScaleId: 'volume',
+          title: 'Volume',
+        },
         nextPane,
-      );
-      rsi.setData(toLineData(indicatorPoints, 'rsi'));
+      ) as ISeriesApi<'Histogram'>;
+      volume.setData(toVolumeData(prices));
       nextPane += 1;
     }
 
-    if (overlays.macd) {
-      const macdLine = chart.addSeries(
-        LineSeries,
-        { color: MACD_COLOR, lineWidth: 2, title: 'MACD', priceLineVisible: false },
-        nextPane,
-      );
-      macdLine.setData(toLineData(indicatorPoints, 'macd'));
-
-      const signal = chart.addSeries(
-        LineSeries,
-        { color: MACD_SIGNAL_COLOR, lineWidth: 2, title: 'Signal', priceLineVisible: false },
-        nextPane,
-      );
-      signal.setData(toLineData(indicatorPoints, 'macdSignal'));
-
-      const hist = chart.addSeries(
-        HistogramSeries,
-        { title: 'Hist', priceLineVisible: false },
-        nextPane,
-      );
-      hist.setData(toMacdHistogramData(indicatorPoints));
+    for (const def of INDICATOR_CATALOG) {
+      if (!enabledIds.has(def.id) || def.pane !== 'oscillator') {
+        continue;
+      }
+      for (const series of def.series) {
+        if (series.style === 'histogram') {
+          const hist = chart.addSeries(
+            HistogramSeries,
+            { title: series.label, priceLineVisible: false },
+            nextPane,
+          );
+          hist.setData(toSignedHistogramData(indicatorPoints, series.key));
+        } else {
+          const line = chart.addSeries(
+            LineSeries,
+            {
+              color: series.color,
+              lineWidth: 2,
+              title: series.label,
+              priceLineVisible: false,
+            },
+            nextPane,
+          );
+          line.setData(toLineData(indicatorPoints, series.key));
+        }
+      }
+      nextPane += 1;
     }
 
-    // サブパネルの高さを抑える（価格パネルを主に）
     const panes = chart.panes();
     if (panes.length > 1) {
-      panes[0]?.setHeight(Math.round(height * 0.45));
+      panes[0]?.setHeight(PRICE_PANE_PX);
       for (let i = 1; i < panes.length; i += 1) {
-        panes[i]?.setHeight(Math.round(height * 0.18));
+        panes[i]?.setHeight(SUB_PANE_PX);
       }
     }
 
     chart.timeScale().fitContent();
 
     const handleResize = () => {
-      // container は effect 開始時に確定しているので、ここでも同じ参照を使う
       chart.applyOptions({ width: container.clientWidth });
     };
     window.addEventListener('resize', handleResize);
@@ -243,7 +328,7 @@ export function AnalysisChart({
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [prices, indicatorPoints, overlays, loading, height]);
+  }, [prices, indicatorPoints, enabledIds, drawings, loading, chartHeight, volumeOn]);
 
   if (loading) {
     return <p style={messageStyle}>チャートを読み込み中…</p>;
@@ -254,13 +339,52 @@ export function AnalysisChart({
   }
 
   return (
-    <div
-      data-testid="analysis-chart"
-      ref={containerRef}
-      style={{ ...chartWrapStyle, height }}
-    />
+    <div style={{ position: 'relative', width: '100%', marginTop: '0.75rem' }}>
+      <div
+        data-testid="analysis-chart"
+        ref={containerRef}
+        style={{ ...chartWrapStyle, height: chartHeight }}
+      />
+      {cloud.map((seg, index) => (
+        <div
+          key={`cloud-${index}`}
+          data-testid="ichimoku-cloud-seg"
+          style={{
+            position: 'absolute',
+            left: `${seg.leftPct}%`,
+            top: `${seg.topPct}%`,
+            width: `${seg.widthPct}%`,
+            height: `${seg.heightPct}%`,
+            background: seg.bullish ? 'rgba(105, 240, 174, 0.12)' : 'rgba(255, 82, 82, 0.12)',
+            pointerEvents: 'none',
+          }}
+        />
+      ))}
+      {vpLayout.map((bar, index) => (
+        <div
+          key={`vp-${index}`}
+          data-testid="volume-profile-bar"
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: `${bar.topPct}%`,
+            width: `${bar.widthPct}%`,
+            height: `${bar.heightPct}%`,
+            background: 'rgba(77, 182, 172, 0.35)',
+            pointerEvents: 'none',
+          }}
+        />
+      ))}
+    </div>
   );
 }
 
 const messageStyle: CSSProperties = { margin: '0.5rem 0', opacity: 0.85 };
-const chartWrapStyle: CSSProperties = { width: '100%', marginTop: '0.75rem' };
+const chartWrapStyle: CSSProperties = { width: '100%' };
+
+export function isOverlayEnabled(
+  enabledIds: Set<IndicatorCatalogId>,
+  id: IndicatorCatalogId,
+): boolean {
+  return enabledIds.has(id) && INDICATOR_CATALOG_BY_ID[id].pane !== 'none';
+}

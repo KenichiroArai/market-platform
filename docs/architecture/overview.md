@@ -96,7 +96,7 @@ flowchart LR
 | `packages/database`      | `schema.prisma`、マイグレーション、生成 Client。NestJS が依存する                                                                                                                                                                                                                                           |
 | `packages/shared-types`  | TypeScript 間の API 契約・共有型。Python とは OpenAPI / 明示的な JSON スキーマで同期する（無理に型共有しない）                                                                                                                                                                                              |
 | `packages/shared-config` | 共有 `tsconfig`、ESLint、Prettier 設定。アプリ実装は持たない                                                                                                                                                                                                                                                |
-| `docs/`                  | アーキテクチャ、ADR、ロードマップなど設計の正本。認証は [ADR 001](../adr/001-authentication-jwt.md)、市場データは [ADR 002](../adr/002-market-data-provider.md)、ウォッチリスト/ポートフォリオは [ADR 003](../adr/003-watchlist-portfolio.md)、テクニカル分析は [ADR 004](../adr/004-technical-analysis.md) |
+| `docs/`                  | アーキテクチャ、ADR、ロードマップなど設計の正本。認証は [ADR 001](../adr/001-authentication-jwt.md)、市場データは [ADR 002](../adr/002-market-data-provider.md)、ウォッチリスト/ポートフォリオは [ADR 003](../adr/003-watchlist-portfolio.md)、テクニカル分析は [ADR 004](../adr/004-technical-analysis.md)、指標カタログは [ADR 006](../adr/006-indicator-catalog.md) |
 | `docker/`                | 各アプリの Dockerfile                                                                                                                                                                                                                                                                                       |
 | `scripts/`               | ローカル初期化、DB 待機などの開発用ユーティリティ（アプリロジックは置かない）                                                                                                                                                                                                                               |
 
@@ -221,11 +221,13 @@ packages:
 - **API**: `GET|POST|PATCH|DELETE /watchlists`、`POST|DELETE /watchlists/:id/items`、`GET|POST|PATCH|DELETE /portfolios`、`POST|PATCH|DELETE /portfolios/:id/holdings`
 - **Web**: `/watchlists`、`/portfolios`
 
-### テクニカル分析（Phase 4）
+### テクニカル分析（v0.1 Phase 4 / v0.2.0 Phase 3）
 
-- **計算**: FastAPI `POST /indicators`（SMA / EMA / RSI / MACD。pandas + numpy 自前実装）
-- **ゲートウェイ**: NestJS が日足を lookback 付きで読み、analysis に委譲して返却（結果は永続化しない）
+- **計算**: FastAPI `POST /indicators`（pandas + numpy 自前実装。結果は永続化しない）
+- **カタログ**: 分類付き ID（SMA 25/75/200、MACD、RSI、ボリンジャー、一目、OBV など）。時系列は `values`、フィボナッチ / Volume Profile は `drawings`（[ADR 006](../adr/006-indicator-catalog.md)）
+- **ゲートウェイ**: NestJS が日足を lookback 付きで読み、analysis に委譲して返却
 - **公開 API**: `GET /symbols/:id/indicators`（JWT。[ADR 004](../adr/004-technical-analysis.md)）
+- **Web**: `/charts` の左カタログ + 右チャート（[ADR 005](../adr/005-chart-analysis.md)）
 
 ### 認証 UX（v0.2.0 / Phase 1）
 
@@ -254,3 +256,5 @@ ESLint 本体は必要になったタイミングで最小構成で入れる。
 - [ADR 002: 市場データプロバイダ](../adr/002-market-data-provider.md)
 - [ADR 003: ウォッチリスト / ポートフォリオ](../adr/003-watchlist-portfolio.md)
 - [ADR 004: テクニカル分析](../adr/004-technical-analysis.md)
+- [ADR 005: チャート分析](../adr/005-chart-analysis.md)
+- [ADR 006: テクニカル指標カタログ](../adr/006-indicator-catalog.md)

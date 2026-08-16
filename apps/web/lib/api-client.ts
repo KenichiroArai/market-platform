@@ -191,7 +191,7 @@ export async function fetchSymbolPrices(
 
 /**
  * GET /symbols/:id/indicators
- * チャート分析画面で価格と並列取得する。interval / indicators / 期間パラメータ対応。
+ * チャート分析画面で価格と並列取得する。カタログ ID を indicators に載せる。
  */
 export async function fetchSymbolIndicators(
   symbolId: string,
@@ -200,12 +200,6 @@ export async function fetchSymbolIndicators(
     to?: string;
     interval?: ChartInterval;
     indicators?: string;
-    smaPeriod?: number;
-    emaPeriod?: number;
-    rsiPeriod?: number;
-    macdFast?: number;
-    macdSlow?: number;
-    macdSignal?: number;
   } = {},
   fetchImpl?: typeof fetch,
 ): Promise<IndicatorsResponseDto> {
@@ -221,24 +215,6 @@ export async function fetchSymbolIndicators(
   }
   if (query.indicators) {
     params.set('indicators', query.indicators);
-  }
-  if (query.smaPeriod !== undefined) {
-    params.set('smaPeriod', String(query.smaPeriod));
-  }
-  if (query.emaPeriod !== undefined) {
-    params.set('emaPeriod', String(query.emaPeriod));
-  }
-  if (query.rsiPeriod !== undefined) {
-    params.set('rsiPeriod', String(query.rsiPeriod));
-  }
-  if (query.macdFast !== undefined) {
-    params.set('macdFast', String(query.macdFast));
-  }
-  if (query.macdSlow !== undefined) {
-    params.set('macdSlow', String(query.macdSlow));
-  }
-  if (query.macdSignal !== undefined) {
-    params.set('macdSignal', String(query.macdSignal));
   }
   const qs = params.toString();
   const path = `/symbols/${encodeURIComponent(symbolId)}/indicators${qs ? `?${qs}` : ''}`;

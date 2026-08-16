@@ -2,10 +2,15 @@ import { act, render, screen } from '@testing-library/react';
 import type { DailyPriceDto, IndicatorSeriesPoint } from '@market/shared-types';
 import {
   AnalysisChart,
+  computeAnalysisChartHeight,
+  ichimokuCloudSegments,
+  isOverlayEnabled,
   toCandlestickData,
   toLineData,
   toMacdHistogramData,
+  toSignedHistogramData,
   toVolumeData,
+  volumeProfileLayout,
 } from './analysis-chart';
 import {
   createChart,
@@ -37,9 +42,47 @@ const downPrice: DailyPriceDto = {
 };
 
 const points: IndicatorSeriesPoint[] = [
-  { date: '2026-01-02', sma: null, ema: 100, rsi: 55, macd: 1, macdSignal: 0.5, macdHistogram: 0.5 },
-  { date: '2026-01-03', sma: 101, ema: 100.5, rsi: 48, macd: -0.2, macdSignal: 0.1, macdHistogram: -0.3 },
+  {
+    date: '2026-01-02',
+    values: {
+      sma25: null,
+      ema50: 100,
+      rsi: 55,
+      macd: 1,
+      macdSignal: 0.5,
+      macdHistogram: 0.5,
+      ichimokuSenkouA: 102,
+      ichimokuSenkouB: 100,
+    },
+  },
+  {
+    date: '2026-01-03',
+    values: {
+      sma25: 101,
+      ema50: 100.5,
+      rsi: 48,
+      macd: -0.2,
+      macdSignal: 0.1,
+      macdHistogram: -0.3,
+      ichimokuSenkouA: 99,
+      ichimokuSenkouB: 101,
+    },
+  },
 ];
+
+function chartApi(createPriceLine = jest.fn()) {
+  return {
+    addSeries: jest.fn(() => ({ setData: lwcMocks.mockSetData, createPriceLine })),
+    panes: jest.fn(() => [
+      { setHeight: lwcMocks.mockSetHeight },
+      { setHeight: lwcMocks.mockSetHeight },
+      { setHeight: lwcMocks.mockSetHeight },
+    ]),
+    timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
+    applyOptions: lwcMocks.mockApplyOptions,
+    remove: lwcMocks.mockRemove,
+  };
+}
 
 describe('analysis-chart helpers', () => {
   it('maps candlestick and volume data', () => {
@@ -56,30 +99,60 @@ describe('analysis-chart helpers', () => {
     ]);
   });
 
-  it('skips null indicator values and colors MACD histogram by sign', () => {
-    expect(toLineData(points, 'sma')).toEqual([{ time: '2026-01-03', value: 101 }]);
-    expect(toLineData(points, 'ema')).toHaveLength(2);
+  it('skips null indicator values and colors histograms by sign', () => {
+    expect(toLineData(points, 'sma25')).toEqual([{ time: '2026-01-03', value: 101 }]);
+    expect(toLineData(points, 'ema50')).toHaveLength(2);
     expect(toMacdHistogramData(points)).toEqual([
       { time: '2026-01-02', value: 0.5, color: 'rgba(38, 166, 154, 0.55)' },
       { time: '2026-01-03', value: -0.3, color: 'rgba(239, 83, 80, 0.55)' },
     ]);
+    expect(toSignedHistogramData(points, 'missing')).toEqual([]);
+  });
+
+  it('layouts volume profile and ichimoku cloud', () => {
+    expect(volumeProfileLayout([], 0.5)).toEqual([]);
+    expect(
+      volumeProfileLayout([{ priceLow: 2, priceHigh: 2, volume: 4 }], 0.5)[0]?.widthPct,
+    ).toBe(18);
+    expect(
+      volumeProfileLayout([{ priceLow: 1, priceHigh: 3, volume: 0 }], 0.5),
+    ).toHaveLength(1);
+    expect(
+      volumeProfileLayout(
+        [
+          { priceLow: 1, priceHigh: 1, volume: 0 },
+          { priceLow: 1, priceHigh: 1, volume: 0 },
+        ],
+        0.5,
+      ),
+    ).toHaveLength(2);
+    const layout = volumeProfileLayout(
+      [
+        { priceLow: 1, priceHigh: 2, volume: 10 },
+        { priceLow: 2, priceHigh: 3, volume: 5 },
+      ],
+      0.5,
+    );
+    expect(layout[0]?.widthPct).toBe(18);
+    expect(ichimokuCloudSegments([], 1, 2, 0.5)).toEqual([]);
+    expect(ichimokuCloudSegments(points, 1, 1, 0.5)).toEqual([]);
+    const cloud = ichimokuCloudSegments(points, 90, 110, 0.5);
+    expect(cloud).toHaveLength(2);
+    expect(cloud[0]?.bullish).toBe(true);
+    expect(cloud[1]?.bullish).toBe(false);
+    expect(
+      ichimokuCloudSegments([{ date: '2026-01-02', values: {} }], 90, 110, 0.5),
+    ).toEqual([]);
+    expect(computeAnalysisChartHeight(new Set(['volume', 'rsi', 'macd']))).toBe(320 + 90 * 3);
+    expect(isOverlayEnabled(new Set(['sma25']), 'sma25')).toBe(true);
+    expect(isOverlayEnabled(new Set(['elliott']), 'elliott')).toBe(false);
   });
 });
 
 describe('AnalysisChart', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (createChart as jest.Mock).mockImplementation(() => ({
-      addSeries: jest.fn(() => ({ setData: lwcMocks.mockSetData })),
-      panes: jest.fn(() => [
-        { setHeight: lwcMocks.mockSetHeight },
-        { setHeight: lwcMocks.mockSetHeight },
-        { setHeight: lwcMocks.mockSetHeight },
-      ]),
-      timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
-      applyOptions: lwcMocks.mockApplyOptions,
-      remove: lwcMocks.mockRemove,
-    }));
+    (createChart as jest.Mock).mockImplementation(() => chartApi());
     Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
       configurable: true,
       value: 800,
@@ -98,52 +171,98 @@ describe('AnalysisChart', () => {
     expect(createChart).not.toHaveBeenCalled();
   });
 
-  it('creates chart with all overlays by default', () => {
-    const chartApi = {
-      addSeries: jest.fn(() => ({ setData: lwcMocks.mockSetData })),
-      panes: jest.fn(() => [
-        { setHeight: lwcMocks.mockSetHeight },
-        { setHeight: lwcMocks.mockSetHeight },
-        { setHeight: lwcMocks.mockSetHeight },
-      ]),
-      timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
-      applyOptions: lwcMocks.mockApplyOptions,
-      remove: lwcMocks.mockRemove,
-    };
-    (createChart as jest.Mock).mockReturnValue(chartApi);
+  it('creates chart with overlays, oscillators, fibonacci and volume profile', () => {
+    const api = chartApi();
+    (createChart as jest.Mock).mockReturnValue(api);
 
-    render(<AnalysisChart prices={[price, downPrice]} indicatorPoints={points} />);
+    render(
+      <AnalysisChart
+        prices={[price, downPrice]}
+        indicatorPoints={points}
+        enabledIds={new Set(['sma25', 'volume', 'rsi', 'macd', 'psar', 'ichimoku', 'fibonacci', 'volumeProfile'])}
+        drawings={{
+          fibonacci: {
+            high: 105,
+            low: 98,
+            highDate: '2026-01-02',
+            lowDate: '2026-01-03',
+            levels: [{ ratio: 0.5, price: 101.5 }],
+          },
+          volumeProfile: {
+            bins: [
+              { priceLow: 98, priceHigh: 101, volume: 10 },
+              { priceLow: 101, priceHigh: 105, volume: 5 },
+            ],
+          },
+        }}
+      />,
+    );
     expect(screen.getByTestId('analysis-chart')).toBeInTheDocument();
     expect(createChart).toHaveBeenCalled();
-    expect(chartApi.addSeries).toHaveBeenCalledTimes(8);
+    expect(api.addSeries).toHaveBeenCalled();
+    expect(screen.getAllByTestId('ichimoku-cloud-seg').length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('volume-profile-bar').length).toBeGreaterThan(0);
     expect(lwcMocks.mockFitContent).toHaveBeenCalled();
     expect(lwcMocks.mockSetHeight).toHaveBeenCalled();
   });
 
-  it('omits indicator series when overlays are off', () => {
-    const chartApi = {
+  it('skips price lines when createPriceLine is missing', () => {
+    const api = {
       addSeries: jest.fn(() => ({ setData: lwcMocks.mockSetData })),
       panes: jest.fn(() => [{ setHeight: lwcMocks.mockSetHeight }]),
       timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
       applyOptions: lwcMocks.mockApplyOptions,
       remove: lwcMocks.mockRemove,
     };
-    (createChart as jest.Mock).mockReturnValue(chartApi);
+    (createChart as jest.Mock).mockReturnValue(api);
+    render(
+      <AnalysisChart
+        prices={[price]}
+        indicatorPoints={points}
+        enabledIds={new Set(['fibonacci', 'volumeProfile'])}
+        drawings={{
+          fibonacci: {
+            high: 105,
+            low: 98,
+            highDate: '2026-01-02',
+            lowDate: '2026-01-03',
+            levels: [{ ratio: 0.5, price: 101.5 }],
+          },
+        }}
+      />,
+    );
+    expect(api.addSeries).toHaveBeenCalled();
+  });
+
+  it('omits indicator series when none are enabled', () => {
+    const api = {
+      addSeries: jest.fn(() => ({ setData: lwcMocks.mockSetData })),
+      panes: jest.fn(() => [{ setHeight: lwcMocks.mockSetHeight }]),
+      timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
+      applyOptions: lwcMocks.mockApplyOptions,
+      remove: lwcMocks.mockRemove,
+    };
+    (createChart as jest.Mock).mockReturnValue(api);
 
     render(
       <AnalysisChart
         prices={[price]}
         indicatorPoints={points}
-        overlays={{ sma: false, ema: false, rsi: false, macd: false }}
+        enabledIds={new Set()}
       />,
     );
-    expect(chartApi.addSeries).toHaveBeenCalledTimes(2);
+    expect(api.addSeries).toHaveBeenCalledTimes(1);
     expect(lwcMocks.mockSetHeight).not.toHaveBeenCalled();
   });
 
   it('removes chart on unmount and handles resize', () => {
     const { unmount } = render(
-      <AnalysisChart prices={[price]} indicatorPoints={points} height={400} />,
+      <AnalysisChart
+        prices={[price]}
+        indicatorPoints={points}
+        enabledIds={new Set(['volume'])}
+        height={400}
+      />,
     );
     act(() => {
       window.dispatchEvent(new Event('resize'));
