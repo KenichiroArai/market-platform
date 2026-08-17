@@ -506,10 +506,13 @@ describe('shared-types analysis', () => {
         volumeProfile: { bins: [{ priceLow: 1, priceHigh: 2, volume: 3 }] },
       }),
     ).toBe(true);
-    expect(isIndicatorDrawings({ fibonacci: null })).toBe(false);
+    expect(isIndicatorDrawings({ fibonacci: null })).toBe(true);
+    expect(isIndicatorDrawings({ fibonacci: 1 })).toBe(false);
+    expect(isIndicatorDrawings({ volumeProfile: null })).toBe(true);
     expect(isIndicatorDrawings({ volumeProfile: { bins: [null] } })).toBe(false);
     expect(isIndicatorDrawings({ volumeProfile: { bins: 'x' } })).toBe(false);
     expect(isIndicatorDrawings({ volumeProfile: 1 })).toBe(false);
+    expect(isIndicatorDrawings({ volumeProfile: [] })).toBe(false);
     expect(
       isIndicatorDrawings({
         fibonacci: {
@@ -521,7 +524,18 @@ describe('shared-types analysis', () => {
         },
       }),
     ).toBe(false);
-    expect(isIndicatorDrawings({ volumeProfile: null })).toBe(false);
+    expect(
+      isIndicatorDrawings({
+        fibonacci: {
+          high: 10,
+          low: 5,
+          highDate: '2026-01-02',
+          lowDate: '2026-01-01',
+          levels: [{ ratio: 0.5, price: 7.5 }],
+        },
+        volumeProfile: null,
+      }),
+    ).toBe(true);
     expect(isIndicatorDrawings(null)).toBe(false);
     expect(isIndicatorDrawings([])).toBe(false);
     expect(
@@ -562,6 +576,13 @@ describe('shared-types analysis', () => {
     });
     expect(withoutSymbol.symbolId).toBeUndefined();
     expect(isIndicatorsResponseDto(withoutSymbol)).toBe(true);
+    expect(
+      isIndicatorsResponseDto({
+        indicators: [],
+        points: [],
+        drawings: null,
+      }),
+    ).toBe(true);
 
     expect(isIndicatorsResponseDto(null)).toBe(false);
     expect(isIndicatorsResponseDto({ indicators: [], points: 'x' })).toBe(false);

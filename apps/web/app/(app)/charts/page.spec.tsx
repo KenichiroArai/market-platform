@@ -29,8 +29,16 @@ jest.mock('../../../lib/api-client', () => ({
 }));
 
 jest.mock('../../../components/analysis-chart', () => ({
-  AnalysisChart: ({ loading }: { loading?: boolean }) => (
-    <div data-testid="analysis-chart-stub">{loading ? 'loading' : 'ready'}</div>
+  AnalysisChart: ({
+    loading,
+    prices,
+  }: {
+    loading?: boolean;
+    prices?: { date: string }[];
+  }) => (
+    <div data-testid="analysis-chart-stub">
+      {loading ? 'loading' : `ready:${prices?.length ?? 0}`}
+    </div>
   ),
 }));
 
@@ -215,6 +223,30 @@ describe('ChartsPage', () => {
     render(<ChartsPage />);
     await waitFor(() =>
       expect(screen.getByText('チャートの取得に失敗しました')).toBeInTheDocument(),
+    );
+  });
+
+  it('keeps price data when indicators fail', async () => {
+    (fetchSymbolIndicators as jest.Mock).mockRejectedValue(
+      new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected indicators response'),
+    );
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(screen.getByText('Unexpected indicators response')).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('analysis-chart-stub')).toHaveTextContent('ready:1');
+  });
+
+  it('joins price and indicator errors', async () => {
+    (fetchSymbolPrices as jest.Mock).mockRejectedValue(
+      new ApiClientError(500, 'HTTP_ERROR', 'price failed'),
+    );
+    (fetchSymbolIndicators as jest.Mock).mockRejectedValue(
+      new ApiClientError(500, 'INVALID_RESPONSE', 'indicator failed'),
+    );
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(screen.getByText('price failed / indicator failed')).toBeInTheDocument(),
     );
   });
 

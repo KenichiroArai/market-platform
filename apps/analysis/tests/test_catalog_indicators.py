@@ -328,3 +328,30 @@ def test_post_ichimoku_and_drawings() -> None:
     assert len(body["points"]) == 28 + 2
     assert body["drawings"]["fibonacci"]["high"] > 0
     assert len(body["drawings"]["volumeProfile"]["bins"]) == 6
+
+
+def test_post_sma_omits_empty_drawings_and_keeps_warmup_nulls() -> None:
+    client = TestClient(app)
+    bars = [
+        {
+            "date": f"2024-01-{i:02d}",
+            "open": 10,
+            "high": 11,
+            "low": 9,
+            "close": 10.0 + i,
+            "volume": 100,
+        }
+        for i in range(1, 6)
+    ]
+    response = client.post(
+        "/indicators",
+        json={
+            "bars": bars,
+            "indicators": [{"id": "sma25", "type": "sma", "params": {"period": 3}}],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "drawings" not in body
+    assert body["points"][0]["values"]["sma25"] is None
+    assert body["points"][-1]["values"]["sma25"] is not None

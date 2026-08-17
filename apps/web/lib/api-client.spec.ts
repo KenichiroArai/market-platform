@@ -310,6 +310,17 @@ describe('api-client', () => {
     await expect(
       fetchSymbolIndicators('sym_1', {}, invalid as unknown as typeof fetch),
     ).rejects.toBeInstanceOf(ApiClientError);
+
+    const withNullDrawings = {
+      symbolId: 'sym_1',
+      indicators: [{ id: 'sma25' as const, type: 'sma' as const, params: { period: 25 } }],
+      points: [{ date: '2026-01-02', values: { sma25: 10 } }],
+      drawings: null,
+    };
+    const nullDrawings = okJson(withNullDrawings);
+    await expect(
+      fetchSymbolIndicators('sym_1', {}, nullDrawings as unknown as typeof fetch),
+    ).resolves.toEqual(withNullDrawings);
   });
 
   it('creates and mutates watchlists', async () => {

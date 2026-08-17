@@ -110,6 +110,25 @@ describe('IndicatorsService', () => {
     );
   });
 
+  it('omits null drawings from analysis', async () => {
+    const bars = makeBars(26);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        indicators: [{ id: 'sma25', type: 'sma', params: { period: 25 } }],
+        points: bars.map((bar) => ({ date: bar.date, values: { sma25: 10 } })),
+        drawings: null,
+      }),
+    }) as unknown as typeof fetch;
+
+    const result = await service.getForSymbol('s1', { indicators: 'sma25' });
+    expect(result.drawings).toBeUndefined();
+  });
+
   it('passes weekly interval to prices lookback', async () => {
     const bars = makeBars(26);
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({

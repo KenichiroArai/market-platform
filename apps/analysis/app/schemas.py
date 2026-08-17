@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, model_serializer, model_validator
 
 
 HealthStatus = Literal["ok", "degraded", "error"]
@@ -121,6 +121,11 @@ class IndicatorDrawings(BaseModel):
     fibonacci: FibonacciDrawing | None = None
     volumeProfile: VolumeProfileDrawing | None = None
 
+    @model_serializer(mode="wrap")
+    def omit_none_fields(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = handler(self)
+        return {key: value for key, value in data.items() if value is not None}
+
 
 class ComputeIndicatorsRequest(BaseModel):
     """POST /indicators のリクエスト。"""
@@ -136,6 +141,13 @@ class ComputeIndicatorsResponse(BaseModel):
     indicators: list[IndicatorSpec]
     points: list[IndicatorSeriesPoint]
     drawings: IndicatorDrawings | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_null_drawings(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = handler(self)
+        if data.get("drawings") is None:
+            data.pop("drawings", None)
+        return data
 
 
 class SignalSpec(BaseModel):

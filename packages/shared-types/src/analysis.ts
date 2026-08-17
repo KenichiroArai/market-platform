@@ -189,11 +189,12 @@ export function isIndicatorDrawings(value: unknown): value is IndicatorDrawings 
     return false;
   }
   const record = value as Record<string, unknown>;
-  if (record.fibonacci !== undefined && !isFibonacciDrawing(record.fibonacci)) {
+  // FastAPI / Pydantic は未設定の optional を JSON null で出すことがある。
+  if (record.fibonacci != null && !isFibonacciDrawing(record.fibonacci)) {
     return false;
   }
-  if (record.volumeProfile !== undefined) {
-    if (record.volumeProfile === null || typeof record.volumeProfile !== 'object') {
+  if (record.volumeProfile != null) {
+    if (typeof record.volumeProfile !== 'object' || Array.isArray(record.volumeProfile)) {
       return false;
     }
     const profile = record.volumeProfile as Record<string, unknown>;
@@ -215,7 +216,7 @@ export function createIndicatorsResponseDto(
   if (input.symbolId !== undefined) {
     dto.symbolId = input.symbolId;
   }
-  if (input.drawings !== undefined) {
+  if (input.drawings != null) {
     dto.drawings = input.drawings;
   }
   return dto;
@@ -239,7 +240,7 @@ export function isIndicatorsResponseDto(value: unknown): value is IndicatorsResp
   if (!record.points.every(isIndicatorSeriesPoint)) {
     return false;
   }
-  if (record.drawings !== undefined && !isIndicatorDrawings(record.drawings)) {
+  if (record.drawings != null && !isIndicatorDrawings(record.drawings)) {
     return false;
   }
   return true;

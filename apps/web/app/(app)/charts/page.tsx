@@ -119,21 +119,36 @@ export default function ChartsPage() {
               })
             : Promise.resolve({ points: [] as IndicatorSeriesPoint[], drawings: undefined });
 
-        const [priceRows, indicatorRes] = await Promise.all([pricePromise, indicatorPromise]);
-        if (!cancelled) {
-          setPrices(priceRows);
-          setIndicatorPoints(indicatorRes.points);
-          setDrawings(indicatorRes.drawings);
+        const [priceResult, indicatorResult] = await Promise.allSettled([
+          pricePromise,
+          indicatorPromise,
+        ]);
+        if (cancelled) {
+          return;
         }
-      } catch (err) {
-        if (!cancelled) {
+
+        if (priceResult.status === 'fulfilled') {
+          setPrices(priceResult.value);
+        } else {
           setPrices([]);
+        }
+
+        if (indicatorResult.status === 'fulfilled') {
+          setIndicatorPoints(indicatorResult.value.points);
+          setDrawings(indicatorResult.value.drawings);
+        } else {
           setIndicatorPoints([]);
           setDrawings(undefined);
-          setChartError(
-            err instanceof ApiClientError ? err.message : 'チャートの取得に失敗しました',
-          );
         }
+
+        const messages: string[] = [];
+        if (priceResult.status === 'rejected') {
+          messages.push(chartFetchErrorMessage(priceResult.reason));
+        }
+        if (indicatorResult.status === 'rejected') {
+          messages.push(chartFetchErrorMessage(indicatorResult.reason));
+        }
+        setChartError(messages.length > 0 ? messages.join(' / ') : null);
       } finally {
         if (!cancelled) {
           setChartLoading(false);
@@ -320,3 +335,7 @@ const checkLabelStyle: CSSProperties = {
 };
 
 const errorStyle: CSSProperties = { color: '#ffb4b4' };
+
+function chartFetchErrorMessage(err: unknown): string {
+  return err instanceof ApiClientError ? err.message : 'チャートの取得に失敗しました';
+}

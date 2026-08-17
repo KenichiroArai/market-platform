@@ -96,7 +96,7 @@ export class IndicatorsService {
       symbolId,
       indicators: specs,
       points: trimmedPoints,
-      drawings: upstream.drawings,
+      drawings: upstream.drawings ?? undefined,
     });
   }
 
