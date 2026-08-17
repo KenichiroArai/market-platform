@@ -319,13 +319,15 @@ export function AnalysisChart({
 
     chart.timeScale().fitContent();
 
+    // 別ウィンドウへ portal したときは popup 側の resize を見る
+    const view = resolveOwnerWindow(container);
     const handleResize = () => {
       chart.applyOptions({ width: container.clientWidth });
     };
-    window.addEventListener('resize', handleResize);
+    view.addEventListener('resize', handleResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      view.removeEventListener('resize', handleResize);
       chart.remove();
     };
   }, [prices, indicatorPoints, enabledIds, drawings, loading, chartHeight, volumeOn]);
@@ -387,4 +389,11 @@ export function isOverlayEnabled(
   id: IndicatorCatalogId,
 ): boolean {
   return enabledIds.has(id) && INDICATOR_CATALOG_BY_ID[id].pane !== 'none';
+}
+
+/** チャート要素が属する Window。popup の defaultView が無いときは opener に落とす。 */
+export function resolveOwnerWindow(node: {
+  ownerDocument: { defaultView: Window | null };
+}): Window {
+  return node.ownerDocument.defaultView ?? window;
 }

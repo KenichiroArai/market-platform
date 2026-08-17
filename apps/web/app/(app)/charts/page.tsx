@@ -1,7 +1,8 @@
 /**
  * チャート分析画面（v0.2.0 Phase 3）。
  *
- * 銘柄・期間・足種は上段、左に分類カタログ、右にローソクチャート。
+ * 銘柄・期間・足種は上段、チャートは本画面に全幅表示する。
+ * 指標カタログはモードレスまたは別ウィンドウ。拡大は全画面の別ウィンドウ。
  * 未ログイン誘導は共通レイアウト側。
  */
 'use client';
@@ -17,11 +18,25 @@ import type {
   WatchlistDto,
 } from '@market/shared-types';
 import { computeCatalogIds } from '@market/shared-types';
-import { AnalysisChart } from '../../../components/analysis-chart';
+import {
+  AnalysisChart,
+  computeAnalysisChartHeight,
+} from '../../../components/analysis-chart';
 import {
   INITIAL_ENABLED_IDS,
   IndicatorCatalog,
 } from '../../../components/indicator-catalog';
+import { ModelessWindow } from '../../../components/modeless-window';
+import {
+  enlargedChartHeight,
+  nextIndicatorUiMode,
+  type IndicatorUiMode,
+} from '../../../components/chart-window-state';
+import {
+  PopoutWindow,
+  primePopoutWindow,
+  useHostWindowSize,
+} from '../../../components/popout-window';
 import {
   ApiClientError,
   fetchSymbolIndicators,
@@ -49,6 +64,8 @@ export default function ChartsPage() {
   const [chartError, setChartError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(false);
+  const [indicatorUi, setIndicatorUi] = useState<IndicatorUiMode>('closed');
+  const [chartPopout, setChartPopout] = useState(false);
 
   const watchlistSymbols = useMemo(() => {
     if (!watchlistId) {
@@ -164,7 +181,7 @@ export default function ChartsPage() {
     <main style={pageStyle}>
       <h1 style={{ fontSize: '1.75rem', margin: '0 0 0.5rem' }}>チャート分析</h1>
       <p style={{ margin: '0 0 1.25rem', opacity: 0.85, maxWidth: '46rem' }}>
-        分類からテクニカル指標を選び、ローソク足と一緒に確認します。初期表示はおすすめ構成です。ズーム・パンはチャート上で操作できます。
+        チャートは本画面に表示します。指標はモードレスまたは別ウィンドウで選び、拡大で全画面の別ウィンドウを開けます。初期表示はおすすめ構成です。
       </p>
 
       {error ? <p style={errorStyle}>{error}</p> : null}
@@ -264,11 +281,59 @@ export default function ChartsPage() {
         </section>
       ) : null}
 
+      {!loading ? (
+        <section style={windowActionsStyle}>
+          <button
+            type="button"
+            style={buttonStyle}
+            data-testid="open-indicator-modeless"
+            aria-pressed={indicatorUi === 'modeless'}
+            onClick={() => setIndicatorUi((current) => nextIndicatorUiMode(current, 'modeless'))}
+          >
+            指標設定（モードレス）
+          </button>
+          <button
+            type="button"
+            style={buttonStyle}
+            data-testid="open-indicator-popout"
+            aria-pressed={indicatorUi === 'popout'}
+            onClick={() => {
+              const next = nextIndicatorUiMode(indicatorUi, 'popout');
+              if (next === 'popout') {
+                primePopoutWindow('chart-indicator-settings', { width: 440, height: 800 });
+              }
+              setIndicatorUi(next);
+            }}
+          >
+            指標設定（別ウィンドウ）
+          </button>
+          <span style={countStyle} data-testid="enabled-indicator-count">
+            選択中 {enabledIds.size} 件
+          </span>
+        </section>
+      ) : null}
+
       {chartError ? <p style={errorStyle}>{chartError}</p> : null}
 
       {!loading && symbolId ? (
-        <div style={bodyStyle}>
-          <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
+        <section style={chartPanelStyle} data-testid="chart-panel">
+          <div style={chartToolbarStyle}>
+            <h2 style={chartTitleStyle}>チャート</h2>
+            <button
+              type="button"
+              style={buttonStyle}
+              data-testid="enlarge-chart"
+              aria-pressed={chartPopout}
+              onClick={() => {
+                if (!chartPopout) {
+                  primePopoutWindow('chart-analysis-fullscreen', { fullscreen: true });
+                }
+                setChartPopout((open) => !open);
+              }}
+            >
+              {chartPopout ? '拡大ウィンドウを閉じる' : '拡大'}
+            </button>
+          </div>
           <AnalysisChart
             prices={prices}
             indicatorPoints={indicatorPoints}
@@ -276,9 +341,70 @@ export default function ChartsPage() {
             drawings={drawings}
             loading={chartLoading}
           />
-        </div>
+        </section>
+      ) : null}
+
+      {indicatorUi === 'modeless' ? (
+        <ModelessWindow title="指標設定" onClose={() => setIndicatorUi('closed')}>
+          <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
+        </ModelessWindow>
+      ) : null}
+
+      {indicatorUi === 'popout' ? (
+        <PopoutWindow
+          title="指標設定"
+          name="chart-indicator-settings"
+          padded
+          onClose={() => setIndicatorUi('closed')}
+        >
+          <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
+        </PopoutWindow>
+      ) : null}
+
+      {chartPopout ? (
+        <PopoutWindow
+          title="チャート分析（拡大）"
+          name="chart-analysis-fullscreen"
+          fullscreen
+          onClose={() => setChartPopout(false)}
+        >
+          {({ win }) => (
+            <EnlargedAnalysisChart
+              win={win}
+              prices={prices}
+              indicatorPoints={indicatorPoints}
+              enabledIds={enabledIds}
+              drawings={drawings}
+              loading={chartLoading}
+            />
+          )}
+        </PopoutWindow>
       ) : null}
     </main>
+  );
+}
+
+/** 別ウィンドウ側の高さに合わせてチャートを引き伸ばす。 */
+function EnlargedAnalysisChart({
+  win,
+  enabledIds,
+  ...rest
+}: {
+  win: Window;
+  prices: DailyPriceDto[];
+  indicatorPoints: IndicatorSeriesPoint[];
+  enabledIds: Set<IndicatorCatalogId>;
+  drawings?: IndicatorDrawings;
+  loading: boolean;
+}) {
+  const size = useHostWindowSize(win);
+  const minHeight = computeAnalysisChartHeight(enabledIds);
+  return (
+    <AnalysisChart
+      {...rest}
+      enabledIds={enabledIds}
+      height={enlargedChartHeight(minHeight, size.height)}
+    />
   );
 }
 
@@ -294,11 +420,45 @@ const controlsStyle: CSSProperties = {
   marginBottom: '1rem',
 };
 
-const bodyStyle: CSSProperties = {
+const windowActionsStyle: CSSProperties = {
   display: 'flex',
   flexWrap: 'wrap',
-  gap: '1.25rem',
-  alignItems: 'flex-start',
+  gap: '0.5rem',
+  alignItems: 'center',
+  marginBottom: '1rem',
+};
+
+const buttonStyle: CSSProperties = {
+  padding: '0.4rem 0.75rem',
+  borderRadius: 4,
+  border: '1px solid rgba(232, 238, 245, 0.35)',
+  background: 'rgba(0,0,0,0.25)',
+  color: '#e8eef5',
+  cursor: 'pointer',
+  fontSize: '0.9rem',
+};
+
+const countStyle: CSSProperties = {
+  fontSize: '0.85rem',
+  opacity: 0.8,
+};
+
+const chartPanelStyle: CSSProperties = {
+  width: '100%',
+  minWidth: 0,
+};
+
+const chartToolbarStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '0.75rem',
+  marginBottom: '0.35rem',
+};
+
+const chartTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: '1.05rem',
 };
 
 const labelStyle: CSSProperties = {

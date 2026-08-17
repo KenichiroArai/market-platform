@@ -5,6 +5,7 @@ import {
   computeAnalysisChartHeight,
   ichimokuCloudSegments,
   isOverlayEnabled,
+  resolveOwnerWindow,
   toCandlestickData,
   toLineData,
   toMacdHistogramData,
@@ -146,6 +147,8 @@ describe('analysis-chart helpers', () => {
     expect(computeAnalysisChartHeight(new Set(['volume', 'rsi', 'macd']))).toBe(320 + 90 * 3);
     expect(isOverlayEnabled(new Set(['sma25']), 'sma25')).toBe(true);
     expect(isOverlayEnabled(new Set(['elliott']), 'elliott')).toBe(false);
+    expect(resolveOwnerWindow({ ownerDocument: { defaultView: window } })).toBe(window);
+    expect(resolveOwnerWindow({ ownerDocument: { defaultView: null } })).toBe(window);
   });
 });
 

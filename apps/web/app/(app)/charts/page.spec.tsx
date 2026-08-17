@@ -2,6 +2,7 @@
  * @jest-environment jsdom
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import ChartsPage from './page';
 import {
   ApiClientError,
@@ -40,7 +41,31 @@ jest.mock('../../../components/analysis-chart', () => ({
       {loading ? 'loading' : `ready:${prices?.length ?? 0}`}
     </div>
   ),
+  computeAnalysisChartHeight: () => 400,
 }));
+
+jest.mock('../../../components/popout-window', () => {
+  const actual = jest.requireActual('../../../components/popout-window') as Record<string, unknown>;
+  return {
+    ...actual,
+    PopoutWindow: ({
+      children,
+      onClose,
+      title,
+    }: {
+      children: ReactNode | ((api: { win: Window }) => ReactNode);
+      onClose: () => void;
+      title: string;
+    }) => (
+      <div data-testid="popout-stub" data-title={title}>
+        {typeof children === 'function' ? children({ win: window }) : children}
+        <button type="button" onClick={onClose} data-testid="popout-stub-close">
+          close
+        </button>
+      </div>
+    ),
+  };
+});
 
 describe('ChartsPage', () => {
   const symbol = {
@@ -178,6 +203,7 @@ describe('ChartsPage', () => {
       ),
     );
 
+    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
     fireEvent.click(screen.getByTestId('overlay-sma25'));
     fireEvent.click(screen.getByTestId('clear-indicators'));
     await waitFor(() => {
@@ -256,5 +282,64 @@ describe('ChartsPage', () => {
     render(<ChartsPage />);
     await waitFor(() => expect(screen.queryByText('読み込み中…')).not.toBeInTheDocument());
     expect(screen.queryByTestId('analysis-chart-stub')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('indicator-catalog')).not.toBeInTheDocument();
+  });
+
+  it('opens indicator settings in a modeless window and closes it', async () => {
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('open-indicator-modeless')).toBeInTheDocument());
+    expect(screen.queryByTestId('indicator-catalog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
+    expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
+    expect(screen.getByTestId('indicator-catalog')).toBeInTheDocument();
+    expect(screen.getByTestId('open-indicator-modeless')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByTestId('modeless-close'));
+    expect(screen.queryByTestId('modeless-window')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
+    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
+    expect(screen.queryByTestId('modeless-window')).not.toBeInTheDocument();
+  });
+
+  it('switches from modeless to a separate window', async () => {
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('open-indicator-popout')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
+    expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('open-indicator-popout'));
+    expect(screen.queryByTestId('modeless-window')).not.toBeInTheDocument();
+    expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', '指標設定');
+    expect(screen.getByTestId('indicator-catalog')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('popout-stub-close'));
+    expect(screen.queryByTestId('popout-stub')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('open-indicator-popout'));
+    expect(screen.getByTestId('popout-stub')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('open-indicator-popout'));
+    expect(screen.queryByTestId('popout-stub')).not.toBeInTheDocument();
+  });
+
+  it('enlarges the chart into a fullscreen window', async () => {
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('enlarge-chart')).toBeInTheDocument());
+    expect(screen.getAllByTestId('analysis-chart-stub')).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId('enlarge-chart'));
+    expect(screen.getByText('拡大ウィンドウを閉じる')).toBeInTheDocument();
+    expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', 'チャート分析（拡大）');
+    expect(screen.getAllByTestId('analysis-chart-stub')).toHaveLength(2);
+
+    fireEvent.click(screen.getByTestId('popout-stub-close'));
+    expect(screen.getByText('拡大')).toBeInTheDocument();
+    expect(screen.queryByTestId('popout-stub')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('enlarge-chart'));
+    fireEvent.click(screen.getByTestId('enlarge-chart'));
+    expect(screen.queryByTestId('popout-stub')).not.toBeInTheDocument();
   });
 });

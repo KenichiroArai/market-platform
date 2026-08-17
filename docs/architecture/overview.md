@@ -227,7 +227,7 @@ packages:
 - **カタログ**: 分類付き ID（SMA 25/75/200、MACD、RSI、ボリンジャー、一目、OBV など）。時系列は `values`、フィボナッチ / Volume Profile は `drawings`（[ADR 006](../adr/006-indicator-catalog.md)）
 - **ゲートウェイ**: NestJS が日足を lookback 付きで読み、analysis に委譲して返却
 - **公開 API**: `GET /symbols/:id/indicators`（JWT。[ADR 004](../adr/004-technical-analysis.md)）
-- **Web**: `/charts` の左カタログ + 右チャート（[ADR 005](../adr/005-chart-analysis.md)）
+- **Web**: `/charts` はチャートを本画面に表示し、指標カタログはモードレスまたは別ウィンドウ。拡大は全画面の別ウィンドウ（[ADR 005](../adr/005-chart-analysis.md)）
 
 ### 認証 UX（v0.2.0 / Phase 1）
 

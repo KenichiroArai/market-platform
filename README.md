@@ -113,7 +113,7 @@ pnpm dev
 
 - 指標: `GET /symbols/:id/indicators?indicators=sma25,sma75,sma200,macd,rsi,bb,obv,ichimoku&from=&to=`
 - 内部計算: Analysis `POST /indicators`（Nest 経由。詳細は [ADR 004](docs/adr/004-technical-analysis.md) / [ADR 006](docs/adr/006-indicator-catalog.md)）
-- 画面: http://localhost:3000/charts（分類カタログ + ローソク）
+- 画面: http://localhost:3000/charts（チャート本画面 + 指標はモードレス/別ウィンドウ）
 
 `.env` に `JWT_SECRET` が必須です（[`.env.example`](.env.example) 参照）。市場データは `MARKET_DATA_PROVIDER`（`yahoo`|`stub`）で切替できます（[ADR 002](docs/adr/002-market-data-provider.md)）。
 
