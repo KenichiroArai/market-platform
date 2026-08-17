@@ -14,13 +14,14 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
 | [architecture/overview.md](architecture/overview.md)               | ディレクトリ構成、責務、通信、Turborepo、pnpm、Docker Compose、設定ファイル一覧 |
 | [roadmap/](roadmap/README.md)                                      | バージョン別ロードマップの索引                                                  |
-| [roadmap/v0/v0.2/v0.2.0.md](roadmap/v0/v0.2/v0.2.0.md)             | 現行ロードマップ（Phase 1〜3: 認証 UX / 銘柄追加 / 指標カタログ）               |
+| [roadmap/v0/v0.2/v0.2.0.md](roadmap/v0/v0.2/v0.2.0.md)             | 現行ロードマップ（Phase 1〜4: 認証 UX / 銘柄追加 / 指標カタログ / トレンドスコア） |
 | [adr/001-authentication-jwt.md](adr/001-authentication-jwt.md)     | 認証方針（JWT + メール/パスワード）                                             |
 | [adr/002-market-data-provider.md](adr/002-market-data-provider.md) | 市場データ取得（Provider 抽象 + Yahoo / Stub）                                  |
 | [adr/003-watchlist-portfolio.md](adr/003-watchlist-portfolio.md)   | ウォッチリスト / ポートフォリオ（複数・日足終値集計）                           |
 | [adr/004-technical-analysis.md](adr/004-technical-analysis.md)     | テクニカル分析（オンデマンド計算。指標セットは ADR 006）                        |
 | [adr/005-chart-analysis.md](adr/005-chart-analysis.md)             | チャート分析（ローソク・出来高・週足集約）                                      |
 | [adr/006-indicator-catalog.md](adr/006-indicator-catalog.md)       | テクニカル指標カタログ（分類・values / drawings）                               |
+| [adr/007-trend-score.md](adr/007-trend-score.md)                   | トレンドスコア（重複排除・グループ配点・チャート背景）                           |
 
 ## ドキュメント方針
 

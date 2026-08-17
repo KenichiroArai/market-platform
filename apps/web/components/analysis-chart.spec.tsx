@@ -5,6 +5,7 @@ import {
   computeAnalysisChartHeight,
   ichimokuCloudSegments,
   isOverlayEnabled,
+  latestScoredPoint,
   resolveOwnerWindow,
   toCandlestickData,
   toLineData,
@@ -73,7 +74,7 @@ const points: IndicatorSeriesPoint[] = [
 
 function chartApi(createPriceLine = jest.fn()) {
   return {
-    addSeries: jest.fn(() => ({ setData: lwcMocks.mockSetData, createPriceLine })),
+    addSeries: jest.fn(() => ({ setData: lwcMocks.mockSetData, createPriceLine, attachPrimitive: lwcMocks.mockAttachPrimitive })),
     panes: jest.fn(() => [
       { setHeight: lwcMocks.mockSetHeight },
       { setHeight: lwcMocks.mockSetHeight },
@@ -149,6 +150,41 @@ describe('analysis-chart helpers', () => {
     expect(isOverlayEnabled(new Set(['elliott']), 'elliott')).toBe(false);
     expect(resolveOwnerWindow({ ownerDocument: { defaultView: window } })).toBe(window);
     expect(resolveOwnerWindow({ ownerDocument: { defaultView: null } })).toBe(window);
+    expect(latestScoredPoint([])).toBeNull();
+    expect(
+      latestScoredPoint([
+        {
+          date: '2026-01-02',
+          score: null,
+          groups: {
+            trend: null,
+            momentum: null,
+            oscillator: null,
+            volatility: null,
+            volume: null,
+            cycle: null,
+          },
+          indicators: {},
+        },
+      ]),
+    ).toBeNull();
+    expect(
+      latestScoredPoint([
+        {
+          date: '2026-01-02',
+          score: 12,
+          groups: {
+            trend: 12,
+            momentum: null,
+            oscillator: null,
+            volatility: null,
+            volume: null,
+            cycle: null,
+          },
+          indicators: {},
+        },
+      ])?.score,
+    ).toBe(12);
   });
 });
 
@@ -183,6 +219,21 @@ describe('AnalysisChart', () => {
         prices={[price, downPrice]}
         indicatorPoints={points}
         enabledIds={new Set(['sma25', 'volume', 'rsi', 'macd', 'psar', 'ichimoku', 'fibonacci', 'volumeProfile'])}
+        trendScorePoints={[
+          {
+            date: '2026-01-02',
+            score: 60,
+            groups: {
+              trend: 24,
+              momentum: 10,
+              oscillator: 5,
+              volatility: 5,
+              volume: 8,
+              cycle: 8,
+            },
+            indicators: { sma25: 80 },
+          },
+        ]}
         drawings={{
           fibonacci: {
             high: 105,
@@ -207,6 +258,8 @@ describe('AnalysisChart', () => {
     expect(screen.getAllByTestId('volume-profile-bar').length).toBeGreaterThan(0);
     expect(lwcMocks.mockFitContent).toHaveBeenCalled();
     expect(lwcMocks.mockSetHeight).toHaveBeenCalled();
+    expect(lwcMocks.mockAttachPrimitive).toHaveBeenCalled();
+    expect(screen.getByTestId('trend-score-label')).toHaveTextContent('上昇トレンド');
   });
 
   it('skips price lines when createPriceLine is missing', () => {

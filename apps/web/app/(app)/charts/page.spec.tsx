@@ -8,6 +8,7 @@ import {
   ApiClientError,
   fetchSymbolIndicators,
   fetchSymbolPrices,
+  fetchSymbolTrendScore,
   fetchSymbols,
   fetchWatchlists,
 } from '../../../lib/api-client';
@@ -17,6 +18,7 @@ jest.mock('../../../lib/api-client', () => ({
   fetchWatchlists: jest.fn(),
   fetchSymbolPrices: jest.fn(),
   fetchSymbolIndicators: jest.fn(),
+  fetchSymbolTrendScore: jest.fn(),
   ApiClientError: class ApiClientError extends Error {
     constructor(
       public statusCode: number,
@@ -127,6 +129,24 @@ describe('ChartsPage', () => {
       indicators: [],
       points: [{ date: '2026-01-02', values: { sma25: 1.2 } }],
     });
+    (fetchSymbolTrendScore as jest.Mock).mockResolvedValue({
+      symbolId: 'sym_1',
+      points: [
+        {
+          date: '2026-01-02',
+          score: 12,
+          groups: {
+            trend: 8,
+            momentum: 2,
+            oscillator: 0,
+            volatility: 1,
+            volume: 1,
+            cycle: 0,
+          },
+          indicators: { sma25: 20 },
+        },
+      ],
+    });
   });
 
   it('loads symbols and chart data', async () => {
@@ -147,6 +167,11 @@ describe('ChartsPage', () => {
         interval: '1d',
       }),
     );
+    expect(fetchSymbolTrendScore).toHaveBeenCalledWith('sym_1', {
+      from: '2026-01-01',
+      to: '2026-06-30',
+      interval: '1d',
+    });
   });
 
   it('shows load error from ApiClientError', async () => {
@@ -275,6 +300,17 @@ describe('ChartsPage', () => {
     await waitFor(() =>
       expect(screen.getByText('price failed / indicator failed')).toBeInTheDocument(),
     );
+  });
+
+  it('keeps price data when trend score fails', async () => {
+    (fetchSymbolTrendScore as jest.Mock).mockRejectedValue(
+      new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected trend score response'),
+    );
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(screen.getByText('Unexpected trend score response')).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('analysis-chart-stub')).toHaveTextContent('ready:1');
   });
 
   it('handles empty symbols list', async () => {

@@ -12,9 +12,10 @@ const mockRemove = jest.fn();
 const mockApplyOptions = jest.fn();
 const mockFitContent = jest.fn();
 const mockSetHeight = jest.fn();
+const mockAttachPrimitive = jest.fn();
 
 export const createChart = jest.fn(() => ({
-  addSeries: jest.fn(() => ({ setData: mockSetData })),
+  addSeries: jest.fn(() => ({ setData: mockSetData, attachPrimitive: mockAttachPrimitive })),
   panes: jest.fn(() => [
     { setHeight: mockSetHeight },
     { setHeight: mockSetHeight },
@@ -32,4 +33,5 @@ export const __mocks = {
   mockApplyOptions,
   mockFitContent,
   mockSetHeight,
+  mockAttachPrimitive,
 };

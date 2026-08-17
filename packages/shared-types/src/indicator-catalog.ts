@@ -99,6 +99,11 @@ export interface IndicatorDefinition {
   /** analysis に送る種類。計算しない指標は null。 */
   computeType: IndicatorComputeType | null;
   categories: IndicatorCategoryId[];
+  /**
+   * トレンドスコア用のグループ。1 指標 1 グループ（ADR 007）。
+   * UI の categories とは独立。採点しない指標は null。
+   */
+  scoreGroup: IndicatorCategoryId | null;
   nameJa: string;
   shortPurpose: string;
   description: string;
@@ -155,6 +160,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'sma25',
     computeType: 'sma',
     categories: ['trend'],
+    scoreGroup: 'trend',
     nameJa: '移動平均線 25',
     shortPurpose: '短期の方向性を確認する',
     description:
@@ -172,6 +178,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'sma75',
     computeType: 'sma',
     categories: ['trend'],
+    scoreGroup: 'trend',
     nameJa: '移動平均線 75',
     shortPurpose: '中期の方向性を確認する',
     description:
@@ -189,6 +196,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'sma200',
     computeType: 'sma',
     categories: ['trend'],
+    scoreGroup: 'trend',
     nameJa: '移動平均線 200',
     shortPurpose: '長期の方向性を確認する',
     description:
@@ -206,6 +214,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'ema50',
     computeType: 'ema',
     categories: ['trend'],
+    scoreGroup: 'trend',
     nameJa: 'EMA 50',
     shortPurpose: '直近値を重視した中期トレンド',
     description:
@@ -223,6 +232,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'macd',
     computeType: 'macd',
     categories: ['trend', 'momentum'],
+    scoreGroup: 'trend',
     nameJa: 'MACD',
     shortPurpose: 'トレンド転換や勢いを判断する',
     description:
@@ -244,6 +254,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'ichimoku',
     computeType: 'ichimoku',
     categories: ['trend', 'cycle'],
+    scoreGroup: 'trend',
     nameJa: '一目均衡表',
     shortPurpose: '支持・抵抗や長期的な相場転換を判断する',
     description:
@@ -267,6 +278,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'psar',
     computeType: 'psar',
     categories: ['trend'],
+    scoreGroup: 'trend',
     nameJa: 'パラボリック SAR',
     shortPurpose: 'トレンドの停止と反転を点で示す',
     description:
@@ -284,6 +296,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'momentum',
     computeType: 'momentum',
     categories: ['momentum'],
+    scoreGroup: 'momentum',
     nameJa: 'モメンタム',
     shortPurpose: 'N 本前からの値幅で勢いを測る',
     description:
@@ -301,6 +314,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'roc',
     computeType: 'roc',
     categories: ['momentum'],
+    scoreGroup: 'momentum',
     nameJa: 'ROC',
     shortPurpose: '変化率で勢いを測る',
     description:
@@ -318,6 +332,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'rsi',
     computeType: 'rsi',
     categories: ['momentum', 'oscillator'],
+    scoreGroup: 'oscillator',
     nameJa: 'RSI',
     shortPurpose: '買われすぎ・売られすぎを判断する',
     description:
@@ -335,6 +350,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'cci',
     computeType: 'cci',
     categories: ['momentum', 'oscillator'],
+    scoreGroup: 'oscillator',
     nameJa: 'CCI',
     shortPurpose: '平均からの乖離で過熱を見る',
     description:
@@ -352,6 +368,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'stoch',
     computeType: 'stoch',
     categories: ['oscillator'],
+    scoreGroup: 'oscillator',
     nameJa: 'ストキャスティクス',
     shortPurpose: '高値安値レンジ内の位置で過熱を見る',
     description:
@@ -372,6 +389,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'willr',
     computeType: 'willr',
     categories: ['oscillator'],
+    scoreGroup: 'oscillator',
     nameJa: 'ウィリアムズ %R',
     shortPurpose: '高値からの位置で過熱を見る',
     description:
@@ -389,6 +407,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'psy',
     computeType: 'psy',
     categories: ['oscillator'],
+    scoreGroup: 'oscillator',
     nameJa: 'サイコロジカルライン',
     shortPurpose: '陽線比率で投資家心理を見る',
     description:
@@ -406,6 +425,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'bb',
     computeType: 'bb',
     categories: ['volatility'],
+    scoreGroup: 'volatility',
     nameJa: 'ボリンジャーバンド',
     shortPurpose: '値動きの大きさやブレイクアウトを確認する',
     description:
@@ -427,6 +447,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'atr',
     computeType: 'atr',
     categories: ['volatility'],
+    scoreGroup: 'volatility',
     nameJa: 'ATR',
     shortPurpose: '真の値幅で変動の大きさを測る',
     description:
@@ -444,6 +465,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'stdev',
     computeType: 'stdev',
     categories: ['volatility'],
+    scoreGroup: 'volatility',
     nameJa: '標準偏差',
     shortPurpose: '終値のばらつきを測る',
     description:
@@ -461,6 +483,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'keltner',
     computeType: 'keltner',
     categories: ['volatility'],
+    scoreGroup: 'volatility',
     nameJa: 'ケルトナーチャネル',
     shortPurpose: 'EMA と ATR で値幅の通路を描く',
     description:
@@ -482,6 +505,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'volume',
     computeType: null,
     categories: ['volume'],
+    scoreGroup: 'volume',
     nameJa: '出来高',
     shortPurpose: '売買の量そのものを確認する',
     description:
@@ -499,6 +523,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'obv',
     computeType: 'obv',
     categories: ['volume'],
+    scoreGroup: 'volume',
     nameJa: 'OBV',
     shortPurpose: 'トレンドの信頼性や資金流入・流出を確認する',
     description:
@@ -516,6 +541,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'vwap',
     computeType: 'vwap',
     categories: ['volume'],
+    scoreGroup: 'volume',
     nameJa: 'VWAP',
     shortPurpose: '表示期間の出来高加重平均価格',
     description:
@@ -533,6 +559,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'mfi',
     computeType: 'mfi',
     categories: ['volume'],
+    scoreGroup: 'volume',
     nameJa: 'MFI',
     shortPurpose: '出来高を加味した RSI',
     description:
@@ -550,6 +577,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'volumeProfile',
     computeType: 'volumeProfile',
     categories: ['volume'],
+    scoreGroup: 'volume',
     nameJa: 'Volume Profile',
     shortPurpose: '価格帯ごとの出来高の厚みを見る',
     description:
@@ -567,6 +595,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'fibonacci',
     computeType: 'fibonacci',
     categories: ['cycle'],
+    scoreGroup: 'cycle',
     nameJa: 'フィボナッチ',
     shortPurpose: '高値安値からの押し目・戻りの水準',
     description:
@@ -584,6 +613,7 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     id: 'elliott',
     computeType: null,
     categories: ['cycle'],
+    scoreGroup: null,
     nameJa: 'エリオット波動',
     shortPurpose: '推進5波・修正3波のパターン（自動認識なし）',
     description:
@@ -697,4 +727,19 @@ export function computeCatalogIds(ids: IndicatorCatalogId[]): IndicatorCatalogId
 
 export function definitionsForCategory(categoryId: IndicatorCategoryId): IndicatorDefinition[] {
   return INDICATOR_CATALOG.filter((item) => item.categories.includes(categoryId));
+}
+
+/** トレンドスコアのグループ配点（合計 100）。 */
+export const TREND_SCORE_GROUP_WEIGHTS: Record<IndicatorCategoryId, number> = {
+  trend: 40,
+  momentum: 20,
+  oscillator: 10,
+  volatility: 10,
+  volume: 10,
+  cycle: 10,
+};
+
+/** スコア対象のカタログ ID（elliott を除く）。 */
+export function scoringCatalogIds(): IndicatorCatalogId[] {
+  return INDICATOR_CATALOG.filter((item) => item.scoreGroup !== null).map((item) => item.id);
 }

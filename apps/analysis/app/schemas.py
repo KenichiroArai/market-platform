@@ -150,6 +150,28 @@ class ComputeIndicatorsResponse(BaseModel):
         return data
 
 
+class TrendScorePoint(BaseModel):
+    """1 日分のトレンドスコア。"""
+
+    date: str
+    score: float | None
+    groups: dict[str, float | None]
+    indicators: dict[str, float | None]
+
+
+class ComputeTrendScoreRequest(BaseModel):
+    """POST /trend-score のリクエスト。指標セットはサーバ側で固定。"""
+
+    bars: list[OhlcBar]
+    rangeStartIndex: int = 0
+
+
+class ComputeTrendScoreResponse(BaseModel):
+    """POST /trend-score のレスポンス。"""
+
+    points: list[TrendScorePoint]
+
+
 class SignalSpec(BaseModel):
     """売買シグナル計算の戦略指定。type ごとに必要パラメータが異なる。"""
 

@@ -16,3 +16,4 @@ export * from './analysis';
 export * from './indicator-catalog';
 export * from './signals';
 export * from './chart';
+export * from './trend-score';

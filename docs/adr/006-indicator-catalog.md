@@ -38,8 +38,13 @@ v0.2.0 Phase 3 で分類付きの指標カタログ（複数期間 MA、バン�
 - 指標パラメータの UI 編集は対象外（ADR 005 の延長）
 - 分足・月足・リアルタイム、指標結果の永続化は対象外
 
+## 追記（v0.2.0 / Phase 4）
+
+UI の複数分類は維持したまま、スコア合成では `scoreGroup` で 1 指標 1 グループに固定する。詳細は [ADR 007](007-trend-score.md)。
+
 ## 関連
 
 - [開発ロードマップ](../roadmap/v0/v0.2/v0.2.0.md) Phase 3
 - [ADR 004: テクニカル分析](004-technical-analysis.md)
 - [ADR 005: チャート分析](005-chart-analysis.md)
+- [ADR 007: トレンドスコア](007-trend-score.md)

@@ -44,7 +44,17 @@ import {
   aggregateDailyBarsToWeekly,
   parseIndicatorCatalogQuery,
   recommendedIndicatorIds,
+  scoringCatalogIds,
   specsFromCatalogIds,
+  TREND_SCORE_GROUP_WEIGHTS,
+  createTrendScoreResponseDto,
+  isScoredIndicatorId,
+  isTrendScoreGroupId,
+  isTrendScorePoint,
+  isTrendScoreResponseDto,
+  trendScoreState,
+  INDICATOR_CATALOG,
+  INDICATOR_CATALOG_BY_ID,
 } from './index';
 
 describe('shared-types health', () => {
@@ -655,6 +665,21 @@ describe('shared-types indicator catalog', () => {
     expect(definitionsForCategory('oscillator').some((d) => d.id === 'rsi')).toBe(true);
     expect(definitionsForCategory('trend').some((d) => d.id === 'macd')).toBe(true);
   });
+
+  it('assigns a single scoreGroup per indicator without double counting', () => {
+    expect(INDICATOR_CATALOG_BY_ID.macd.scoreGroup).toBe('trend');
+    expect(INDICATOR_CATALOG_BY_ID.ichimoku.scoreGroup).toBe('trend');
+    expect(INDICATOR_CATALOG_BY_ID.rsi.scoreGroup).toBe('oscillator');
+    expect(INDICATOR_CATALOG_BY_ID.cci.scoreGroup).toBe('oscillator');
+    expect(INDICATOR_CATALOG_BY_ID.elliott.scoreGroup).toBeNull();
+    expect(scoringCatalogIds()).not.toContain('elliott');
+    expect(scoringCatalogIds()).toContain('volume');
+    expect(INDICATOR_CATALOG.filter((item) => item.scoreGroup === null).map((item) => item.id)).toEqual([
+      'elliott',
+    ]);
+    const weightSum = Object.values(TREND_SCORE_GROUP_WEIGHTS).reduce((sum, value) => sum + value, 0);
+    expect(weightSum).toBe(100);
+  });
 });
 
 describe('shared-types chart', () => {
@@ -775,5 +800,87 @@ describe('shared-types chart', () => {
       close: 2,
       volume: 7,
     });
+  });
+});
+
+describe('shared-types trend score', () => {
+  const groups = {
+    trend: 10,
+    momentum: 5,
+    oscillator: 0,
+    volatility: -1,
+    volume: 2,
+    cycle: null,
+  };
+  const point = {
+    date: '2026-01-02',
+    score: 16,
+    groups,
+    indicators: { sma25: 80, rsi: null },
+  };
+
+  it('maps scores to state labels including null and lower bound', () => {
+    expect(trendScoreState(95).id).toBe('strongUp');
+    expect(trendScoreState(77.5).id).toBe('strongUp');
+    expect(trendScoreState(60).id).toBe('upTrend');
+    expect(trendScoreState(15).id).toBe('rangeUp');
+    expect(trendScoreState(0).id).toBe('range');
+    expect(trendScoreState(null).id).toBe('range');
+    expect(trendScoreState(-20).id).toBe('rangeDown');
+    expect(trendScoreState(-65).id).toBe('downTrend');
+    expect(trendScoreState(-95).labelJa).toBe('暴落に近い強い下降');
+    expect(trendScoreState(-80).id).toBe('downTrend');
+    expect(trendScoreState(-80.1).id).toBe('strongDown');
+  });
+
+  it('creates and validates TrendScoreResponseDto', () => {
+    const withSymbol = createTrendScoreResponseDto({ symbolId: 'sym_1', points: [point] });
+    expect(withSymbol.symbolId).toBe('sym_1');
+    expect(isTrendScoreResponseDto(withSymbol)).toBe(true);
+    const withoutSymbol = createTrendScoreResponseDto({ points: [] });
+    expect(withoutSymbol.symbolId).toBeUndefined();
+    expect(isTrendScoreResponseDto(withoutSymbol)).toBe(true);
+  });
+
+  it('rejects invalid trend score payloads', () => {
+    expect(isTrendScoreResponseDto(null)).toBe(false);
+    expect(isTrendScoreResponseDto({ points: 'x' })).toBe(false);
+    expect(isTrendScoreResponseDto({ symbolId: 1, points: [] })).toBe(false);
+    expect(isTrendScorePoint(null)).toBe(false);
+    expect(isTrendScorePoint({ date: 1, score: 0, groups, indicators: {} })).toBe(false);
+    expect(isTrendScorePoint({ date: '2026-01-02', score: 'x', groups, indicators: {} })).toBe(false);
+    expect(
+      isTrendScorePoint({ date: '2026-01-02', score: 0, groups: [], indicators: {} }),
+    ).toBe(false);
+    expect(
+      isTrendScorePoint({ date: '2026-01-02', score: 0, groups: null, indicators: {} }),
+    ).toBe(false);
+    expect(
+      isTrendScorePoint({
+        date: '2026-01-02',
+        score: 0,
+        groups: { trend: 1, momentum: 1, oscillator: 1, volatility: 1, volume: 1 },
+        indicators: {},
+      }),
+    ).toBe(false);
+    expect(
+      isTrendScorePoint({
+        date: '2026-01-02',
+        score: 0,
+        groups: { ...groups, trend: 'x' },
+        indicators: {},
+      }),
+    ).toBe(false);
+    expect(
+      isTrendScorePoint({ date: '2026-01-02', score: 0, groups, indicators: [] }),
+    ).toBe(false);
+    expect(
+      isTrendScorePoint({ date: '2026-01-02', score: 0, groups, indicators: { sma25: 'x' } }),
+    ).toBe(false);
+    expect(isTrendScorePoint({ date: '2026-01-02', score: 0, groups, indicators: {} })).toBe(true);
+    expect(isScoredIndicatorId('sma25')).toBe(true);
+    expect(isScoredIndicatorId('nope')).toBe(false);
+    expect(isTrendScoreGroupId('trend')).toBe(true);
+    expect(isTrendScoreGroupId('nope')).toBe(false);
   });
 });

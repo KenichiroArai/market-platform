@@ -284,3 +284,109 @@ describe('IndicatorsService', () => {
     );
   });
 });
+
+describe('IndicatorsService trend score', () => {
+  const pricesService = {
+    listWithLookback: jest.fn(),
+  } as unknown as PricesService;
+
+  let service: IndicatorsService;
+  const originalFetch = global.fetch;
+  const originalUrl = process.env.ANALYSIS_URL;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new IndicatorsService(pricesService);
+    process.env.ANALYSIS_URL = 'http://analysis.test';
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    if (originalUrl === undefined) {
+      delete process.env.ANALYSIS_URL;
+    } else {
+      process.env.ANALYSIS_URL = originalUrl;
+    }
+  });
+
+  it('returns trimmed trend score points from analysis', async () => {
+    const bars = makeBars(201);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 1,
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        points: bars.map((bar) => ({
+          date: bar.date,
+          score: 10,
+          groups: {
+            trend: 4,
+            momentum: 2,
+            oscillator: 1,
+            volatility: 1,
+            volume: 1,
+            cycle: 1,
+          },
+          indicators: { sma25: 10 },
+        })),
+      }),
+    }) as unknown as typeof fetch;
+
+    const result = await service.getTrendScoreForSymbol('s1', {});
+    expect(result.symbolId).toBe('s1');
+    expect(result.points).toHaveLength(200);
+    expect(result.points[0]?.date).toBe('2026-01-02');
+    expect(pricesService.listWithLookback).toHaveBeenCalledWith('s1', {
+      from: undefined,
+      to: undefined,
+      lookback: 200,
+      interval: '1d',
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://analysis.test/trend-score',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('passes weekly interval for trend score lookback', async () => {
+    const bars = makeBars(200);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ points: [] }),
+    }) as unknown as typeof fetch;
+
+    await service.getTrendScoreForSymbol('s1', { interval: '1w', from: '2026-01-01', to: '2026-06-30' });
+    expect(pricesService.listWithLookback).toHaveBeenCalledWith('s1', {
+      from: '2026-01-01',
+      to: '2026-06-30',
+      lookback: 200,
+      interval: '1w',
+    });
+  });
+
+  it('throws INSUFFICIENT_PRICE_DATA for trend score when bars are too few', async () => {
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars: makeBars(10),
+      rangeStartIndex: 0,
+    });
+    await expect(service.getTrendScoreForSymbol('s1', {})).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
+  });
+
+  it('throws INSUFFICIENT_PRICE_DATA for trend score when bars are empty', async () => {
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars: [],
+      rangeStartIndex: 0,
+    });
+    await expect(service.getTrendScoreForSymbol('s1', {})).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
+  });
+});

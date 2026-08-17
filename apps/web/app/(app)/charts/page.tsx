@@ -1,8 +1,9 @@
 /**
- * チャート分析画面（v0.2.0 Phase 3）。
+ * チャート分析画面（v0.2.0 Phase 4）。
  *
  * 銘柄・期間・足種は上段、チャートは本画面に全幅表示する。
  * 指標カタログはモードレスまたは別ウィンドウ。拡大は全画面の別ウィンドウ。
+ * トレンドスコアはトグル非依存で背景色に出す。
  * 未ログイン誘導は共通レイアウト側。
  */
 'use client';
@@ -15,6 +16,7 @@ import type {
   IndicatorDrawings,
   IndicatorSeriesPoint,
   SymbolDto,
+  TrendScorePoint,
   WatchlistDto,
 } from '@market/shared-types';
 import { computeCatalogIds } from '@market/shared-types';
@@ -41,6 +43,7 @@ import {
   ApiClientError,
   fetchSymbolIndicators,
   fetchSymbolPrices,
+  fetchSymbolTrendScore,
   fetchSymbols,
   fetchWatchlists,
 } from '../../../lib/api-client';
@@ -59,6 +62,7 @@ export default function ChartsPage() {
   );
   const [prices, setPrices] = useState<DailyPriceDto[]>([]);
   const [indicatorPoints, setIndicatorPoints] = useState<IndicatorSeriesPoint[]>([]);
+  const [trendScorePoints, setTrendScorePoints] = useState<TrendScorePoint[]>([]);
   const [drawings, setDrawings] = useState<IndicatorDrawings | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [chartError, setChartError] = useState<string | null>(null);
@@ -135,10 +139,12 @@ export default function ChartsPage() {
                 indicators: indicatorsQuery,
               })
             : Promise.resolve({ points: [] as IndicatorSeriesPoint[], drawings: undefined });
+        const trendPromise = fetchSymbolTrendScore(symbolId, { from, to, interval });
 
-        const [priceResult, indicatorResult] = await Promise.allSettled([
+        const [priceResult, indicatorResult, trendResult] = await Promise.allSettled([
           pricePromise,
           indicatorPromise,
+          trendPromise,
         ]);
         if (cancelled) {
           return;
@@ -158,12 +164,21 @@ export default function ChartsPage() {
           setDrawings(undefined);
         }
 
+        if (trendResult.status === 'fulfilled') {
+          setTrendScorePoints(trendResult.value.points);
+        } else {
+          setTrendScorePoints([]);
+        }
+
         const messages: string[] = [];
         if (priceResult.status === 'rejected') {
           messages.push(chartFetchErrorMessage(priceResult.reason));
         }
         if (indicatorResult.status === 'rejected') {
           messages.push(chartFetchErrorMessage(indicatorResult.reason));
+        }
+        if (trendResult.status === 'rejected') {
+          messages.push(chartFetchErrorMessage(trendResult.reason));
         }
         setChartError(messages.length > 0 ? messages.join(' / ') : null);
       } finally {
@@ -181,7 +196,7 @@ export default function ChartsPage() {
     <main style={pageStyle}>
       <h1 style={{ fontSize: '1.75rem', margin: '0 0 0.5rem' }}>チャート分析</h1>
       <p style={{ margin: '0 0 1.25rem', opacity: 0.85, maxWidth: '46rem' }}>
-        チャートは本画面に表示します。指標はモードレスまたは別ウィンドウで選び、拡大で全画面の別ウィンドウを開けます。初期表示はおすすめ構成です。
+        チャートは本画面に表示します。指標はモードレスまたは別ウィンドウで選び、拡大で全画面の別ウィンドウを開けます。初期表示はおすすめ構成です。背景色はトレンドスコアです。
       </p>
 
       {error ? <p style={errorStyle}>{error}</p> : null}
@@ -339,6 +354,7 @@ export default function ChartsPage() {
             indicatorPoints={indicatorPoints}
             enabledIds={enabledIds}
             drawings={drawings}
+            trendScorePoints={trendScorePoints}
             loading={chartLoading}
           />
         </section>
@@ -375,6 +391,7 @@ export default function ChartsPage() {
               indicatorPoints={indicatorPoints}
               enabledIds={enabledIds}
               drawings={drawings}
+              trendScorePoints={trendScorePoints}
               loading={chartLoading}
             />
           )}
@@ -395,6 +412,7 @@ function EnlargedAnalysisChart({
   indicatorPoints: IndicatorSeriesPoint[];
   enabledIds: Set<IndicatorCatalogId>;
   drawings?: IndicatorDrawings;
+  trendScorePoints?: TrendScorePoint[];
   loading: boolean;
 }) {
   const size = useHostWindowSize(win);

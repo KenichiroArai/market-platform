@@ -15,6 +15,7 @@ import {
   fetchPortfolios,
   fetchSymbolPrices,
   fetchSymbolIndicators,
+  fetchSymbolTrendScore,
   fetchSymbols,
   createSymbol,
   fetchWatchlists,
@@ -321,6 +322,57 @@ describe('api-client', () => {
     await expect(
       fetchSymbolIndicators('sym_1', {}, nullDrawings as unknown as typeof fetch),
     ).resolves.toEqual(withNullDrawings);
+  });
+
+  it('fetches symbol trend score with query options', async () => {
+    const trendResponse = {
+      symbolId: 'sym_1',
+      points: [
+        {
+          date: '2026-01-02',
+          score: 12,
+          groups: {
+            trend: 8,
+            momentum: 2,
+            oscillator: 0,
+            volatility: 1,
+            volume: 1,
+            cycle: 0,
+          },
+          indicators: { sma25: 20 },
+        },
+      ],
+    };
+    const full = okJson(trendResponse);
+    await expect(
+      fetchSymbolTrendScore(
+        'sym_1',
+        { from: '2026-01-01', to: '2026-06-30', interval: '1d' },
+        full as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual(trendResponse);
+    expect(full).toHaveBeenCalledWith(
+      expect.stringContaining('/symbols/sym_1/trend-score?'),
+      expect.any(Object),
+    );
+    const calledUrl = String(full.mock.calls[0]?.[0]);
+    expect(calledUrl).toContain('from=2026-01-01');
+    expect(calledUrl).toContain('to=2026-06-30');
+    expect(calledUrl).toContain('interval=1d');
+
+    const bare = okJson(trendResponse);
+    await expect(
+      fetchSymbolTrendScore('sym_1', undefined, bare as unknown as typeof fetch),
+    ).resolves.toEqual(trendResponse);
+    expect(bare).toHaveBeenCalledWith(
+      expect.stringMatching(/\/symbols\/sym_1\/trend-score$/),
+      expect.any(Object),
+    );
+
+    const invalid = okJson({ bad: true });
+    await expect(
+      fetchSymbolTrendScore('sym_1', {}, invalid as unknown as typeof fetch),
+    ).rejects.toBeInstanceOf(ApiClientError);
   });
 
   it('creates and mutates watchlists', async () => {

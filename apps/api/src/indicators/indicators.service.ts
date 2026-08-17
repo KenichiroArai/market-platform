@@ -13,12 +13,15 @@ import {
   API_ERROR_CODES,
   computeIndicatorLookback,
   createIndicatorsResponseDto,
+  createTrendScoreResponseDto,
   parseIndicatorCatalogQuery,
+  scoringCatalogIds,
   specsFromCatalogIds,
   type AnalysisOhlcBar,
   type IndicatorCatalogId,
   type IndicatorRequestSpec,
   type IndicatorsResponseDto,
+  type TrendScoreResponseDto,
 } from '@market/shared-types';
 import { PricesService } from '../prices/prices.service';
 
@@ -89,7 +92,7 @@ export class IndicatorsService {
       rangeStartIndex,
     };
 
-    const upstream = await this.callAnalysis(analysisBody);
+    const upstream = await this.postAnalysis<IndicatorsResponseDto>('/indicators', analysisBody);
     const trimmedPoints = upstream.points.slice(rangeStartIndex);
 
     return createIndicatorsResponseDto({
@@ -97,6 +100,55 @@ export class IndicatorsService {
       indicators: specs,
       points: trimmedPoints,
       drawings: upstream.drawings ?? undefined,
+    });
+  }
+
+  /**
+   * 銘柄のトレンドスコアを返す（ADR 007）。
+   *
+   * 指標セットは正本。チャートトグルとは独立。
+   * lookback 付き日足を読み、analysis POST /trend-score に委譲して表示期間へ trim する。
+   */
+  async getTrendScoreForSymbol(
+    symbolId: string,
+    query: {
+      from?: string;
+      to?: string;
+      interval?: '1d' | '1w';
+    },
+  ): Promise<TrendScoreResponseDto> {
+    const specs = specsFromCatalogIds(scoringCatalogIds());
+    const lookback = computeIndicatorLookback(specs);
+    const interval = query.interval === '1w' ? '1w' : '1d';
+
+    const { bars, rangeStartIndex } = await this.pricesService.listWithLookback(
+      symbolId,
+      { from: query.from, to: query.to, lookback, interval },
+    );
+
+    if (bars.length === 0 || (lookback > 0 && bars.length < lookback)) {
+      throw new UnprocessableEntityException({
+        code: API_ERROR_CODES.INSUFFICIENT_PRICE_DATA,
+        message: 'Not enough daily prices to compute trend score',
+        details: { barCount: bars.length, requiredLookback: lookback },
+      });
+    }
+
+    const upstream = await this.postAnalysis<TrendScoreResponseDto>('/trend-score', {
+      bars: bars.map((bar) => ({
+        date: bar.date,
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+        volume: bar.volume,
+      })),
+      rangeStartIndex,
+    });
+
+    return createTrendScoreResponseDto({
+      symbolId,
+      points: upstream.points.slice(rangeStartIndex),
     });
   }
 
@@ -121,15 +173,13 @@ export class IndicatorsService {
     return parsed.ids;
   }
 
-  /** analysis の POST /indicators を呼び、失敗時は ANALYSIS_UPSTREAM_ERROR。 */
-  private async callAnalysis(
-    body: AnalysisComputeRequest,
-  ): Promise<IndicatorsResponseDto> {
+  /** analysis へ POST し、失敗時は ANALYSIS_UPSTREAM_ERROR。 */
+  private async postAnalysis<T>(path: string, body: unknown): Promise<T> {
     const analysisUrl = process.env.ANALYSIS_URL ?? 'http://localhost:8000';
 
     let response: Response;
     try {
-      response = await fetch(`${analysisUrl}/indicators`, {
+      response = await fetch(`${analysisUrl}${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -159,7 +209,7 @@ export class IndicatorsService {
     }
 
     try {
-      return (await response.json()) as IndicatorsResponseDto;
+      return (await response.json()) as T;
     } catch (error) {
       throw new BadGatewayException({
         code: API_ERROR_CODES.ANALYSIS_UPSTREAM_ERROR,

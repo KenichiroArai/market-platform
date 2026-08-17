@@ -5,8 +5,8 @@
  */
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import type { IndicatorsResponseDto } from '@market/shared-types';
-import { GetIndicatorsQueryDto } from './indicators.dto';
+import type { IndicatorsResponseDto, TrendScoreResponseDto } from '@market/shared-types';
+import { GetIndicatorsQueryDto, GetTrendScoreQueryDto } from './indicators.dto';
 import { IndicatorsService } from './indicators.service';
 
 @ApiTags('indicators')
@@ -23,5 +23,15 @@ export class IndicatorsController {
     @Query() query: GetIndicatorsQueryDto,
   ): Promise<IndicatorsResponseDto> {
     return this.indicatorsService.getForSymbol(symbolId, query);
+  }
+
+  /** 銘柄のトレンドスコア（ADR 007）。チャート背景用。 */
+  @Get(':symbolId/trend-score')
+  @ApiOkResponse({ description: 'Trend score series for symbol' })
+  getTrendScore(
+    @Param('symbolId') symbolId: string,
+    @Query() query: GetTrendScoreQueryDto,
+  ): Promise<TrendScoreResponseDto> {
+    return this.indicatorsService.getTrendScoreForSymbol(symbolId, query);
   }
 }

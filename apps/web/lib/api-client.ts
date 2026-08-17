@@ -13,6 +13,7 @@ import {
   isPortfolioDto,
   isSignalDefinitionDto,
   isSymbolDto,
+  isTrendScoreResponseDto,
   isWatchlistDto,
   type AuthTokenResponse,
   type AuthUser,
@@ -28,6 +29,7 @@ import {
   type SignalStrategyType,
   type CreateSymbolRequest,
   type SymbolDto,
+  type TrendScoreResponseDto,
   type WatchlistDto,
 } from '@market/shared-types';
 import { getApiBaseUrl } from './api-base-url';
@@ -221,6 +223,38 @@ export async function fetchSymbolIndicators(
   const result = await apiFetch<unknown>(path, { method: 'GET' }, fetchImpl);
   if (!isIndicatorsResponseDto(result)) {
     throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected indicators response', result);
+  }
+  return result;
+}
+
+/**
+ * GET /symbols/:id/trend-score
+ * チャート背景用。指標トグルとは独立に正本セットで採点する。
+ */
+export async function fetchSymbolTrendScore(
+  symbolId: string,
+  query: {
+    from?: string;
+    to?: string;
+    interval?: ChartInterval;
+  } = {},
+  fetchImpl?: typeof fetch,
+): Promise<TrendScoreResponseDto> {
+  const params = new URLSearchParams();
+  if (query.from) {
+    params.set('from', query.from);
+  }
+  if (query.to) {
+    params.set('to', query.to);
+  }
+  if (query.interval) {
+    params.set('interval', query.interval);
+  }
+  const qs = params.toString();
+  const path = `/symbols/${encodeURIComponent(symbolId)}/trend-score${qs ? `?${qs}` : ''}`;
+  const result = await apiFetch<unknown>(path, { method: 'GET' }, fetchImpl);
+  if (!isTrendScoreResponseDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected trend score response', result);
   }
   return result;
 }

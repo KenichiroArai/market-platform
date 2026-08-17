@@ -13,6 +13,7 @@ import time
 from fastapi import FastAPI
 
 from app.indicators.compute import compute_indicator_series
+from app.indicators.trend_score import compute_trend_score
 from app.indicators.core import macd as macd_calc
 from app.indicators.core import rsi as rsi_calc
 from app.indicators.core import sma as sma_calc
@@ -24,6 +25,8 @@ from app.schemas import (
     BacktestTrade,
     ComputeIndicatorsRequest,
     ComputeIndicatorsResponse,
+    ComputeTrendScoreRequest,
+    ComputeTrendScoreResponse,
     ComputeSignalsRequest,
     ComputeSignalsResponse,
     HealthResponse,
@@ -80,6 +83,21 @@ def compute_indicators(body: ComputeIndicatorsRequest) -> ComputeIndicatorsRespo
         points=points,
         drawings=drawings,
     )
+
+
+@app.post(
+    "/trend-score",
+    response_model=ComputeTrendScoreResponse,
+    tags=["indicators"],
+)
+def compute_trend_score_endpoint(body: ComputeTrendScoreRequest) -> ComputeTrendScoreResponse:
+    """
+    OHLC 配列に対して日足ごとのトレンドスコアを計算する。
+
+    指標セットはサーバ側の正本。空の bars でも 200 + 空 points を返す。
+    """
+    points = compute_trend_score(body.bars, range_start_index=max(0, body.rangeStartIndex))
+    return ComputeTrendScoreResponse(points=points)
 
 
 @app.post(

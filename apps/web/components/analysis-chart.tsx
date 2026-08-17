@@ -3,6 +3,7 @@
  *
  * TradingView lightweight-charts v5 でローソク・出来高・カタログ指標を描画する。
  * Volume Profile と一目の雲は価格ペイン上の HTML オーバーレイ。
+ * トレンドスコアは series primitive で価格ペイン背景に塗る（ADR 007）。
  */
 'use client';
 
@@ -11,10 +12,12 @@ import { useEffect, useRef } from 'react';
 import {
   INDICATOR_CATALOG,
   INDICATOR_CATALOG_BY_ID,
+  trendScoreState,
   type DailyPriceDto,
   type IndicatorCatalogId,
   type IndicatorDrawings,
   type IndicatorSeriesPoint,
+  type TrendScorePoint,
   type VolumeProfileBin,
 } from '@market/shared-types';
 import {
@@ -27,12 +30,14 @@ import {
   type ISeriesApi,
   type Time,
 } from 'lightweight-charts';
+import { TrendBackgroundPrimitive } from './trend-background-primitive';
 
 export type AnalysisChartProps = {
   prices: DailyPriceDto[];
   indicatorPoints: IndicatorSeriesPoint[];
   enabledIds?: Set<IndicatorCatalogId>;
   drawings?: IndicatorDrawings;
+  trendScorePoints?: TrendScorePoint[];
   loading?: boolean;
   height?: number;
 };
@@ -176,12 +181,24 @@ export function ichimokuCloudSegments(
   return segments;
 }
 
+/** 直近の有効な総合スコア。全て null なら null。 */
+export function latestScoredPoint(points: TrendScorePoint[]): TrendScorePoint | null {
+  for (let i = points.length - 1; i >= 0; i -= 1) {
+    const point = points[i];
+    if (point !== undefined && point.score !== null) {
+      return point;
+    }
+  }
+  return null;
+}
+
 /** 価格・指標をまとめた分析チャート。空／読込中はメッセージのみ返す。 */
 export function AnalysisChart({
   prices,
   indicatorPoints,
   enabledIds = new Set(),
   drawings,
+  trendScorePoints = [],
   loading = false,
   height,
 }: AnalysisChartProps) {
@@ -233,8 +250,13 @@ export function AnalysisChart({
       0,
     ) as ISeriesApi<'Candlestick'> & {
       createPriceLine?: (opts: { price: number; color: string; title: string }) => void;
+      attachPrimitive?: (primitive: TrendBackgroundPrimitive) => void;
     };
     candles.setData(toCandlestickData(prices));
+
+    if (trendScorePoints.length > 0 && typeof candles.attachPrimitive === 'function') {
+      candles.attachPrimitive(new TrendBackgroundPrimitive(trendScorePoints));
+    }
 
     if (enabledIds.has('fibonacci') && drawings?.fibonacci) {
       for (const level of drawings.fibonacci.levels) {
@@ -330,7 +352,7 @@ export function AnalysisChart({
       view.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [prices, indicatorPoints, enabledIds, drawings, loading, chartHeight, volumeOn]);
+  }, [prices, indicatorPoints, enabledIds, drawings, trendScorePoints, loading, chartHeight, volumeOn]);
 
   if (loading) {
     return <p style={messageStyle}>チャートを読み込み中…</p>;
@@ -340,8 +362,15 @@ export function AnalysisChart({
     return <p style={messageStyle}>この期間の価格データがありません</p>;
   }
 
+  const latestScore = latestScoredPoint(trendScorePoints);
+
   return (
     <div style={{ position: 'relative', width: '100%', marginTop: '0.75rem' }}>
+      {latestScore !== null && latestScore.score !== null ? (
+        <p data-testid="trend-score-label" style={scoreLabelStyle}>
+          トレンドスコア {Math.round(latestScore.score)}（{trendScoreState(latestScore.score).labelJa}）
+        </p>
+      ) : null}
       <div
         data-testid="analysis-chart"
         ref={containerRef}
@@ -382,6 +411,7 @@ export function AnalysisChart({
 }
 
 const messageStyle: CSSProperties = { margin: '0.5rem 0', opacity: 0.85 };
+const scoreLabelStyle: CSSProperties = { margin: '0 0 0.4rem', fontSize: '0.9rem', opacity: 0.9 };
 const chartWrapStyle: CSSProperties = { width: '100%' };
 
 export function isOverlayEnabled(

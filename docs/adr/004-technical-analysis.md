@@ -40,10 +40,17 @@ Phase 4 でテクニカル指標の計算と、NestJS 経由での結果返却�
 指標セット・レスポンス形・チャート UI は [ADR 006](006-indicator-catalog.md) で拡張した。
 オンデマンド計算・DB 非保存・pandas + numpy 自前実装は維持する。シグナル / バックテストの 3 戦略は変更しない。
 
+## 追記（v0.2.0 / Phase 4）
+
+トレンドスコアの採点とチャート背景は [ADR 007](007-trend-score.md) で追加した。
+オンデマンド計算・DB 非保存は維持する。
+
 ## 関連
 
 - [開発ロードマップ](../roadmap/v0/v0.1/v0.1.0.md) Phase 4
 - [v0.2.0 Phase 3](../roadmap/v0/v0.2/v0.2.0.md)
+- [v0.2.0 Phase 4](../roadmap/v0/v0.2/v0.2.0.md)
 - [アーキテクチャ概要](../architecture/overview.md)
 - [ADR 002: 市場データプロバイダ](002-market-data-provider.md)
 - [ADR 006: テクニカル指標カタログ](006-indicator-catalog.md)
+- [ADR 007: トレンドスコア](007-trend-score.md)

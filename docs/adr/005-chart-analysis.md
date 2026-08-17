@@ -55,10 +55,16 @@ Phase 6 では銘柄指定の分析画面を充実させ、ローソク足・出
 指標カタログは本画面の左カラムには置かず、**モードレス**（背面のチャートを操作できるフローティングパネル）または **別ウィンドウ**（`window.open` + portal）から選ぶ。
 チャートは `/charts` 本画面に全幅表示し、**拡大**で全画面の別ウィンドウを開く。
 
+## 追記（v0.2.0 / Phase 4）
+
+価格ペインの背景色で日足ごとのトレンドスコアを示す。取得は `GET /symbols/:id/prices` / `indicators` に加え `GET /symbols/:id/trend-score` を並列呼び出しする。詳細は [ADR 007](007-trend-score.md)。
+
 ## 関連
 
 - [開発ロードマップ](../roadmap/v0/v0.1/v0.1.0.md) Phase 6
 - [v0.2.0 Phase 3](../roadmap/v0/v0.2/v0.2.0.md)
+- [v0.2.0 Phase 4](../roadmap/v0/v0.2/v0.2.0.md)
 - [ADR 004: テクニカル分析](004-technical-analysis.md)
 - [ADR 006: テクニカル指標カタログ](006-indicator-catalog.md)
+- [ADR 007: トレンドスコア](007-trend-score.md)
 - [アーキテクチャ概要](../architecture/overview.md)
