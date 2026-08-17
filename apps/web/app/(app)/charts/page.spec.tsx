@@ -48,6 +48,7 @@ jest.mock('../../../components/popout-window', () => {
   const actual = jest.requireActual('../../../components/popout-window') as Record<string, unknown>;
   return {
     ...actual,
+    primePopoutWindow: jest.fn(),
     PopoutWindow: ({
       children,
       onClose,
