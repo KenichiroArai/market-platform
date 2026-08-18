@@ -47,6 +47,7 @@ import {
   fetchSymbols,
   fetchWatchlists,
 } from '../../../lib/api-client';
+import { defaultChartFromDate, defaultChartToDate } from '../../../lib/chart-date-range';
 
 export default function ChartsPage() {
   const [symbols, setSymbols] = useState<SymbolDto[]>([]);
@@ -54,8 +55,8 @@ export default function ChartsPage() {
   const [watchlistId, setWatchlistId] = useState('');
   const [symbolQuery, setSymbolQuery] = useState('');
   const [symbolId, setSymbolId] = useState('');
-  const [from, setFrom] = useState('2026-01-01');
-  const [to, setTo] = useState('2026-06-30');
+  const [from, setFrom] = useState(() => defaultChartFromDate());
+  const [to, setTo] = useState(() => defaultChartToDate());
   const [interval, setInterval] = useState<ChartInterval>('1d');
   const [enabledIds, setEnabledIds] = useState<Set<IndicatorCatalogId>>(
     () => new Set(INITIAL_ENABLED_IDS),

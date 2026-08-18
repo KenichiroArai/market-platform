@@ -12,6 +12,7 @@ import {
   fetchSymbols,
   fetchWatchlists,
 } from '../../../lib/api-client';
+import { defaultChartFromDate, defaultChartToDate } from '../../../lib/chart-date-range';
 
 jest.mock('../../../lib/api-client', () => ({
   fetchSymbols: jest.fn(),
@@ -155,9 +156,11 @@ describe('ChartsPage', () => {
     await waitFor(() =>
       expect(screen.getByTestId('analysis-chart-stub')).toHaveTextContent('ready'),
     );
+    const expectedFrom = defaultChartFromDate();
+    const expectedTo = defaultChartToDate();
     expect(fetchSymbolPrices).toHaveBeenCalledWith('sym_1', {
-      from: '2026-01-01',
-      to: '2026-06-30',
+      from: expectedFrom,
+      to: expectedTo,
       interval: '1d',
     });
     expect(fetchSymbolIndicators).toHaveBeenCalledWith(
@@ -168,8 +171,8 @@ describe('ChartsPage', () => {
       }),
     );
     expect(fetchSymbolTrendScore).toHaveBeenCalledWith('sym_1', {
-      from: '2026-01-01',
-      to: '2026-06-30',
+      from: expectedFrom,
+      to: expectedTo,
       interval: '1d',
     });
   });
