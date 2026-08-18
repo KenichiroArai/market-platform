@@ -3,7 +3,6 @@ import type { DailyPriceDto, IndicatorSeriesPoint } from '@market/shared-types';
 import {
   AnalysisChart,
   computeAnalysisChartHeight,
-  ichimokuCloudSegments,
   isOverlayEnabled,
   latestScoredPoint,
   resolveOwnerWindow,
@@ -136,15 +135,6 @@ describe('analysis-chart helpers', () => {
       0.5,
     );
     expect(layout[0]?.widthPct).toBe(18);
-    expect(ichimokuCloudSegments([], 1, 2, 0.5)).toEqual([]);
-    expect(ichimokuCloudSegments(points, 1, 1, 0.5)).toEqual([]);
-    const cloud = ichimokuCloudSegments(points, 90, 110, 0.5);
-    expect(cloud).toHaveLength(2);
-    expect(cloud[0]?.bullish).toBe(true);
-    expect(cloud[1]?.bullish).toBe(false);
-    expect(
-      ichimokuCloudSegments([{ date: '2026-01-02', values: {} }], 90, 110, 0.5),
-    ).toEqual([]);
     expect(computeAnalysisChartHeight(new Set(['volume', 'rsi', 'macd']))).toBe(320 + 90 * 3);
     expect(isOverlayEnabled(new Set(['sma25']), 'sma25')).toBe(true);
     expect(isOverlayEnabled(new Set(['elliott']), 'elliott')).toBe(false);
@@ -254,11 +244,10 @@ describe('AnalysisChart', () => {
     expect(screen.getByTestId('analysis-chart')).toBeInTheDocument();
     expect(createChart).toHaveBeenCalled();
     expect(api.addSeries).toHaveBeenCalled();
-    expect(screen.getAllByTestId('ichimoku-cloud-seg').length).toBeGreaterThan(0);
     expect(screen.getAllByTestId('volume-profile-bar').length).toBeGreaterThan(0);
     expect(lwcMocks.mockFitContent).toHaveBeenCalled();
     expect(lwcMocks.mockSetHeight).toHaveBeenCalled();
-    expect(lwcMocks.mockAttachPrimitive).toHaveBeenCalled();
+    expect(lwcMocks.mockAttachPrimitive).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('trend-score-label')).toHaveTextContent('上昇トレンド');
   });
 
@@ -309,6 +298,18 @@ describe('AnalysisChart', () => {
     );
     expect(api.addSeries).toHaveBeenCalledTimes(1);
     expect(lwcMocks.mockSetHeight).not.toHaveBeenCalled();
+    expect(lwcMocks.mockAttachPrimitive).not.toHaveBeenCalled();
+  });
+
+  it('attaches ichimoku cloud primitive without trend score', () => {
+    render(
+      <AnalysisChart
+        prices={[price]}
+        indicatorPoints={points}
+        enabledIds={new Set(['ichimoku'])}
+      />,
+    );
+    expect(lwcMocks.mockAttachPrimitive).toHaveBeenCalledTimes(1);
   });
 
   it('removes chart on unmount and handles resize', () => {
@@ -318,6 +319,21 @@ describe('AnalysisChart', () => {
         indicatorPoints={points}
         enabledIds={new Set(['volume'])}
         height={400}
+        trendScorePoints={[
+          {
+            date: '2026-01-02',
+            score: 12,
+            groups: {
+              trend: 12,
+              momentum: null,
+              oscillator: null,
+              volatility: null,
+              volume: null,
+              cycle: null,
+            },
+            indicators: {},
+          },
+        ]}
       />,
     );
     act(() => {

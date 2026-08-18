@@ -2,8 +2,8 @@
  * チャート分析用のローソク足コンポーネント（ADR 005 / 006）。
  *
  * TradingView lightweight-charts v5 でローソク・出来高・カタログ指標を描画する。
- * Volume Profile と一目の雲は価格ペイン上の HTML オーバーレイ。
- * トレンドスコアは series primitive で価格ペイン背景に塗る（ADR 007）。
+ * Volume Profile は価格ペイン上の HTML オーバーレイ。
+ * 一目の雲とトレンドスコアは series primitive で価格ペインに描く（ADR 007）。
  */
 'use client';
 
@@ -31,6 +31,7 @@ import {
   type Time,
 } from 'lightweight-charts';
 import { TrendBackgroundPrimitive } from './trend-background-primitive';
+import { IchimokuCloudPrimitive } from './ichimoku-cloud-primitive';
 
 export type AnalysisChartProps = {
   prices: DailyPriceDto[];
@@ -143,44 +144,6 @@ export function volumeProfileLayout(
   }));
 }
 
-/** 一目の雲（先行A/B の間）を価格レンジ比で塗る。 */
-export function ichimokuCloudSegments(
-  points: IndicatorSeriesPoint[],
-  priceMin: number,
-  priceMax: number,
-  pricePaneRatio: number,
-): { leftPct: number; widthPct: number; topPct: number; heightPct: number; bullish: boolean }[] {
-  const span = priceMax - priceMin;
-  if (points.length === 0 || span === 0) {
-    return [];
-  }
-  const segments: {
-    leftPct: number;
-    widthPct: number;
-    topPct: number;
-    heightPct: number;
-    bullish: boolean;
-  }[] = [];
-  const widthPct = 100 / points.length;
-  for (let i = 0; i < points.length; i += 1) {
-    const a = points[i]?.values.ichimokuSenkouA;
-    const b = points[i]?.values.ichimokuSenkouB;
-    if (typeof a !== 'number' || typeof b !== 'number') {
-      continue;
-    }
-    const high = Math.max(a, b);
-    const low = Math.min(a, b);
-    segments.push({
-      leftPct: i * widthPct,
-      widthPct,
-      topPct: ((priceMax - high) / span) * pricePaneRatio * 100,
-      heightPct: ((high - low) / span) * pricePaneRatio * 100,
-      bullish: a >= b,
-    });
-  }
-  return segments;
-}
-
 /** 直近の有効な総合スコア。全て null なら null。 */
 export function latestScoredPoint(points: TrendScorePoint[]): TrendScorePoint | null {
   for (let i = points.length - 1; i >= 0; i -= 1) {
@@ -206,15 +169,9 @@ export function AnalysisChart({
   const chartHeight = height ?? computeAnalysisChartHeight(enabledIds);
   const volumeOn = enabledIds.has('volume');
   const pricePaneRatio = PRICE_PANE_PX / chartHeight;
-  const priceMin = prices.length === 0 ? 0 : Math.min(...prices.map((p) => p.low));
-  const priceMax = prices.length === 0 ? 1 : Math.max(...prices.map((p) => p.high));
   const vpLayout =
     enabledIds.has('volumeProfile') && drawings?.volumeProfile
       ? volumeProfileLayout(drawings.volumeProfile.bins, pricePaneRatio)
-      : [];
-  const cloud =
-    enabledIds.has('ichimoku')
-      ? ichimokuCloudSegments(indicatorPoints, priceMin, priceMax, pricePaneRatio)
       : [];
 
   useEffect(() => {
@@ -254,8 +211,13 @@ export function AnalysisChart({
     };
     candles.setData(toCandlestickData(prices));
 
-    if (trendScorePoints.length > 0 && typeof candles.attachPrimitive === 'function') {
-      candles.attachPrimitive(new TrendBackgroundPrimitive(trendScorePoints));
+    if (typeof candles.attachPrimitive === 'function') {
+      if (trendScorePoints.length > 0) {
+        candles.attachPrimitive(new TrendBackgroundPrimitive(trendScorePoints));
+      }
+      if (enabledIds.has('ichimoku')) {
+        candles.attachPrimitive(new IchimokuCloudPrimitive(indicatorPoints));
+      }
     }
 
     if (enabledIds.has('fibonacci') && drawings?.fibonacci) {
@@ -371,47 +333,39 @@ export function AnalysisChart({
           トレンドスコア {Math.round(latestScore.score)}（{trendScoreState(latestScore.score).labelJa}）
         </p>
       ) : null}
-      <div
-        data-testid="analysis-chart"
-        ref={containerRef}
-        style={{ ...chartWrapStyle, height: chartHeight }}
-      />
-      {cloud.map((seg, index) => (
+      <div style={{ ...chartOverlayRootStyle, height: chartHeight }}>
         <div
-          key={`cloud-${index}`}
-          data-testid="ichimoku-cloud-seg"
-          style={{
-            position: 'absolute',
-            left: `${seg.leftPct}%`,
-            top: `${seg.topPct}%`,
-            width: `${seg.widthPct}%`,
-            height: `${seg.heightPct}%`,
-            background: seg.bullish ? 'rgba(105, 240, 174, 0.12)' : 'rgba(255, 82, 82, 0.12)',
-            pointerEvents: 'none',
-          }}
+          data-testid="analysis-chart"
+          ref={containerRef}
+          style={{ ...chartWrapStyle, height: chartHeight }}
         />
-      ))}
-      {vpLayout.map((bar, index) => (
-        <div
-          key={`vp-${index}`}
-          data-testid="volume-profile-bar"
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: `${bar.topPct}%`,
-            width: `${bar.widthPct}%`,
-            height: `${bar.heightPct}%`,
-            background: 'rgba(77, 182, 172, 0.35)',
-            pointerEvents: 'none',
-          }}
-        />
-      ))}
+        {vpLayout.map((bar, index) => (
+          <div
+            key={`vp-${index}`}
+            data-testid="volume-profile-bar"
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: `${bar.topPct}%`,
+              width: `${bar.widthPct}%`,
+              height: `${bar.heightPct}%`,
+              background: 'rgba(77, 182, 172, 0.35)',
+              pointerEvents: 'none',
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
 const messageStyle: CSSProperties = { margin: '0.5rem 0', opacity: 0.85 };
 const scoreLabelStyle: CSSProperties = { margin: '0 0 0.4rem', fontSize: '0.9rem', opacity: 0.9 };
+const chartOverlayRootStyle: CSSProperties = {
+  position: 'relative',
+  width: '100%',
+  overflow: 'hidden',
+};
 const chartWrapStyle: CSSProperties = { width: '100%' };
 
 export function isOverlayEnabled(
