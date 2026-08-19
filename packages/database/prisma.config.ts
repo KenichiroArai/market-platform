@@ -6,12 +6,20 @@
  */
 import { config } from 'dotenv';
 import { resolve } from 'node:path';
-import { defineConfig, env } from 'prisma/config';
+import { defineConfig } from 'prisma/config';
 
 // リポジトリルートの .env（開発時の正）
 config({ path: resolve(__dirname, '../../.env') });
 // packages/database/.env があれば上書き・補完
 config();
+
+const databaseUrl =
+  process.env.DATABASE_URL ??
+  (process.env.CI ? 'postgresql://ci:ci@localhost:5432/market_platform_ci' : undefined);
+
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL is required in non-CI environments');
+}
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
@@ -21,7 +29,7 @@ export default defineConfig({
     seed: 'tsx prisma/seed.ts',
   },
   datasource: {
-    // prisma migrate / generate 実行時に必須
-    url: env('DATABASE_URL'),
+    // CI ではダミー値を許容し、ローカル/本番では明示設定を必須にする
+    url: databaseUrl,
   },
 });
