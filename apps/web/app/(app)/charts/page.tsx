@@ -1,8 +1,9 @@
 /**
- * チャート分析画面（v0.2.0 Phase 4）。
+ * チャート分析画面（v0.2.0 Phase 5）。
  *
  * 銘柄・期間・足種は上段、チャートは本画面に全幅表示する。
  * 指標カタログはモードレスまたは別ウィンドウ。拡大は全画面の別ウィンドウ。
+ * 指標セットの保存は指標設定ウィンドウ内、呼び出しは独立ウィンドウ。
  * トレンドスコアはトグル非依存で背景色に出す。
  * 未ログイン誘導は共通レイアウト側。
  */
@@ -28,6 +29,8 @@ import {
   INITIAL_ENABLED_IDS,
   IndicatorCatalog,
 } from '../../../components/indicator-catalog';
+import { IndicatorSetPicker } from '../../../components/indicator-set-picker';
+import { IndicatorSetSaveForm } from '../../../components/indicator-set-save-form';
 import { ModelessWindow } from '../../../components/modeless-window';
 import {
   enlargedChartHeight,
@@ -70,7 +73,18 @@ export default function ChartsPage() {
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(false);
   const [indicatorUi, setIndicatorUi] = useState<IndicatorUiMode>('closed');
+  const [recallUi, setRecallUi] = useState<IndicatorUiMode>('closed');
   const [chartPopout, setChartPopout] = useState(false);
+
+  /** 呼び出しウィンドウから選んだセットを現行の指標指定へ反映する。 */
+  function applyIndicatorSet(ids: IndicatorCatalogId[]) {
+    setEnabledIds(new Set(ids));
+  }
+
+  /** 呼び出しウィンドウを閉じる（モードレス / 別ウィンドウ共通）。 */
+  function closeRecallUi() {
+    setRecallUi('closed');
+  }
 
   const watchlistSymbols = useMemo(() => {
     if (!watchlistId) {
@@ -197,7 +211,7 @@ export default function ChartsPage() {
     <main style={pageStyle}>
       <h1 style={{ fontSize: '1.75rem', margin: '0 0 0.5rem' }}>チャート分析</h1>
       <p style={{ margin: '0 0 1.25rem', opacity: 0.85, maxWidth: '46rem' }}>
-        チャートは本画面に表示します。指標はモードレスまたは別ウィンドウで選び、拡大で全画面の別ウィンドウを開けます。初期表示はおすすめ構成です。背景色はトレンドスコアです。
+        チャートは本画面に表示します。指標はモードレスまたは別ウィンドウで選び、拡大で全画面の別ウィンドウを開けます。初期表示はおすすめ構成です。背景色はトレンドスコアです。指標セットの保存は指標設定ウィンドウ、呼び出しは独立ウィンドウです。
       </p>
 
       {error ? <p style={errorStyle}>{error}</p> : null}
@@ -323,6 +337,30 @@ export default function ChartsPage() {
           >
             指標設定（別ウィンドウ）
           </button>
+          <button
+            type="button"
+            style={buttonStyle}
+            data-testid="open-indicator-set-modeless"
+            aria-pressed={recallUi === 'modeless'}
+            onClick={() => setRecallUi((current) => nextIndicatorUiMode(current, 'modeless'))}
+          >
+            指標セット呼び出し（モードレス）
+          </button>
+          <button
+            type="button"
+            style={buttonStyle}
+            data-testid="open-indicator-set-popout"
+            aria-pressed={recallUi === 'popout'}
+            onClick={() => {
+              const next = nextIndicatorUiMode(recallUi, 'popout');
+              if (next === 'popout') {
+                primePopoutWindow('chart-indicator-set-picker', { width: 440, height: 800 });
+              }
+              setRecallUi(next);
+            }}
+          >
+            指標セット呼び出し（別ウィンドウ）
+          </button>
           <span style={countStyle} data-testid="enabled-indicator-count">
             選択中 {enabledIds.size} 件
           </span>
@@ -363,7 +401,10 @@ export default function ChartsPage() {
 
       {indicatorUi === 'modeless' ? (
         <ModelessWindow title="指標設定" onClose={() => setIndicatorUi('closed')}>
-          <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
+          <div style={windowBodyStyle}>
+            <IndicatorSetSaveForm enabledIds={enabledIds} />
+            <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
+          </div>
         </ModelessWindow>
       ) : null}
 
@@ -374,7 +415,31 @@ export default function ChartsPage() {
           padded
           onClose={() => setIndicatorUi('closed')}
         >
-          <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
+          <div style={windowBodyStyle}>
+            <IndicatorSetSaveForm enabledIds={enabledIds} />
+            <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
+          </div>
+        </PopoutWindow>
+      ) : null}
+
+      {recallUi === 'modeless' ? (
+        <ModelessWindow
+          title="指標セット呼び出し"
+          initialX={400}
+          onClose={closeRecallUi}
+        >
+          <IndicatorSetPicker onApply={applyIndicatorSet} />
+        </ModelessWindow>
+      ) : null}
+
+      {recallUi === 'popout' ? (
+        <PopoutWindow
+          title="指標セット呼び出し"
+          name="chart-indicator-set-picker"
+          padded
+          onClose={closeRecallUi}
+        >
+          <IndicatorSetPicker onApply={applyIndicatorSet} />
         </PopoutWindow>
       ) : null}
 
@@ -445,6 +510,12 @@ const windowActionsStyle: CSSProperties = {
   gap: '0.5rem',
   alignItems: 'center',
   marginBottom: '1rem',
+};
+
+const windowBodyStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.75rem',
 };
 
 const buttonStyle: CSSProperties = {

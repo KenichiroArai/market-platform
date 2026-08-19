@@ -9,6 +9,7 @@ import {
   isAuthUser,
   isBacktestRunDto,
   isDailyPriceDto,
+  isIndicatorSetDto,
   isIndicatorsResponseDto,
   isPortfolioDto,
   isSignalDefinitionDto,
@@ -20,6 +21,8 @@ import {
   type ChartInterval,
   type DailyPriceDto,
   type IndicatorsResponseDto,
+  type IndicatorCatalogId,
+  type IndicatorSetDto,
   type LoginRequest,
   type PortfolioDto,
   type BacktestRunDto,
@@ -447,6 +450,34 @@ export async function updateSignalDefinition(
 /** DELETE /signals/:id */
 export async function deleteSignalDefinition(id: string, fetchImpl?: typeof fetch): Promise<void> {
   await apiFetch<null>(`/signals/${id}`, { method: 'DELETE' }, fetchImpl);
+}
+
+/** GET /indicator-sets */
+export async function fetchIndicatorSets(fetchImpl?: typeof fetch): Promise<IndicatorSetDto[]> {
+  const result = await apiFetch<unknown>('/indicator-sets', { method: 'GET' }, fetchImpl);
+  return assertArray(result, isIndicatorSetDto, 'indicator sets');
+}
+
+/** POST /indicator-sets */
+export async function createIndicatorSet(
+  name: string,
+  indicatorIds: IndicatorCatalogId[],
+  fetchImpl?: typeof fetch,
+): Promise<IndicatorSetDto> {
+  const result = await apiFetch<unknown>(
+    '/indicator-sets',
+    { method: 'POST', body: JSON.stringify({ name, indicatorIds }) },
+    fetchImpl,
+  );
+  if (!isIndicatorSetDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected indicator set response', result);
+  }
+  return result;
+}
+
+/** DELETE /indicator-sets/:id */
+export async function deleteIndicatorSet(id: string, fetchImpl?: typeof fetch): Promise<void> {
+  await apiFetch<null>(`/indicator-sets/${id}`, { method: 'DELETE' }, fetchImpl);
 }
 
 /** GET /backtests */

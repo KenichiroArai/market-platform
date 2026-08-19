@@ -4,6 +4,7 @@ import { AuthController } from './auth/auth.controller';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { IndicatorsController } from './indicators/indicators.controller';
+import { IndicatorSetsController } from './indicator-sets/indicator-sets.controller';
 import { MarketDataController } from './market-data/market-data.controller';
 import { MARKET_DATA_PROVIDER } from './market-data/providers/provider.token';
 import { StubMarketDataProvider } from './market-data/providers/stub-market-data.provider';
@@ -30,7 +31,7 @@ describe('AppModule', () => {
     }
   });
 
-  it('wires health, auth, market-data, watchlists, portfolios, and indicators', async () => {
+  it('wires health, auth, market-data, watchlists, portfolios, indicators, and indicator sets', async () => {
     process.env.JWT_SECRET = 'test-secret-for-app-module';
     process.env.MARKET_DATA_PROVIDER = 'stub';
 
@@ -47,7 +48,7 @@ describe('AppModule', () => {
           watchlist: { findMany: jest.fn(), findFirst: jest.fn() },
           watchlistItem: { findUnique: jest.fn(), findFirst: jest.fn() },
           portfolio: { findMany: jest.fn(), findFirst: jest.fn() },
-          portfolioHolding: { findUnique: jest.fn(), findFirst: jest.fn() },
+          indicatorSet: { findMany: jest.fn(), findFirst: jest.fn() },
         },
         onModuleInit: jest.fn(),
         onModuleDestroy: jest.fn(),
@@ -65,6 +66,7 @@ describe('AppModule', () => {
     expect(moduleRef.get(WatchlistsController)).toBeDefined();
     expect(moduleRef.get(PortfoliosController)).toBeDefined();
     expect(moduleRef.get(IndicatorsController)).toBeDefined();
+    expect(moduleRef.get(IndicatorSetsController)).toBeDefined();
     expect(moduleRef.get(MARKET_DATA_PROVIDER)).toBeInstanceOf(StubMarketDataProvider);
   });
 });

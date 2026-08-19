@@ -2,7 +2,7 @@
  * 共有型・DTO・ヘルパーの公開入口。
  *
  * NestJS（api）と Next.js（web）が同じ契約でヘルス・エラー・認証・市場データ・
- * ウォッチリスト・ポートフォリオ・テクニカル分析・チャート足種を扱えるようにする。
+ * ウォッチリスト・ポートフォリオ・テクニカル分析・チャート足種・指標セットを扱えるようにする。
  * Python（analysis）とは OpenAPI / JSON で同期し、このパッケージには依存させない。
  */
 
@@ -17,3 +17,4 @@ export * from './indicator-catalog';
 export * from './signals';
 export * from './chart';
 export * from './trend-score';
+export * from './indicator-set';

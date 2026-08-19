@@ -720,6 +720,30 @@ export function parseIndicatorCatalogQuery(
   return { ok: true, ids };
 }
 
+/**
+ * 保存用のカタログ ID 配列を検証する。
+ * 空は許可。未知 ID と disabled（エリオット）は拒否。重複は除去する。
+ */
+export function parseToggleableCatalogIds(
+  ids: readonly string[],
+):
+  | { ok: true; ids: IndicatorCatalogId[] }
+  | { ok: false; reason: 'unknown' | 'disabled'; token: string } {
+  const result: IndicatorCatalogId[] = [];
+  for (const raw of ids) {
+    if (!isIndicatorCatalogId(raw)) {
+      return { ok: false, reason: 'unknown', token: raw };
+    }
+    if (INDICATOR_CATALOG_BY_ID[raw].disabled) {
+      return { ok: false, reason: 'disabled', token: raw };
+    }
+    if (!result.includes(raw)) {
+      result.push(raw);
+    }
+  }
+  return { ok: true, ids: result };
+}
+
 /** analysis に送る対象（volume / elliott を除く）。 */
 export function computeCatalogIds(ids: IndicatorCatalogId[]): IndicatorCatalogId[] {
   return ids.filter((id) => INDICATOR_CATALOG_BY_ID[id].computeType !== null);

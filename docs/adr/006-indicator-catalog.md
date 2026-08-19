@@ -42,9 +42,14 @@ v0.2.0 Phase 3 で分類付きの指標カタログ（複数期間 MA、バン�
 
 UI の複数分類は維持したまま、スコア合成では `scoreGroup` で 1 指標 1 グループに固定する。詳細は [ADR 007](007-trend-score.md)。
 
+## 追記（v0.2.0 / Phase 5）
+
+カタログ ID の ON/OFF 集合を名前付きセットとして保存する。計算結果の永続化は対象外のまま。詳細は [ADR 008](008-indicator-sets.md)。
+
 ## 関連
 
 - [開発ロードマップ](../roadmap/v0/v0.2/v0.2.0.md) Phase 3
 - [ADR 004: テクニカル分析](004-technical-analysis.md)
 - [ADR 005: チャート分析](005-chart-analysis.md)
 - [ADR 007: トレンドスコア](007-trend-score.md)
+- [ADR 008: テクニカル指標セット](008-indicator-sets.md)

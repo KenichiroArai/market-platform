@@ -14,6 +14,7 @@ import {
   createSymbolDto,
   createWatchlistDto,
   createWatchlistItemDto,
+  createIndicatorSetDto,
   defaultEnabledIndicatorIds,
   definitionsForCategory,
   isApiErrorBody,
@@ -40,9 +41,11 @@ import {
   isSignalStrategyType,
   isWatchlistDto,
   isWatchlistItemDto,
+  isIndicatorSetDto,
   isChartInterval,
   aggregateDailyBarsToWeekly,
   parseIndicatorCatalogQuery,
+  parseToggleableCatalogIds,
   recommendedIndicatorIds,
   scoringCatalogIds,
   specsFromCatalogIds,
@@ -106,6 +109,8 @@ describe('shared-types errors', () => {
     expect(API_ERROR_CODES.SIGNAL_DEFINITION_NOT_FOUND).toBe('SIGNAL_DEFINITION_NOT_FOUND');
     expect(API_ERROR_CODES.SIGNAL_DEFINITION_ALREADY_EXISTS).toBe('SIGNAL_DEFINITION_ALREADY_EXISTS');
     expect(API_ERROR_CODES.BACKTEST_RUN_NOT_FOUND).toBe('BACKTEST_RUN_NOT_FOUND');
+    expect(API_ERROR_CODES.INDICATOR_SET_NOT_FOUND).toBe('INDICATOR_SET_NOT_FOUND');
+    expect(API_ERROR_CODES.INDICATOR_SET_ALREADY_EXISTS).toBe('INDICATOR_SET_ALREADY_EXISTS');
     expect(API_ERROR_CODES.INTERNAL_ERROR).toBe('INTERNAL_ERROR');
   });
 
@@ -371,6 +376,31 @@ describe('shared-types watchlist', () => {
     expect(isWatchlistDto(null)).toBe(false);
     expect(isWatchlistDto({ ...watchlist, items: [null] })).toBe(false);
     expect(isWatchlistDto({ ...watchlist, name: 1 })).toBe(false);
+  });
+});
+
+describe('shared-types indicator set', () => {
+  const set = {
+    id: 'set_1',
+    userId: 'user_1',
+    name: 'スイング',
+    indicatorIds: ['sma25', 'rsi'] as const,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  it('creates and validates IndicatorSetDto', () => {
+    const dto = {
+      ...set,
+      indicatorIds: [...set.indicatorIds],
+    };
+    expect(createIndicatorSetDto(dto)).toEqual(dto);
+    expect(isIndicatorSetDto(dto)).toBe(true);
+    expect(isIndicatorSetDto({ ...dto, indicatorIds: [] })).toBe(true);
+    expect(isIndicatorSetDto(null)).toBe(false);
+    expect(isIndicatorSetDto({ ...dto, name: 1 })).toBe(false);
+    expect(isIndicatorSetDto({ ...dto, indicatorIds: ['nope'] })).toBe(false);
+    expect(isIndicatorSetDto({ ...dto, indicatorIds: 'sma25' })).toBe(false);
   });
 });
 
@@ -650,6 +680,24 @@ describe('shared-types indicator catalog', () => {
     });
     expect(parseIndicatorCatalogQuery(' , ')).toEqual({ ok: false, reason: 'empty' });
     expect(parseIndicatorCatalogQuery('elliott')).toEqual({
+      ok: false,
+      reason: 'disabled',
+      token: 'elliott',
+    });
+  });
+
+  it('parses toggleable catalog ids for saved sets', () => {
+    expect(parseToggleableCatalogIds([])).toEqual({ ok: true, ids: [] });
+    expect(parseToggleableCatalogIds(['sma25', 'sma25', 'volume'])).toEqual({
+      ok: true,
+      ids: ['sma25', 'volume'],
+    });
+    expect(parseToggleableCatalogIds(['nope'])).toEqual({
+      ok: false,
+      reason: 'unknown',
+      token: 'nope',
+    });
+    expect(parseToggleableCatalogIds(['elliott'])).toEqual({
       ok: false,
       reason: 'disabled',
       token: 'elliott',

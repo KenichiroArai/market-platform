@@ -5,12 +5,15 @@ import {
   apiFetch,
   createPortfolio,
   createSignalDefinition,
+  createIndicatorSet,
   createWatchlist,
   deleteSignalDefinition,
+  deleteIndicatorSet,
   deletePortfolio,
   deleteWatchlist,
   fetchBacktestRuns,
   fetchCurrentUser,
+  fetchIndicatorSets,
   fetchSignalDefinitions,
   fetchPortfolios,
   fetchSymbolPrices,
@@ -98,6 +101,15 @@ const signal = {
   strategyType: 'smaCross' as const,
   params: { shortPeriod: 5, longPeriod: 20 },
   isActive: true,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+const indicatorSet = {
+  id: 'set_1',
+  userId: 'user_1',
+  name: 'スイング',
+  indicatorIds: ['sma25', 'rsi'],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -453,6 +465,17 @@ describe('api-client', () => {
     ).resolves.toEqual(run);
   });
 
+  it('handles indicator set APIs', async () => {
+    await expect(
+      fetchIndicatorSets(okJson([indicatorSet]) as unknown as typeof fetch),
+    ).resolves.toEqual([indicatorSet]);
+    await expect(
+      createIndicatorSet('スイング', ['sma25', 'rsi'], okJson(indicatorSet) as unknown as typeof fetch),
+    ).resolves.toEqual(indicatorSet);
+    const del = jest.fn().mockResolvedValue({ ok: true, status: 204, json: async () => null });
+    await expect(deleteIndicatorSet('set_1', del as unknown as typeof fetch)).resolves.toBeUndefined();
+  });
+
   it('rejects invalid list and entity responses', async () => {
     await expect(
       fetchSymbols(okJson([{ id: 1 }]) as unknown as typeof fetch),
@@ -516,6 +539,12 @@ describe('api-client', () => {
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     await expect(
       fetchBacktestRuns(okJson([{ id: 1 }]) as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      fetchIndicatorSets(okJson([{ id: 1 }]) as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      createIndicatorSet('x', ['sma25'], okJson({ id: 1 }) as unknown as typeof fetch),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     await expect(
       fetchSymbolPrices('sym_1', {}, okJson([{ id: 1 }]) as unknown as typeof fetch),

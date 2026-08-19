@@ -43,6 +43,10 @@ export const API_ERROR_CODES = {
   SIGNAL_DEFINITION_ALREADY_EXISTS: 'SIGNAL_DEFINITION_ALREADY_EXISTS',
   /** バックテスト実行が見つからない（他人所有も含む） */
   BACKTEST_RUN_NOT_FOUND: 'BACKTEST_RUN_NOT_FOUND',
+  /** 指標セットが見つからない（他人所有も含む） */
+  INDICATOR_SET_NOT_FOUND: 'INDICATOR_SET_NOT_FOUND',
+  /** 同一ユーザー内で指標セット名が重複した */
+  INDICATOR_SET_ALREADY_EXISTS: 'INDICATOR_SET_ALREADY_EXISTS',
   /** 予期しないサーバー内部エラー */
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;

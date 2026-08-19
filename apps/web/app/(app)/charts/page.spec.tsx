@@ -6,6 +6,8 @@ import type { ReactNode } from 'react';
 import ChartsPage from './page';
 import {
   ApiClientError,
+  createIndicatorSet,
+  fetchIndicatorSets,
   fetchSymbolIndicators,
   fetchSymbolPrices,
   fetchSymbolTrendScore,
@@ -20,6 +22,9 @@ jest.mock('../../../lib/api-client', () => ({
   fetchSymbolPrices: jest.fn(),
   fetchSymbolIndicators: jest.fn(),
   fetchSymbolTrendScore: jest.fn(),
+  fetchIndicatorSets: jest.fn(),
+  createIndicatorSet: jest.fn(),
+  deleteIndicatorSet: jest.fn(),
   ApiClientError: class ApiClientError extends Error {
     constructor(
       public statusCode: number,
@@ -147,6 +152,24 @@ describe('ChartsPage', () => {
           indicators: { sma25: 20 },
         },
       ],
+    });
+    (fetchIndicatorSets as jest.Mock).mockResolvedValue([
+      {
+        id: 'set_1',
+        userId: 'u_1',
+        name: 'スイング',
+        indicatorIds: ['rsi'],
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+    (createIndicatorSet as jest.Mock).mockResolvedValue({
+      id: 'set_2',
+      userId: 'u_1',
+      name: '新規',
+      indicatorIds: ['sma25'],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
     });
   });
 
@@ -381,5 +404,62 @@ describe('ChartsPage', () => {
     fireEvent.click(screen.getByTestId('enlarge-chart'));
     fireEvent.click(screen.getByTestId('enlarge-chart'));
     expect(screen.queryByTestId('popout-stub')).not.toBeInTheDocument();
+  });
+
+  it('opens the indicator set picker independently and applies a set', async () => {
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('open-indicator-set-modeless')).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
+    expect(screen.getByTestId('indicator-catalog')).toBeInTheDocument();
+    expect(screen.getByTestId('indicator-set-save')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('open-indicator-set-modeless'));
+    await waitFor(() => expect(screen.getByTestId('indicator-set-picker')).toBeInTheDocument());
+    expect(screen.getByTestId('indicator-catalog')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('indicator-set-apply-set_1'));
+    expect(screen.getByTestId('enabled-indicator-count')).toHaveTextContent('選択中 1 件');
+    expect(screen.getAllByTestId('overlay-rsi')[0]).toBeChecked();
+
+    const closeButtons = screen.getAllByTestId('modeless-close');
+    fireEvent.click(closeButtons[closeButtons.length - 1]!);
+    expect(screen.queryByTestId('indicator-set-picker')).not.toBeInTheDocument();
+    expect(screen.getByTestId('indicator-catalog')).toBeInTheDocument();
+  });
+
+  it('opens the indicator set picker in a separate window', async () => {
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('open-indicator-set-popout')).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId('open-indicator-set-popout'));
+    await waitFor(() =>
+      expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', '指標セット呼び出し'),
+    );
+    expect(screen.getByTestId('indicator-set-picker')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('popout-stub-close'));
+    expect(screen.queryByTestId('indicator-set-picker')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('open-indicator-set-popout'));
+    expect(screen.getByTestId('popout-stub')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('open-indicator-set-popout'));
+    expect(screen.queryByTestId('popout-stub')).not.toBeInTheDocument();
+  });
+
+  it('saves the current indicator selection from the settings window', async () => {
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('open-indicator-modeless')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
+    fireEvent.change(screen.getByTestId('indicator-set-name'), { target: { value: '新規' } });
+    fireEvent.click(screen.getByTestId('indicator-set-save-button'));
+    await waitFor(() =>
+      expect(screen.getByTestId('indicator-set-save-success')).toHaveTextContent('保存しました'),
+    );
+    expect(createIndicatorSet).toHaveBeenCalled();
   });
 });

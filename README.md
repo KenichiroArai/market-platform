@@ -114,7 +114,8 @@ pnpm dev
 - 指標: `GET /symbols/:id/indicators?indicators=sma25,sma75,sma200,macd,rsi,bb,obv,ichimoku&from=&to=`
 - 内部計算: Analysis `POST /indicators` / `POST /trend-score`（Nest 経由。詳細は [ADR 004](docs/adr/004-technical-analysis.md) / [ADR 006](docs/adr/006-indicator-catalog.md) / [ADR 007](docs/adr/007-trend-score.md)）
 - トレンドスコア: `GET /symbols/:id/trend-score?from=&to=`（チャート背景。トグル非依存）
-- 画面: http://localhost:3000/charts（チャート本画面 + 指標はモードレス/別ウィンドウ + トレンド背景）
+- 画面: http://localhost:3000/charts（チャート本画面 + 指標はモードレス/別ウィンドウ + トレンド背景 + 指標セット保存/呼び出し）
+- 指標セット: `GET|POST /indicator-sets` / `DELETE /indicator-sets/:id`（名前付きトグル。保存は指標設定ウィンドウ、呼び出しは独立ウィンドウ）
 
 `.env` に `JWT_SECRET` が必須です（[`.env.example`](.env.example) 参照）。市場データは `MARKET_DATA_PROVIDER`（`yahoo`|`stub`）で切替できます（[ADR 002](docs/adr/002-market-data-provider.md)）。
 
@@ -141,6 +142,7 @@ pnpm test
 - [ADR 005: チャート分析](docs/adr/005-chart-analysis.md)
 - [ADR 006: テクニカル指標カタログ](docs/adr/006-indicator-catalog.md)
 - [ADR 007: トレンドスコア](docs/adr/007-trend-score.md)
+- [ADR 008: テクニカル指標セット](docs/adr/008-indicator-sets.md)
 
 ## ライセンス
 

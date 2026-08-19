@@ -106,3 +106,4 @@ v0.2.0 Phase 3 で分類付きのテクニカル指標カタログを載せた�
 - [ADR 004: テクニカル分析](004-technical-analysis.md)
 - [ADR 005: チャート分析](005-chart-analysis.md)
 - [ADR 006: テクニカル指標カタログ](006-indicator-catalog.md)
+- [ADR 008: テクニカル指標セット](008-indicator-sets.md)

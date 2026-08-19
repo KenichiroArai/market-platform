@@ -1,4 +1,4 @@
-// Prisma schema（Phase 3: ウォッチリスト・ポートフォリオを追加）
+// Prisma schema（User / Symbol / DailyPrice / Watchlist / Portfolio / IndicatorSet）
 //
 // Client は packages/database/generated に出力する（node_modules へは出さない）。
 // DATABASE_URL は prisma.config.ts 側で渡す（Prisma 7 の構成）。
@@ -30,6 +30,7 @@ model User {
   portfolios Portfolio[]
   signalDefinitions SignalDefinition[]
   backtestRuns      BacktestRun[]
+  indicatorSets     IndicatorSet[]
 
   @@index([email])
 }
@@ -146,6 +147,21 @@ model PortfolioHolding {
 
   @@unique([portfolioId, symbolId])
   @@index([symbolId])
+}
+
+/// チャート分析の指標トグル集合。カタログ ID の配列だけを持ち、計算結果は保存しない。
+model IndicatorSet {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  indicatorIds String[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
 }
 
 /// ユーザーが作成するシグナル戦略定義。paramsJson は戦略ごとの可変パラメータ。
