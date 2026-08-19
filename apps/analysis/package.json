@@ -10,6 +10,6 @@
     "lint": "echo \"No lint configured for @market/analysis\"",
     "typecheck": "echo \"Python typecheck is handled outside turbo for Phase 0\"",
     "build": "echo \"No build step for @market/analysis\"",
-    "test": "python -m pytest"
+    "test": "uv run pytest"
   }
 }
