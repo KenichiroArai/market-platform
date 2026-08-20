@@ -2,10 +2,12 @@ import { act, render, screen } from '@testing-library/react';
 import type { DailyPriceDto, IndicatorSeriesPoint } from '@market/shared-types';
 import {
   AnalysisChart,
+  chartTimeToDateString,
   computeAnalysisChartHeight,
   isOverlayEnabled,
   latestScoredPoint,
   resolveOwnerWindow,
+  resolveScoredPoint,
   toCandlestickData,
   toLineData,
   toMacdHistogramData,
@@ -17,6 +19,7 @@ import {
   createChart,
   __mocks as lwcMocks,
 } from '../test-mocks/lightweight-charts';
+import type { Time } from 'lightweight-charts';
 
 const price: DailyPriceDto = {
   id: 'price_1',
@@ -82,6 +85,8 @@ function chartApi(createPriceLine = jest.fn()) {
     timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
     applyOptions: lwcMocks.mockApplyOptions,
     remove: lwcMocks.mockRemove,
+    subscribeClick: lwcMocks.mockSubscribeClick,
+    unsubscribeClick: lwcMocks.mockUnsubscribeClick,
   };
 }
 
@@ -175,6 +180,39 @@ describe('analysis-chart helpers', () => {
         },
       ])?.score,
     ).toBe(12);
+    const early = {
+      date: '2026-01-02',
+      score: 10,
+      groups: {
+        trend: 10,
+        momentum: null,
+        oscillator: null,
+        volatility: null,
+        volume: null,
+        cycle: null,
+      },
+      indicators: {},
+    };
+    const late = {
+      date: '2026-01-03',
+      score: 20,
+      groups: {
+        trend: 20,
+        momentum: null,
+        oscillator: null,
+        volatility: null,
+        volume: null,
+        cycle: null,
+      },
+      indicators: {},
+    };
+    expect(resolveScoredPoint([early, late], null)?.date).toBe('2026-01-03');
+    expect(resolveScoredPoint([early, late], '2026-01-02')?.score).toBe(10);
+    expect(resolveScoredPoint([early, late], '2099-01-01')?.date).toBe('2026-01-03');
+    expect(chartTimeToDateString('2026-01-02' as Time)).toBe('2026-01-02');
+    expect(chartTimeToDateString(1_704_067_200 as Time)).toBe('2024-01-01');
+    expect(chartTimeToDateString({ year: 2026, month: 1, day: 5 } as Time)).toBe('2026-01-05');
+    expect(chartTimeToDateString({} as Time)).toBeNull();
   });
 });
 
@@ -249,6 +287,90 @@ describe('AnalysisChart', () => {
     expect(lwcMocks.mockSetHeight).toHaveBeenCalled();
     expect(lwcMocks.mockAttachPrimitive).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('trend-score-label')).toHaveTextContent('上昇トレンド');
+    expect(screen.getByTestId('trend-score-base-date')).toHaveTextContent('基準日 2026-01-02');
+    expect(lwcMocks.mockSubscribeClick).toHaveBeenCalled();
+  });
+
+  it('uses baseDate for the score label and notifies onBarClick', () => {
+    const onBarClick = jest.fn();
+    const api = chartApi();
+    (createChart as jest.Mock).mockReturnValue(api);
+    let clickHandler: ((param: { time?: Time }) => void) | undefined;
+    lwcMocks.mockSubscribeClick.mockImplementation((handler: (param: { time?: Time }) => void) => {
+      clickHandler = handler;
+    });
+
+    render(
+      <AnalysisChart
+        prices={[price, downPrice]}
+        indicatorPoints={points}
+        baseDate="2026-01-02"
+        onBarClick={onBarClick}
+        trendScorePoints={[
+          {
+            date: '2026-01-02',
+            score: 12,
+            groups: {
+              trend: 12,
+              momentum: null,
+              oscillator: null,
+              volatility: null,
+              volume: null,
+              cycle: null,
+            },
+            indicators: {},
+          },
+          {
+            date: '2026-01-03',
+            score: 60,
+            groups: {
+              trend: 24,
+              momentum: null,
+              oscillator: null,
+              volatility: null,
+              volume: null,
+              cycle: null,
+            },
+            indicators: {},
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('trend-score-label')).toHaveTextContent('基準日 2026-01-02');
+    expect(screen.getByTestId('trend-score-label')).toHaveTextContent('12');
+    act(() => {
+      clickHandler?.({ time: '2026-01-03' as Time });
+      clickHandler?.({});
+      clickHandler?.({ time: {} as Time });
+    });
+    expect(onBarClick).toHaveBeenCalledWith('2026-01-03');
+    expect(onBarClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows scoreなし when base date has a null score', () => {
+    render(
+      <AnalysisChart
+        prices={[price]}
+        indicatorPoints={points}
+        baseDate="2026-01-02"
+        trendScorePoints={[
+          {
+            date: '2026-01-02',
+            score: null,
+            groups: {
+              trend: null,
+              momentum: null,
+              oscillator: null,
+              volatility: null,
+              volume: null,
+              cycle: null,
+            },
+            indicators: {},
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('trend-score-label')).toHaveTextContent('スコアなし');
   });
 
   it('skips price lines when createPriceLine is missing', () => {
@@ -258,6 +380,8 @@ describe('AnalysisChart', () => {
       timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
       applyOptions: lwcMocks.mockApplyOptions,
       remove: lwcMocks.mockRemove,
+      subscribeClick: lwcMocks.mockSubscribeClick,
+      unsubscribeClick: lwcMocks.mockUnsubscribeClick,
     };
     (createChart as jest.Mock).mockReturnValue(api);
     render(
@@ -286,6 +410,8 @@ describe('AnalysisChart', () => {
       timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
       applyOptions: lwcMocks.mockApplyOptions,
       remove: lwcMocks.mockRemove,
+      subscribeClick: lwcMocks.mockSubscribeClick,
+      unsubscribeClick: lwcMocks.mockUnsubscribeClick,
     };
     (createChart as jest.Mock).mockReturnValue(api);
 
@@ -341,6 +467,7 @@ describe('AnalysisChart', () => {
     });
     expect(lwcMocks.mockApplyOptions).toHaveBeenCalledWith({ width: 800 });
     unmount();
+    expect(lwcMocks.mockUnsubscribeClick).toHaveBeenCalled();
     expect(lwcMocks.mockRemove).toHaveBeenCalled();
   });
 });

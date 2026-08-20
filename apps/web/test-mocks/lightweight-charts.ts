@@ -13,6 +13,8 @@ const mockApplyOptions = jest.fn();
 const mockFitContent = jest.fn();
 const mockSetHeight = jest.fn();
 const mockAttachPrimitive = jest.fn();
+const mockSubscribeClick = jest.fn();
+const mockUnsubscribeClick = jest.fn();
 
 export const createChart = jest.fn(() => ({
   addSeries: jest.fn(() => ({ setData: mockSetData, attachPrimitive: mockAttachPrimitive })),
@@ -24,6 +26,8 @@ export const createChart = jest.fn(() => ({
   timeScale: jest.fn(() => ({ fitContent: mockFitContent })),
   applyOptions: mockApplyOptions,
   remove: mockRemove,
+  subscribeClick: mockSubscribeClick,
+  unsubscribeClick: mockUnsubscribeClick,
 }));
 
 /** テストから呼び出し検証用に公開する内部モック */
@@ -34,4 +38,6 @@ export const __mocks = {
   mockFitContent,
   mockSetHeight,
   mockAttachPrimitive,
+  mockSubscribeClick,
+  mockUnsubscribeClick,
 };

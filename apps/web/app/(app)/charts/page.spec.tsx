@@ -41,15 +41,42 @@ jest.mock('../../../components/analysis-chart', () => ({
   AnalysisChart: ({
     loading,
     prices,
+    onBarClick,
   }: {
     loading?: boolean;
     prices?: { date: string }[];
+    onBarClick?: (date: string) => void;
   }) => (
     <div data-testid="analysis-chart-stub">
       {loading ? 'loading' : `ready:${prices?.length ?? 0}`}
+      <button
+        type="button"
+        data-testid="stub-bar-click"
+        onClick={() => onBarClick?.('2026-01-02')}
+      >
+        click-bar
+      </button>
     </div>
   ),
   computeAnalysisChartHeight: () => 400,
+  resolveScoredPoint: (
+    points: { date: string; score: number | null }[],
+    baseDate: string | null | undefined,
+  ) => {
+    if (baseDate) {
+      const found = points.find((point) => point.date === baseDate);
+      if (found) {
+        return found;
+      }
+    }
+    for (let i = points.length - 1; i >= 0; i -= 1) {
+      const point = points[i];
+      if (point && point.score !== null) {
+        return point;
+      }
+    }
+    return null;
+  },
 }));
 
 jest.mock('../../../components/popout-window', () => {
@@ -461,5 +488,26 @@ describe('ChartsPage', () => {
       expect(screen.getByTestId('indicator-set-save-success')).toHaveTextContent('保存しました'),
     );
     expect(createIndicatorSet).toHaveBeenCalled();
+  });
+
+  it('opens score breakdown and reflects chart bar clicks as base date', async () => {
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('open-score-breakdown')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('stub-bar-click'));
+    fireEvent.click(screen.getByTestId('open-score-breakdown'));
+    expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
+    expect(screen.getByTestId('trend-score-breakdown')).toBeInTheDocument();
+    expect(screen.getByTestId('trend-score-breakdown-summary')).toHaveTextContent(
+      '基準日 2026-01-02',
+    );
+    expect(screen.getByTestId('open-score-breakdown')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByTestId('modeless-close'));
+    expect(screen.queryByTestId('trend-score-breakdown')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('open-score-breakdown'));
+    fireEvent.click(screen.getByTestId('open-score-breakdown'));
+    expect(screen.queryByTestId('trend-score-breakdown')).not.toBeInTheDocument();
   });
 });

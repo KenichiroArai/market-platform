@@ -1,10 +1,10 @@
 /**
- * チャート分析画面（v0.2.0 Phase 5）。
+ * チャート分析画面（v0.2.0 Phase 6）。
  *
  * 銘柄・期間・足種は上段、チャートは本画面に全幅表示する。
  * 指標カタログはモードレスまたは別ウィンドウ。拡大は全画面の別ウィンドウ。
  * 指標セットの保存は指標設定ウィンドウ内、呼び出しは独立ウィンドウ。
- * トレンドスコアはトグル非依存で背景色に出す。
+ * トレンドスコアはトグル非依存で背景色に出し、基準日クリックで内訳を見る。
  * 未ログイン誘導は共通レイアウト側。
  */
 'use client';
@@ -24,6 +24,7 @@ import { computeCatalogIds } from '@market/shared-types';
 import {
   AnalysisChart,
   computeAnalysisChartHeight,
+  resolveScoredPoint,
 } from '../../../components/analysis-chart';
 import {
   INITIAL_ENABLED_IDS,
@@ -42,6 +43,7 @@ import {
   primePopoutWindow,
   useHostWindowSize,
 } from '../../../components/popout-window';
+import { TrendScoreBreakdown } from '../../../components/trend-score-breakdown';
 import {
   ApiClientError,
   fetchSymbolIndicators,
@@ -74,7 +76,10 @@ export default function ChartsPage() {
   const [chartLoading, setChartLoading] = useState(false);
   const [indicatorUi, setIndicatorUi] = useState<IndicatorUiMode>('closed');
   const [recallUi, setRecallUi] = useState<IndicatorUiMode>('closed');
+  const [scoreUi, setScoreUi] = useState<'closed' | 'modeless'>('closed');
   const [chartPopout, setChartPopout] = useState(false);
+  /** スコア内訳の基準日。未選択時は直近の有効スコア日。 */
+  const [baseDate, setBaseDate] = useState<string | null>(null);
 
   /** 呼び出しウィンドウから選んだセットを現行の指標指定へ反映する。 */
   function applyIndicatorSet(ids: IndicatorCatalogId[]) {
@@ -108,6 +113,11 @@ export default function ChartsPage() {
   const indicatorsQuery = useMemo(() => {
     return computeCatalogIds([...enabledIds]).join(',');
   }, [enabledIds]);
+
+  const scoredPoint = useMemo(
+    () => resolveScoredPoint(trendScorePoints, baseDate),
+    [trendScorePoints, baseDate],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -143,6 +153,8 @@ export default function ChartsPage() {
     void (async () => {
       setChartLoading(true);
       setChartError(null);
+      // 銘柄・期間・足種が変わったら基準日は直近に戻す
+      setBaseDate(null);
       try {
         const pricePromise = fetchSymbolPrices(symbolId, { from, to, interval });
         const indicatorPromise =
@@ -211,7 +223,7 @@ export default function ChartsPage() {
     <main style={pageStyle}>
       <h1 style={{ fontSize: '1.75rem', margin: '0 0 0.5rem' }}>チャート分析</h1>
       <p style={{ margin: '0 0 1.25rem', opacity: 0.85, maxWidth: '46rem' }}>
-        チャートは本画面に表示します。指標はモードレスまたは別ウィンドウで選び、拡大で全画面の別ウィンドウを開けます。初期表示はおすすめ構成です。背景色はトレンドスコアです。指標セットの保存は指標設定ウィンドウ、呼び出しは独立ウィンドウです。
+        チャートは本画面に表示します。指標はモードレスまたは別ウィンドウで選び、拡大で全画面の別ウィンドウを開けます。初期表示はおすすめ構成です。背景色はトレンドスコアです。チャートをクリックすると基準日が変わり、スコア内訳ウィンドウでグループと個別の点数を確認できます。
       </p>
 
       {error ? <p style={errorStyle}>{error}</p> : null}
@@ -361,6 +373,17 @@ export default function ChartsPage() {
           >
             指標セット呼び出し（別ウィンドウ）
           </button>
+          <button
+            type="button"
+            style={buttonStyle}
+            data-testid="open-score-breakdown"
+            aria-pressed={scoreUi === 'modeless'}
+            onClick={() =>
+              setScoreUi((current) => (current === 'modeless' ? 'closed' : 'modeless'))
+            }
+          >
+            スコア内訳
+          </button>
           <span style={countStyle} data-testid="enabled-indicator-count">
             選択中 {enabledIds.size} 件
           </span>
@@ -394,6 +417,8 @@ export default function ChartsPage() {
             enabledIds={enabledIds}
             drawings={drawings}
             trendScorePoints={trendScorePoints}
+            baseDate={baseDate}
+            onBarClick={setBaseDate}
             loading={chartLoading}
           />
         </section>
@@ -443,6 +468,18 @@ export default function ChartsPage() {
         </PopoutWindow>
       ) : null}
 
+      {scoreUi === 'modeless' ? (
+        <ModelessWindow
+          title="スコア内訳"
+          initialX={48}
+          initialY={140}
+          width={380}
+          onClose={() => setScoreUi('closed')}
+        >
+          <TrendScoreBreakdown point={scoredPoint} />
+        </ModelessWindow>
+      ) : null}
+
       {chartPopout ? (
         <PopoutWindow
           title="チャート分析（拡大）"
@@ -458,6 +495,8 @@ export default function ChartsPage() {
               enabledIds={enabledIds}
               drawings={drawings}
               trendScorePoints={trendScorePoints}
+              baseDate={baseDate}
+              onBarClick={setBaseDate}
               loading={chartLoading}
             />
           )}
@@ -479,6 +518,8 @@ function EnlargedAnalysisChart({
   enabledIds: Set<IndicatorCatalogId>;
   drawings?: IndicatorDrawings;
   trendScorePoints?: TrendScorePoint[];
+  baseDate?: string | null;
+  onBarClick?: (date: string) => void;
   loading: boolean;
 }) {
   const size = useHostWindowSize(win);

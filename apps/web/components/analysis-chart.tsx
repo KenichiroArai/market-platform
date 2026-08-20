@@ -4,6 +4,7 @@
  * TradingView lightweight-charts v5 でローソク・出来高・カタログ指標を描画する。
  * Volume Profile は価格ペイン上の HTML オーバーレイ。
  * 一目の雲とトレンドスコアは series primitive で価格ペインに描く（ADR 007）。
+ * バークリックで基準日を通知し、スコアラベルは基準日の点を表示する（Ph6）。
  */
 'use client';
 
@@ -28,6 +29,7 @@ import {
   LineSeries,
   type IChartApi,
   type ISeriesApi,
+  type MouseEventParams,
   type Time,
 } from 'lightweight-charts';
 import { TrendBackgroundPrimitive } from './trend-background-primitive';
@@ -39,6 +41,10 @@ export type AnalysisChartProps = {
   enabledIds?: Set<IndicatorCatalogId>;
   drawings?: IndicatorDrawings;
   trendScorePoints?: TrendScorePoint[];
+  /** スコア表示の基準日。未指定時は直近の有効スコア日。 */
+  baseDate?: string | null;
+  /** チャート上のバーをクリックしたときの日付（YYYY-MM-DD）。 */
+  onBarClick?: (date: string) => void;
   loading?: boolean;
   height?: number;
 };
@@ -155,6 +161,46 @@ export function latestScoredPoint(points: TrendScorePoint[]): TrendScorePoint | 
   return null;
 }
 
+/**
+ * 基準日のスコア点を返す。基準日が無い／見つからないときは直近の有効点。
+ * 基準日に点はあるが score が null の場合もその点を返す（内訳表示用）。
+ */
+export function resolveScoredPoint(
+  points: TrendScorePoint[],
+  baseDate: string | null | undefined,
+): TrendScorePoint | null {
+  if (baseDate) {
+    const found = points.find((point) => point.date === baseDate);
+    if (found !== undefined) {
+      return found;
+    }
+  }
+  return latestScoredPoint(points);
+}
+
+/** lightweight-charts の Time を YYYY-MM-DD にする。 */
+export function chartTimeToDateString(time: Time): string | null {
+  if (typeof time === 'string') {
+    return time;
+  }
+  if (typeof time === 'number') {
+    return new Date(time * 1000).toISOString().slice(0, 10);
+  }
+  if (
+    time !== null &&
+    typeof time === 'object' &&
+    'year' in time &&
+    'month' in time &&
+    'day' in time
+  ) {
+    const year = time.year;
+    const month = String(time.month).padStart(2, '0');
+    const day = String(time.day).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return null;
+}
+
 /** 価格・指標をまとめた分析チャート。空／読込中はメッセージのみ返す。 */
 export function AnalysisChart({
   prices,
@@ -162,10 +208,14 @@ export function AnalysisChart({
   enabledIds = new Set(),
   drawings,
   trendScorePoints = [],
+  baseDate = null,
+  onBarClick,
   loading = false,
   height,
 }: AnalysisChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const onBarClickRef = useRef(onBarClick);
+  onBarClickRef.current = onBarClick;
   const chartHeight = height ?? computeAnalysisChartHeight(enabledIds);
   const volumeOn = enabledIds.has('volume');
   const pricePaneRatio = PRICE_PANE_PX / chartHeight;
@@ -303,6 +353,18 @@ export function AnalysisChart({
 
     chart.timeScale().fitContent();
 
+    // クリックで基準日を親へ通知（Ph6）
+    const handleClick = (param: MouseEventParams) => {
+      if (param.time === undefined) {
+        return;
+      }
+      const date = chartTimeToDateString(param.time);
+      if (date !== null) {
+        onBarClickRef.current?.(date);
+      }
+    };
+    chart.subscribeClick(handleClick);
+
     // 別ウィンドウへ portal したときは popup 側の resize を見る
     const view = resolveOwnerWindow(container);
     const handleResize = () => {
@@ -311,6 +373,7 @@ export function AnalysisChart({
     view.addEventListener('resize', handleResize);
 
     return () => {
+      chart.unsubscribeClick(handleClick);
       view.removeEventListener('resize', handleResize);
       chart.remove();
     };
@@ -324,13 +387,19 @@ export function AnalysisChart({
     return <p style={messageStyle}>この期間の価格データがありません</p>;
   }
 
-  const latestScore = latestScoredPoint(trendScorePoints);
+  const scored = resolveScoredPoint(trendScorePoints, baseDate);
 
   return (
     <div style={{ position: 'relative', width: '100%', marginTop: '0.75rem' }}>
-      {latestScore !== null && latestScore.score !== null ? (
+      {scored !== null && scored.score !== null ? (
         <p data-testid="trend-score-label" style={scoreLabelStyle}>
-          トレンドスコア {Math.round(latestScore.score)}（{trendScoreState(latestScore.score).labelJa}）
+          <span data-testid="trend-score-base-date">基準日 {scored.date}　</span>
+          トレンドスコア {Math.round(scored.score)}（{trendScoreState(scored.score).labelJa}）
+        </p>
+      ) : baseDate ? (
+        <p data-testid="trend-score-label" style={scoreLabelStyle}>
+          <span data-testid="trend-score-base-date">基準日 {baseDate}</span>
+          {'　スコアなし'}
         </p>
       ) : null}
       <div style={{ ...chartOverlayRootStyle, height: chartHeight }}>

@@ -231,7 +231,8 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
   {
     id: 'macd',
     computeType: 'macd',
-    categories: ['trend', 'momentum'],
+    // scoreGroup と揃え、モメンタム側の重複表示はしない（ADR 007 / Ph6）
+    categories: ['trend'],
     scoreGroup: 'trend',
     nameJa: 'MACD',
     shortPurpose: 'トレンド転換や勢いを判断する',
@@ -331,7 +332,8 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
   {
     id: 'rsi',
     computeType: 'rsi',
-    categories: ['momentum', 'oscillator'],
+    // scoreGroup と揃え、モメンタム側の重複表示はしない（ADR 007 / Ph6）
+    categories: ['oscillator'],
     scoreGroup: 'oscillator',
     nameJa: 'RSI',
     shortPurpose: '買われすぎ・売られすぎを判断する',
@@ -751,6 +753,11 @@ export function computeCatalogIds(ids: IndicatorCatalogId[]): IndicatorCatalogId
 
 export function definitionsForCategory(categoryId: IndicatorCategoryId): IndicatorDefinition[] {
   return INDICATOR_CATALOG.filter((item) => item.categories.includes(categoryId));
+}
+
+/** トレンドスコア用グループに属する指標（1 指標 1 グループ）。 */
+export function definitionsForScoreGroup(categoryId: IndicatorCategoryId): IndicatorDefinition[] {
+  return INDICATOR_CATALOG.filter((item) => item.scoreGroup === categoryId);
 }
 
 /** トレンドスコアのグループ配点（合計 100）。 */

@@ -17,6 +17,7 @@ import {
   createIndicatorSetDto,
   defaultEnabledIndicatorIds,
   definitionsForCategory,
+  definitionsForScoreGroup,
   isApiErrorBody,
   isAuthTokenResponse,
   isAuthUser,
@@ -712,12 +713,20 @@ describe('shared-types indicator catalog', () => {
     expect(recommendedIndicatorIds()).not.toContain('volume');
     expect(definitionsForCategory('oscillator').some((d) => d.id === 'rsi')).toBe(true);
     expect(definitionsForCategory('trend').some((d) => d.id === 'macd')).toBe(true);
+    // Ph6: MACD / RSI は scoreGroup 代表分類のみ（モメンタムへの重複なし）
+    expect(definitionsForCategory('momentum').some((d) => d.id === 'macd')).toBe(false);
+    expect(definitionsForCategory('momentum').some((d) => d.id === 'rsi')).toBe(false);
+    expect(definitionsForScoreGroup('trend').some((d) => d.id === 'macd')).toBe(true);
+    expect(definitionsForScoreGroup('oscillator').some((d) => d.id === 'rsi')).toBe(true);
+    expect(definitionsForScoreGroup('momentum').some((d) => d.id === 'macd')).toBe(false);
   });
 
   it('assigns a single scoreGroup per indicator without double counting', () => {
     expect(INDICATOR_CATALOG_BY_ID.macd.scoreGroup).toBe('trend');
+    expect(INDICATOR_CATALOG_BY_ID.macd.categories).toEqual(['trend']);
     expect(INDICATOR_CATALOG_BY_ID.ichimoku.scoreGroup).toBe('trend');
     expect(INDICATOR_CATALOG_BY_ID.rsi.scoreGroup).toBe('oscillator');
+    expect(INDICATOR_CATALOG_BY_ID.rsi.categories).toEqual(['oscillator']);
     expect(INDICATOR_CATALOG_BY_ID.cci.scoreGroup).toBe('oscillator');
     expect(INDICATOR_CATALOG_BY_ID.elliott.scoreGroup).toBeNull();
     expect(scoringCatalogIds()).not.toContain('elliott');

@@ -13,8 +13,8 @@ v0.2.0 Phase 3 で分類付きのテクニカル指標カタログを載せた�
 
 **日足ごとに指標を 1 グループへ固定して -100〜+100 で採点し、グループ配点で総合スコアを合成してチャート背景色にする。結果は DB に保存しない。**
 
-- カタログ UI の複数分類表示は [ADR 006](006-indicator-catalog.md) のまま残す
 - スコア用グループは `scoreGroup`（1 指標 1 グループ。エリオットは `null`）
+- Phase 6 以降、MACD / RSI の UI `categories` も `scoreGroup` に揃える（モメンタム側の重複表示を削除）
 - 計算は FastAPI `POST /trend-score`。公開面は Nest `GET /symbols/:id/trend-score`（JWT）
 - 指標リストはサーバ側の正本セット。チャートのトグルとは独立
 - lookback・週足集約・`INSUFFICIENT_PRICE_DATA` / `ANALYSIS_UPSTREAM_ERROR` は指標 API と同じ
@@ -85,7 +85,14 @@ v0.2.0 Phase 3 で分類付きのテクニカル指標カタログを載せた�
 - 日足ごとの総合スコアを価格ペイン全高の縦帯にする
 - 色は総合スコア表のストップ（+95 / +60 / +15 / 0 / -20 / -65 / -95）を線形補間。0 は透明
 - ズーム/パンに追従するため lightweight-charts v5 の series primitive で描く
-- 直近バーの総合スコアと状態ラベルをチャート上段に出す
+- 基準日（未選択時は直近の有効バー）の総合スコアと状態ラベルをチャート上段に出す
+
+### スコア内訳（Phase 6）
+
+- チャートクリックで基準日をセットする（lightweight-charts `subscribeClick`）
+- モードレスウィンドウで、基準日のグループ寄与（`groups`）と個別点数（`indicators`）を `scoreGroup` 順に表示する
+- 新規 API は作らず、既存の `GET /symbols/:id/trend-score` 応答を使う
+- 採点ロジック・配点・`scoreGroup` 割り当ては変更しない
 
 ## 理由
 
@@ -93,6 +100,7 @@ v0.2.0 Phase 3 で分類付きのテクニカル指標カタログを載せた�
 - 計算を Python に置くことで指標計算と採点を同じ OHLC 上で固定テストできる
 - トグル非依存にすることで「相場の状態」と「今見ている線」を混同しない
 - オシレーターを平均回帰の補正にすると、トレンド系の方向性を過熱で弱められる
+- 内訳は既に API にあるため、UI と基準日選択だけで説明可能性を足せる
 
 ## 結果・制約
 
@@ -102,7 +110,7 @@ v0.2.0 Phase 3 で分類付きのテクニカル指標カタログを載せた�
 
 ## 関連
 
-- [開発ロードマップ](../roadmap/v0/v0.2/v0.2.0.md) Phase 4
+- [開発ロードマップ](../roadmap/v0/v0.2/v0.2.0.md) Phase 4 / Phase 6
 - [ADR 004: テクニカル分析](004-technical-analysis.md)
 - [ADR 005: チャート分析](005-chart-analysis.md)
 - [ADR 006: テクニカル指標カタログ](006-indicator-catalog.md)

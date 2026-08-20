@@ -46,6 +46,10 @@ UI の複数分類は維持したまま、スコア合成では `scoreGroup` で
 
 カタログ ID の ON/OFF 集合を名前付きセットとして保存する。計算結果の永続化は対象外のまま。詳細は [ADR 008](008-indicator-sets.md)。
 
+## 追記（v0.2.0 / Phase 6）
+
+MACD / RSI の学習用二重分類をやめ、`categories` を `scoreGroup` に揃える（MACD=`trend`、RSI=`oscillator`）。CCI や一目など Issue 対象外の複数分類は当面残す。詳細は [ADR 007](007-trend-score.md)。
+
 ## 関連
 
 - [開発ロードマップ](../roadmap/v0/v0.2/v0.2.0.md) Phase 3
