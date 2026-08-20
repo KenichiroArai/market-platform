@@ -1,7 +1,7 @@
 /**
  * トレンドスコアのグループ／個別内訳（ADR 007 / Ph6）。
  *
- * 基準日の TrendScorePoint を、scoreGroup ごとの寄与と指標点数で表示する。
+ * 基準日の TrendScorePoint を、総合スコアの横棒ゲージ・グループ寄与・指標点数で表示する。
  * 採点計算は API 側済み。ここは表示のみ。
  */
 'use client';
@@ -10,10 +10,16 @@ import type { CSSProperties } from 'react';
 import {
   INDICATOR_CATEGORIES,
   TREND_SCORE_GROUP_WEIGHTS,
+  TREND_SCORE_GAUGE_MAX,
+  TREND_SCORE_GAUGE_MIN,
   definitionsForScoreGroup,
+  scoreToGaugePercent,
+  trendScoreGaugeExplanation,
+  trendScoreGaugeSegments,
   trendScoreState,
   type TrendScorePoint,
 } from '@market/shared-types';
+import { TREND_SCORE_GAUGE_COLORS } from '../lib/trend-score-gauge-colors';
 
 export type TrendScoreBreakdownProps = {
   point: TrendScorePoint | null;
@@ -38,6 +44,9 @@ export function TrendScoreBreakdown({ point }: TrendScoreBreakdownProps) {
   }
 
   const state = trendScoreState(point.score);
+  const segments = trendScoreGaugeSegments();
+  const gaugeSpan = TREND_SCORE_GAUGE_MAX - TREND_SCORE_GAUGE_MIN;
+  const markerPct = point.score === null ? null : scoreToGaugePercent(point.score);
 
   return (
     <div data-testid="trend-score-breakdown" style={rootStyle}>
@@ -47,6 +56,44 @@ export function TrendScoreBreakdown({ point }: TrendScoreBreakdownProps) {
         総合 {formatScoreValue(point.score)}
         {point.score !== null ? `（${state.labelJa}）` : ''}
       </p>
+
+      <section data-testid="trend-score-gauge" style={gaugeSectionStyle} aria-label="総合スコアの区分">
+        <div style={gaugeTrackStyle}>
+          {segments.map((segment) => {
+            const widthPct = ((segment.to - segment.from) / gaugeSpan) * 100;
+            return (
+              <div
+                key={segment.id}
+                data-testid={`trend-score-gauge-segment-${segment.id}`}
+                title={`${segment.labelJa}（${segment.from}〜${segment.to}）`}
+                style={{
+                  ...gaugeSegmentStyle,
+                  width: `${widthPct}%`,
+                  background: TREND_SCORE_GAUGE_COLORS[segment.id],
+                }}
+              />
+            );
+          })}
+          {markerPct !== null ? (
+            <div
+              data-testid="trend-score-gauge-marker"
+              style={{
+                ...gaugeMarkerStyle,
+                left: `${markerPct}%`,
+              }}
+              aria-hidden
+            />
+          ) : null}
+        </div>
+        <div style={gaugeScaleStyle} aria-hidden>
+          <span>{TREND_SCORE_GAUGE_MIN}</span>
+          <span>0</span>
+          <span>+{TREND_SCORE_GAUGE_MAX}</span>
+        </div>
+        <p data-testid="trend-score-gauge-explanation" style={explanationStyle}>
+          {trendScoreGaugeExplanation(point.score)}
+        </p>
+      </section>
 
       {INDICATOR_CATEGORIES.map((category) => {
         const groupScore = point.groups[category.id];
@@ -90,6 +137,50 @@ const emptyStyle: CSSProperties = {
 const summaryStyle: CSSProperties = {
   margin: 0,
   lineHeight: 1.45,
+};
+
+const gaugeSectionStyle: CSSProperties = {
+  margin: 0,
+};
+
+const gaugeTrackStyle: CSSProperties = {
+  position: 'relative',
+  display: 'flex',
+  width: '100%',
+  height: 22,
+  borderRadius: 3,
+  overflow: 'hidden',
+  border: '1px solid rgba(232, 238, 245, 0.35)',
+};
+
+const gaugeSegmentStyle: CSSProperties = {
+  height: '100%',
+  flexShrink: 0,
+};
+
+const gaugeMarkerStyle: CSSProperties = {
+  position: 'absolute',
+  top: -2,
+  bottom: -2,
+  width: 2,
+  marginLeft: -1,
+  background: '#111111',
+  boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.85)',
+  pointerEvents: 'none',
+};
+
+const gaugeScaleStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  marginTop: '0.25rem',
+  fontSize: '0.75rem',
+  opacity: 0.75,
+};
+
+const explanationStyle: CSSProperties = {
+  margin: '0.45rem 0 0',
+  lineHeight: 1.45,
+  fontSize: '0.88rem',
 };
 
 const groupStyle: CSSProperties = {

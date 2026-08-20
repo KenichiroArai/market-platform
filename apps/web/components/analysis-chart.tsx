@@ -32,6 +32,7 @@ import {
   type MouseEventParams,
   type Time,
 } from 'lightweight-charts';
+import { BaseDateMarkerPrimitive } from './base-date-marker-primitive';
 import { TrendBackgroundPrimitive } from './trend-background-primitive';
 import { IchimokuCloudPrimitive } from './ichimoku-cloud-primitive';
 
@@ -55,6 +56,8 @@ const MACD_HIST_UP = 'rgba(38, 166, 154, 0.55)';
 const MACD_HIST_DOWN = 'rgba(239, 83, 80, 0.55)';
 const PRICE_PANE_PX = 320;
 const SUB_PANE_PX = 90;
+/** デフォルトの空 Set。毎レンダーで new すると effect が再走するためモジュール定数にする。 */
+const EMPTY_ENABLED_IDS: Set<IndicatorCatalogId> = new Set();
 
 /** サブペイン数に応じたチャート高さ。 */
 export function computeAnalysisChartHeight(enabledIds: Set<IndicatorCatalogId>): number {
@@ -178,6 +181,20 @@ export function resolveScoredPoint(
   return latestScoredPoint(points);
 }
 
+/**
+ * チャート縦線に出す基準日。
+ * 明示の baseDate があればそれ、なければ表示中スコア点の日付。
+ */
+export function resolveMarkerDate(
+  points: TrendScorePoint[],
+  baseDate: string | null | undefined,
+): string | null {
+  if (baseDate) {
+    return baseDate;
+  }
+  return resolveScoredPoint(points, baseDate)?.date ?? null;
+}
+
 /** lightweight-charts の Time を YYYY-MM-DD にする。 */
 export function chartTimeToDateString(time: Time): string | null {
   if (typeof time === 'string') {
@@ -205,7 +222,7 @@ export function chartTimeToDateString(time: Time): string | null {
 export function AnalysisChart({
   prices,
   indicatorPoints,
-  enabledIds = new Set(),
+  enabledIds = EMPTY_ENABLED_IDS,
   drawings,
   trendScorePoints = [],
   baseDate = null,
@@ -216,6 +233,8 @@ export function AnalysisChart({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onBarClickRef = useRef(onBarClick);
   onBarClickRef.current = onBarClick;
+  /** 基準日縦線。クリックで日付だけ差し替え、チャート再生成はしない。 */
+  const baseDateMarkerRef = useRef<BaseDateMarkerPrimitive | null>(null);
   const chartHeight = height ?? computeAnalysisChartHeight(enabledIds);
   const volumeOn = enabledIds.has('volume');
   const pricePaneRatio = PRICE_PANE_PX / chartHeight;
@@ -223,6 +242,7 @@ export function AnalysisChart({
     enabledIds.has('volumeProfile') && drawings?.volumeProfile
       ? volumeProfileLayout(drawings.volumeProfile.bins, pricePaneRatio)
       : [];
+  const markerDate = resolveMarkerDate(trendScorePoints, baseDate);
 
   useEffect(() => {
     if (loading || prices.length === 0 || !containerRef.current) {
@@ -257,7 +277,9 @@ export function AnalysisChart({
       0,
     ) as ISeriesApi<'Candlestick'> & {
       createPriceLine?: (opts: { price: number; color: string; title: string }) => void;
-      attachPrimitive?: (primitive: TrendBackgroundPrimitive) => void;
+      attachPrimitive?: (
+        primitive: TrendBackgroundPrimitive | IchimokuCloudPrimitive | BaseDateMarkerPrimitive,
+      ) => void;
     };
     candles.setData(toCandlestickData(prices));
 
@@ -268,6 +290,10 @@ export function AnalysisChart({
       if (enabledIds.has('ichimoku')) {
         candles.attachPrimitive(new IchimokuCloudPrimitive(indicatorPoints));
       }
+      // 基準日マーカーは常に載せ、日付は別 effect で更新する
+      const marker = new BaseDateMarkerPrimitive(markerDate);
+      candles.attachPrimitive(marker);
+      baseDateMarkerRef.current = marker;
     }
 
     if (enabledIds.has('fibonacci') && drawings?.fibonacci) {
@@ -375,9 +401,17 @@ export function AnalysisChart({
     return () => {
       chart.unsubscribeClick(handleClick);
       view.removeEventListener('resize', handleResize);
+      baseDateMarkerRef.current = null;
       chart.remove();
     };
+    // markerDate は初回 attach 用。以降の変更は下の effect で setBaseDate する
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 基準日クリックでチャートを作り直さない
   }, [prices, indicatorPoints, enabledIds, drawings, trendScorePoints, loading, chartHeight, volumeOn]);
+
+  // 基準日だけ差し替え（ズーム位置を保つ）
+  useEffect(() => {
+    baseDateMarkerRef.current?.setBaseDate(markerDate);
+  }, [markerDate]);
 
   if (loading) {
     return <p style={messageStyle}>チャートを読み込み中…</p>;

@@ -64,6 +64,41 @@ export const TREND_SCORE_STATES: TrendScoreState[] = [
   { id: 'strongDown', labelJa: '暴落に近い強い下降', min: Number.NEGATIVE_INFINITY },
 ];
 
+/** ゲージ用のスコア範囲（横棒 -100〜+100）。 */
+export const TREND_SCORE_GAUGE_MIN = -100;
+export const TREND_SCORE_GAUGE_MAX = 100;
+
+/** 横棒ゲージ 1 区間（左端 from → 右端 to）。 */
+export interface TrendScoreGaugeSegment {
+  id: TrendScoreState['id'];
+  labelJa: string;
+  /** 区間の下限（含む）。 */
+  from: number;
+  /** 区間の上限（最終区間以外は含まない扱いで幅計算）。 */
+  to: number;
+}
+
+/**
+ * 横棒ゲージ用に状態区分を左（下落）→右（上昇）へ並べる。
+ * strongDown の実表示下限は -100 に揃える。
+ */
+export function trendScoreGaugeSegments(): TrendScoreGaugeSegment[] {
+  const ordered = [...TREND_SCORE_STATES].reverse();
+  return ordered.map((state, index) => {
+    const next = ordered[index + 1];
+    const from = state.min === Number.NEGATIVE_INFINITY ? TREND_SCORE_GAUGE_MIN : state.min;
+    const to = next === undefined ? TREND_SCORE_GAUGE_MAX : next.min;
+    return { id: state.id, labelJa: state.labelJa, from, to };
+  });
+}
+
+/** 総合スコアをゲージ上の位置（0〜100%）にする。範囲外は端へクランプ。 */
+export function scoreToGaugePercent(score: number): number {
+  const span = TREND_SCORE_GAUGE_MAX - TREND_SCORE_GAUGE_MIN;
+  const clamped = Math.max(TREND_SCORE_GAUGE_MIN, Math.min(TREND_SCORE_GAUGE_MAX, score));
+  return ((clamped - TREND_SCORE_GAUGE_MIN) / span) * 100;
+}
+
 /** 総合スコアから状態ラベルを返す。score が null のときはレンジ扱い。 */
 export function trendScoreState(score: number | null): TrendScoreState {
   const value = score ?? 0;
@@ -75,6 +110,21 @@ export function trendScoreState(score: number | null): TrendScoreState {
     }
   }
   return TREND_SCORE_STATES[lastIndex] as TrendScoreState;
+}
+
+/**
+ * 該当区間の説明文。score が null のときは算出不可と返す。
+ * 例: 「総合スコア 42 は「上昇トレンド」（37.5〜77.5）に該当します。」
+ */
+export function trendScoreGaugeExplanation(score: number | null): string {
+  if (score === null) {
+    return '総合スコアがまだ算出できないため、状態区分を示せません。';
+  }
+  const state = trendScoreState(score);
+  // segments は TREND_SCORE_STATES と同じ id 集合なので必ず見つかる
+  const segment = trendScoreGaugeSegments().find((entry) => entry.id === state.id)!;
+  const rounded = Math.round(score);
+  return `総合スコア ${rounded} は「${state.labelJa}」（${segment.from}〜${segment.to}）に該当します。`;
 }
 
 function isNullableNumberMap(value: unknown): value is Record<string, number | null> {

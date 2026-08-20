@@ -473,7 +473,7 @@ export default function ChartsPage() {
           title="スコア内訳"
           initialX={48}
           initialY={140}
-          width={380}
+          width={420}
           onClose={() => setScoreUi('closed')}
         >
           <TrendScoreBreakdown point={scoredPoint} />

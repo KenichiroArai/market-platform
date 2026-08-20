@@ -7,6 +7,7 @@ import {
   isOverlayEnabled,
   latestScoredPoint,
   resolveOwnerWindow,
+  resolveMarkerDate,
   resolveScoredPoint,
   toCandlestickData,
   toLineData,
@@ -209,6 +210,9 @@ describe('analysis-chart helpers', () => {
     expect(resolveScoredPoint([early, late], null)?.date).toBe('2026-01-03');
     expect(resolveScoredPoint([early, late], '2026-01-02')?.score).toBe(10);
     expect(resolveScoredPoint([early, late], '2099-01-01')?.date).toBe('2026-01-03');
+    expect(resolveMarkerDate([early, late], null)).toBe('2026-01-03');
+    expect(resolveMarkerDate([early, late], '2026-01-02')).toBe('2026-01-02');
+    expect(resolveMarkerDate([], null)).toBeNull();
     expect(chartTimeToDateString('2026-01-02' as Time)).toBe('2026-01-02');
     expect(chartTimeToDateString(1_704_067_200 as Time)).toBe('2024-01-01');
     expect(chartTimeToDateString({ year: 2026, month: 1, day: 5 } as Time)).toBe('2026-01-05');
@@ -285,7 +289,7 @@ describe('AnalysisChart', () => {
     expect(screen.getAllByTestId('volume-profile-bar').length).toBeGreaterThan(0);
     expect(lwcMocks.mockFitContent).toHaveBeenCalled();
     expect(lwcMocks.mockSetHeight).toHaveBeenCalled();
-    expect(lwcMocks.mockAttachPrimitive).toHaveBeenCalledTimes(2);
+    expect(lwcMocks.mockAttachPrimitive).toHaveBeenCalledTimes(3);
     expect(screen.getByTestId('trend-score-label')).toHaveTextContent('上昇トレンド');
     expect(screen.getByTestId('trend-score-base-date')).toHaveTextContent('基準日 2026-01-02');
     expect(lwcMocks.mockSubscribeClick).toHaveBeenCalled();
@@ -435,7 +439,85 @@ describe('AnalysisChart', () => {
         enabledIds={new Set(['ichimoku'])}
       />,
     );
+    expect(lwcMocks.mockAttachPrimitive).toHaveBeenCalledTimes(2);
+  });
+
+  it('attaches only the base-date marker when no overlays are enabled', () => {
+    const api = {
+      addSeries: jest.fn(() => ({
+        setData: lwcMocks.mockSetData,
+        attachPrimitive: lwcMocks.mockAttachPrimitive,
+      })),
+      panes: jest.fn(() => [{ setHeight: lwcMocks.mockSetHeight }]),
+      timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
+      applyOptions: lwcMocks.mockApplyOptions,
+      remove: lwcMocks.mockRemove,
+      subscribeClick: lwcMocks.mockSubscribeClick,
+      unsubscribeClick: lwcMocks.mockUnsubscribeClick,
+    };
+    (createChart as jest.Mock).mockReturnValue(api);
+
+    render(
+      <AnalysisChart
+        prices={[price]}
+        indicatorPoints={points}
+        enabledIds={new Set()}
+      />,
+    );
+    expect(api.addSeries).toHaveBeenCalledTimes(1);
+    expect(lwcMocks.mockSetHeight).not.toHaveBeenCalled();
     expect(lwcMocks.mockAttachPrimitive).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates the base-date marker when baseDate changes without remounting the chart', () => {
+    const chartPrices = [price, downPrice];
+    const trendScorePoints = [
+      {
+        date: '2026-01-02',
+        score: 12,
+        groups: {
+          trend: 12,
+          momentum: null,
+          oscillator: null,
+          volatility: null,
+          volume: null,
+          cycle: null,
+        },
+        indicators: {},
+      },
+      {
+        date: '2026-01-03',
+        score: 60,
+        groups: {
+          trend: 24,
+          momentum: null,
+          oscillator: null,
+          volatility: null,
+          volume: null,
+          cycle: null,
+        },
+        indicators: {},
+      },
+    ];
+    const { rerender } = render(
+      <AnalysisChart
+        prices={chartPrices}
+        indicatorPoints={points}
+        baseDate="2026-01-02"
+        trendScorePoints={trendScorePoints}
+      />,
+    );
+    expect(createChart).toHaveBeenCalledTimes(1);
+    rerender(
+      <AnalysisChart
+        prices={chartPrices}
+        indicatorPoints={points}
+        baseDate="2026-01-03"
+        trendScorePoints={trendScorePoints}
+      />,
+    );
+    expect(createChart).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('trend-score-label')).toHaveTextContent('基準日 2026-01-03');
   });
 
   it('removes chart on unmount and handles resize', () => {

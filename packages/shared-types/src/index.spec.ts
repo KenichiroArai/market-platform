@@ -56,6 +56,9 @@ import {
   isTrendScoreGroupId,
   isTrendScorePoint,
   isTrendScoreResponseDto,
+  scoreToGaugePercent,
+  trendScoreGaugeExplanation,
+  trendScoreGaugeSegments,
   trendScoreState,
   INDICATOR_CATALOG,
   INDICATOR_CATALOG_BY_ID,
@@ -888,6 +891,23 @@ describe('shared-types trend score', () => {
     expect(trendScoreState(-95).labelJa).toBe('暴落に近い強い下降');
     expect(trendScoreState(-80).id).toBe('downTrend');
     expect(trendScoreState(-80.1).id).toBe('strongDown');
+  });
+
+  it('builds gauge segments and maps score position / explanation', () => {
+    const segments = trendScoreGaugeSegments();
+    expect(segments[0]?.id).toBe('strongDown');
+    expect(segments[0]?.from).toBe(-100);
+    expect(segments[segments.length - 1]?.id).toBe('strongUp');
+    expect(segments[segments.length - 1]?.to).toBe(100);
+    expect(scoreToGaugePercent(-100)).toBe(0);
+    expect(scoreToGaugePercent(0)).toBe(50);
+    expect(scoreToGaugePercent(100)).toBe(100);
+    expect(scoreToGaugePercent(200)).toBe(100);
+    expect(scoreToGaugePercent(-200)).toBe(0);
+    expect(trendScoreGaugeExplanation(null)).toContain('算出できない');
+    expect(trendScoreGaugeExplanation(42)).toContain('上昇トレンド');
+    expect(trendScoreGaugeExplanation(42)).toContain('37.5〜77.5');
+    expect(trendScoreGaugeExplanation(-95)).toContain('暴落に近い強い下降');
   });
 
   it('creates and validates TrendScoreResponseDto', () => {
