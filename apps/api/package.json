@@ -48,21 +48,25 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/test"
+    ],
+    "testMatch": [
+      "<rootDir>/test/**/*.test.ts"
+    ],
     "transform": {
       "^.+\\.(t|j)s$": [
         "ts-jest",
         {
-          "tsconfig": "<rootDir>/../tsconfig.spec.json"
+          "tsconfig": "<rootDir>/tsconfig.spec.json"
         }
       ]
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s",
-      "!**/*.spec.ts"
+      "src/**/*.(t|j)s"
     ],
-    "coverageDirectory": "../coverage",
+    "coverageDirectory": "coverage",
     "testEnvironment": "node",
     "coverageThreshold": {
       "global": {
@@ -73,7 +77,7 @@
       }
     },
     "moduleNameMapper": {
-      "^@market/shared-types$": "<rootDir>/../../../packages/shared-types/dist/index.js"
+      "^@market/shared-types$": "<rootDir>/../../packages/shared-types/dist/index.js"
     }
   }
 }

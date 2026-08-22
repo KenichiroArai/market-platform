@@ -36,7 +36,7 @@
       "<rootDir>/jest.setup.ts"
     ],
     "testMatch": [
-      "**/?(*.)+(spec|test).ts?(x)"
+      "<rootDir>/test/**/*.test.ts?(x)"
     ],
     "transform": {
       "^.+\\.(t|j)sx?$": [
@@ -48,16 +48,14 @@
     },
     "moduleNameMapper": {
       "^@market/shared-types$": "<rootDir>/../../packages/shared-types/dist/index.js",
-      "^next/navigation$": "<rootDir>/test-mocks/next-navigation.ts",
-      "^next/link$": "<rootDir>/test-mocks/next-link.tsx",
-      "^lightweight-charts$": "<rootDir>/test-mocks/lightweight-charts.ts"
+      "^next/navigation$": "<rootDir>/test/mocks/next-navigation.ts",
+      "^next/link$": "<rootDir>/test/mocks/next-link.tsx",
+      "^lightweight-charts$": "<rootDir>/test/mocks/lightweight-charts.ts"
     },
     "collectCoverageFrom": [
       "app/**/*.{ts,tsx}",
       "lib/**/*.{ts,tsx}",
       "components/**/*.{ts,tsx}",
-      "!**/*.spec.ts",
-      "!**/*.spec.tsx",
       "!next-env.d.ts",
       "!next.config.ts"
     ],
