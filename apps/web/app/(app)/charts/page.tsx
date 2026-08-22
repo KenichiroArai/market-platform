@@ -1,11 +1,10 @@
 /**
- * チャート分析画面（v0.2.0 Phase 6）。
+ * チャート分析画面（v0.2.0 Phase 7）。
  *
- * 銘柄・期間・足種は上段、チャートは本画面に全幅表示する。
- * 指標カタログはモードレスまたは別ウィンドウ。拡大は全画面の別ウィンドウ。
- * 指標セットの保存は指標設定ウィンドウ内、呼び出しは独立ウィンドウ。
- * トレンドスコアはトグル非依存で背景色に出し、基準日クリックで内訳を見る。
- * 未ログイン誘導は共通レイアウト側。
+ * 銘柄・期間・足種・基準日は上段、チャートは本画面に全幅表示する。
+ * 指標・セット呼び出し・スコア内訳は各1ボタン。希望表示（モードレス／別ウィンドウ）は画面で1つ。
+ * 親のラジオは開いている表示を変えず、ボタン再押下で反映。ウィンドウ内切替はその窓だけ即時変更する。
+ * 拡大は全画面の別ウィンドウ。未ログイン誘導は共通レイアウト側。
  */
 'use client';
 
@@ -35,8 +34,9 @@ import { IndicatorSetSaveForm } from '../../../components/indicator-set-save-for
 import { ModelessWindow } from '../../../components/modeless-window';
 import {
   enlargedChartHeight,
-  nextIndicatorUiMode,
-  type IndicatorUiMode,
+  nextOpenToggle,
+  type WindowDisplayMode,
+  type WindowUiState,
 } from '../../../components/chart-window-state';
 import {
   PopoutWindow,
@@ -44,6 +44,7 @@ import {
   useHostWindowSize,
 } from '../../../components/popout-window';
 import { TrendScoreBreakdown } from '../../../components/trend-score-breakdown';
+import { WindowDisplayModeSwitch } from '../../../components/window-display-mode-switch';
 import {
   ApiClientError,
   fetchSymbolIndicators,
@@ -53,6 +54,11 @@ import {
   fetchWatchlists,
 } from '../../../lib/api-client';
 import { defaultChartFromDate, defaultChartToDate } from '../../../lib/chart-date-range';
+import { snapBaseDate } from '../../../lib/snap-base-date';
+
+const INDICATOR_POPOUT = { name: 'chart-indicator-settings', width: 440, height: 800 } as const;
+const RECALL_POPOUT = { name: 'chart-indicator-set-picker', width: 440, height: 800 } as const;
+const SCORE_POPOUT = { name: 'chart-score-breakdown', width: 720, height: 800 } as const;
 
 export default function ChartsPage() {
   const [symbols, setSymbols] = useState<SymbolDto[]>([]);
@@ -74,9 +80,13 @@ export default function ChartsPage() {
   const [chartError, setChartError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(false);
-  const [indicatorUi, setIndicatorUi] = useState<IndicatorUiMode>('closed');
-  const [recallUi, setRecallUi] = useState<IndicatorUiMode>('closed');
-  const [scoreUi, setScoreUi] = useState<'closed' | 'modeless'>('closed');
+
+  /** チャート分析共通の希望表示。親ラジオのみ。開いている各窓は変えない。 */
+  const [displayPreferred, setDisplayPreferred] = useState<WindowDisplayMode>('modeless');
+  /** 各窓は独立に開閉と表示形態を記憶する。 */
+  const [indicatorUi, setIndicatorUi] = useState<WindowUiState>('closed');
+  const [recallUi, setRecallUi] = useState<WindowUiState>('closed');
+  const [scoreUi, setScoreUi] = useState<WindowUiState>('closed');
   const [chartPopout, setChartPopout] = useState(false);
   /** スコア内訳の基準日。未選択時は直近の有効スコア日。 */
   const [baseDate, setBaseDate] = useState<string | null>(null);
@@ -86,9 +96,78 @@ export default function ChartsPage() {
     setEnabledIds(new Set(ids));
   }
 
-  /** 呼び出しウィンドウを閉じる（モードレス / 別ウィンドウ共通）。 */
-  function closeRecallUi() {
-    setRecallUi('closed');
+  /** オープンボタン: 共通 preferred で開く／同モードなら閉じる／異なれば切替。 */
+  function toggleIndicatorUi() {
+    const next = nextOpenToggle(indicatorUi, displayPreferred);
+    if (next === 'popout') {
+      primePopoutWindow(INDICATOR_POPOUT.name, {
+        width: INDICATOR_POPOUT.width,
+        height: INDICATOR_POPOUT.height,
+      });
+    }
+    setIndicatorUi(next);
+  }
+
+  function toggleRecallUi() {
+    const next = nextOpenToggle(recallUi, displayPreferred);
+    if (next === 'popout') {
+      primePopoutWindow(RECALL_POPOUT.name, {
+        width: RECALL_POPOUT.width,
+        height: RECALL_POPOUT.height,
+      });
+    }
+    setRecallUi(next);
+  }
+
+  function toggleScoreUi() {
+    const next = nextOpenToggle(scoreUi, displayPreferred);
+    if (next === 'popout') {
+      primePopoutWindow(SCORE_POPOUT.name, {
+        width: SCORE_POPOUT.width,
+        height: SCORE_POPOUT.height,
+      });
+    }
+    setScoreUi(next);
+  }
+
+  /** ウィンドウ内切替: その窓だけ即時変更（共通 preferred は変えない）。 */
+  function switchIndicatorDisplay(mode: WindowDisplayMode) {
+    if (mode === 'popout') {
+      primePopoutWindow(INDICATOR_POPOUT.name, {
+        width: INDICATOR_POPOUT.width,
+        height: INDICATOR_POPOUT.height,
+      });
+    }
+    setIndicatorUi(mode);
+  }
+
+  function switchRecallDisplay(mode: WindowDisplayMode) {
+    if (mode === 'popout') {
+      primePopoutWindow(RECALL_POPOUT.name, {
+        width: RECALL_POPOUT.width,
+        height: RECALL_POPOUT.height,
+      });
+    }
+    setRecallUi(mode);
+  }
+
+  function switchScoreDisplay(mode: WindowDisplayMode) {
+    if (mode === 'popout') {
+      primePopoutWindow(SCORE_POPOUT.name, {
+        width: SCORE_POPOUT.width,
+        height: SCORE_POPOUT.height,
+      });
+    }
+    setScoreUi(mode);
+  }
+
+  /** 基準日入力をバー日付へスナップして反映する。 */
+  function onBaseDateInput(value: string) {
+    if (!value) {
+      setBaseDate(null);
+      return;
+    }
+    setBaseDate(snapBaseDate(trendScorePoints, value) ?? value);
   }
 
   const watchlistSymbols = useMemo(() => {
@@ -118,6 +197,8 @@ export default function ChartsPage() {
     () => resolveScoredPoint(trendScorePoints, baseDate),
     [trendScorePoints, baseDate],
   );
+
+  const baseDateInputValue = baseDate ?? scoredPoint?.date ?? '';
 
   useEffect(() => {
     let cancelled = false;
@@ -223,7 +304,7 @@ export default function ChartsPage() {
     <main style={pageStyle}>
       <h1 style={{ fontSize: '1.75rem', margin: '0 0 0.5rem' }}>チャート分析</h1>
       <p style={{ margin: '0 0 1.25rem', opacity: 0.85, maxWidth: '46rem' }}>
-        チャートは本画面に表示します。指標はモードレスまたは別ウィンドウで選び、拡大で全画面の別ウィンドウを開けます。初期表示はおすすめ構成です。背景色はトレンドスコアです。チャートをクリックすると基準日が変わり、スコア内訳ウィンドウでグループと個別の点数を確認できます。
+        チャートは本画面に表示します。指標・セット呼び出し・スコア内訳は希望の表示（モードレス／別ウィンドウ）を画面で1つ選び、各ボタンで開きます。拡大で全画面の別ウィンドウを開けます。初期表示はおすすめ構成です。背景色はトレンドスコアです。基準日は日付入力またはチャートクリックで変更できます。
       </p>
 
       {error ? <p style={errorStyle}>{error}</p> : null}
@@ -299,6 +380,17 @@ export default function ChartsPage() {
             />
           </label>
 
+          <label style={labelStyle}>
+            基準日
+            <input
+              type="date"
+              value={baseDateInputValue}
+              onChange={(e) => onBaseDateInput(e.target.value)}
+              style={inputStyle}
+              data-testid="base-date-input"
+            />
+          </label>
+
           <fieldset style={fieldsetStyle}>
             <legend>足種</legend>
             <label style={checkLabelStyle}>
@@ -325,62 +417,36 @@ export default function ChartsPage() {
 
       {!loading ? (
         <section style={windowActionsStyle}>
+          <WindowDisplayModeSwitch
+            name="chart-display-preferred"
+            value={displayPreferred}
+            onChange={setDisplayPreferred}
+            testId="display-preferred-mode"
+          />
           <button
             type="button"
             style={buttonStyle}
-            data-testid="open-indicator-modeless"
-            aria-pressed={indicatorUi === 'modeless'}
-            onClick={() => setIndicatorUi((current) => nextIndicatorUiMode(current, 'modeless'))}
+            data-testid="open-indicator"
+            aria-pressed={indicatorUi !== 'closed'}
+            onClick={toggleIndicatorUi}
           >
-            指標設定（モードレス）
+            指標設定
           </button>
           <button
             type="button"
             style={buttonStyle}
-            data-testid="open-indicator-popout"
-            aria-pressed={indicatorUi === 'popout'}
-            onClick={() => {
-              const next = nextIndicatorUiMode(indicatorUi, 'popout');
-              if (next === 'popout') {
-                primePopoutWindow('chart-indicator-settings', { width: 440, height: 800 });
-              }
-              setIndicatorUi(next);
-            }}
+            data-testid="open-indicator-set"
+            aria-pressed={recallUi !== 'closed'}
+            onClick={toggleRecallUi}
           >
-            指標設定（別ウィンドウ）
-          </button>
-          <button
-            type="button"
-            style={buttonStyle}
-            data-testid="open-indicator-set-modeless"
-            aria-pressed={recallUi === 'modeless'}
-            onClick={() => setRecallUi((current) => nextIndicatorUiMode(current, 'modeless'))}
-          >
-            指標セット呼び出し（モードレス）
-          </button>
-          <button
-            type="button"
-            style={buttonStyle}
-            data-testid="open-indicator-set-popout"
-            aria-pressed={recallUi === 'popout'}
-            onClick={() => {
-              const next = nextIndicatorUiMode(recallUi, 'popout');
-              if (next === 'popout') {
-                primePopoutWindow('chart-indicator-set-picker', { width: 440, height: 800 });
-              }
-              setRecallUi(next);
-            }}
-          >
-            指標セット呼び出し（別ウィンドウ）
+            指標セット呼び出し
           </button>
           <button
             type="button"
             style={buttonStyle}
             data-testid="open-score-breakdown"
-            aria-pressed={scoreUi === 'modeless'}
-            onClick={() =>
-              setScoreUi((current) => (current === 'modeless' ? 'closed' : 'modeless'))
-            }
+            aria-pressed={scoreUi !== 'closed'}
+            onClick={toggleScoreUi}
           >
             スコア内訳
           </button>
@@ -427,6 +493,13 @@ export default function ChartsPage() {
       {indicatorUi === 'modeless' ? (
         <ModelessWindow title="指標設定" onClose={() => setIndicatorUi('closed')}>
           <div style={windowBodyStyle}>
+            <WindowDisplayModeSwitch
+              name="indicator-in-window"
+              value="modeless"
+              onChange={switchIndicatorDisplay}
+              testId="indicator-in-window-mode"
+              legend="このウィンドウの表示"
+            />
             <IndicatorSetSaveForm enabledIds={enabledIds} />
             <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
           </div>
@@ -436,11 +509,20 @@ export default function ChartsPage() {
       {indicatorUi === 'popout' ? (
         <PopoutWindow
           title="指標設定"
-          name="chart-indicator-settings"
+          name={INDICATOR_POPOUT.name}
+          width={INDICATOR_POPOUT.width}
+          height={INDICATOR_POPOUT.height}
           padded
           onClose={() => setIndicatorUi('closed')}
         >
           <div style={windowBodyStyle}>
+            <WindowDisplayModeSwitch
+              name="indicator-in-window"
+              value="popout"
+              onChange={switchIndicatorDisplay}
+              testId="indicator-in-window-mode"
+              legend="このウィンドウの表示"
+            />
             <IndicatorSetSaveForm enabledIds={enabledIds} />
             <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
           </div>
@@ -451,20 +533,40 @@ export default function ChartsPage() {
         <ModelessWindow
           title="指標セット呼び出し"
           initialX={400}
-          onClose={closeRecallUi}
+          onClose={() => setRecallUi('closed')}
         >
-          <IndicatorSetPicker onApply={applyIndicatorSet} />
+          <div style={windowBodyStyle}>
+            <WindowDisplayModeSwitch
+              name="recall-in-window"
+              value="modeless"
+              onChange={switchRecallDisplay}
+              testId="recall-in-window-mode"
+              legend="このウィンドウの表示"
+            />
+            <IndicatorSetPicker onApply={applyIndicatorSet} />
+          </div>
         </ModelessWindow>
       ) : null}
 
       {recallUi === 'popout' ? (
         <PopoutWindow
           title="指標セット呼び出し"
-          name="chart-indicator-set-picker"
+          name={RECALL_POPOUT.name}
+          width={RECALL_POPOUT.width}
+          height={RECALL_POPOUT.height}
           padded
-          onClose={closeRecallUi}
+          onClose={() => setRecallUi('closed')}
         >
-          <IndicatorSetPicker onApply={applyIndicatorSet} />
+          <div style={windowBodyStyle}>
+            <WindowDisplayModeSwitch
+              name="recall-in-window"
+              value="popout"
+              onChange={switchRecallDisplay}
+              testId="recall-in-window-mode"
+              legend="このウィンドウの表示"
+            />
+            <IndicatorSetPicker onApply={applyIndicatorSet} />
+          </div>
         </PopoutWindow>
       ) : null}
 
@@ -476,8 +578,39 @@ export default function ChartsPage() {
           width={720}
           onClose={() => setScoreUi('closed')}
         >
-          <TrendScoreBreakdown point={scoredPoint} />
+          <div style={windowBodyStyle}>
+            <WindowDisplayModeSwitch
+              name="score-in-window"
+              value="modeless"
+              onChange={switchScoreDisplay}
+              testId="score-in-window-mode"
+              legend="このウィンドウの表示"
+            />
+            <TrendScoreBreakdown point={scoredPoint} />
+          </div>
         </ModelessWindow>
+      ) : null}
+
+      {scoreUi === 'popout' ? (
+        <PopoutWindow
+          title="スコア内訳"
+          name={SCORE_POPOUT.name}
+          width={SCORE_POPOUT.width}
+          height={SCORE_POPOUT.height}
+          padded
+          onClose={() => setScoreUi('closed')}
+        >
+          <div style={windowBodyStyle}>
+            <WindowDisplayModeSwitch
+              name="score-in-window"
+              value="popout"
+              onChange={switchScoreDisplay}
+              testId="score-in-window-mode"
+              legend="このウィンドウの表示"
+            />
+            <TrendScoreBreakdown point={scoredPoint} />
+          </div>
+        </PopoutWindow>
       ) : null}
 
       {chartPopout ? (
@@ -548,7 +681,7 @@ const controlsStyle: CSSProperties = {
 const windowActionsStyle: CSSProperties = {
   display: 'flex',
   flexWrap: 'wrap',
-  gap: '0.5rem',
+  gap: '0.75rem',
   alignItems: 'center',
   marginBottom: '1rem',
 };

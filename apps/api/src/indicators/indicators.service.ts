@@ -71,7 +71,9 @@ export class IndicatorsService {
       { from: query.from, to: query.to, lookback, interval },
     );
 
-    if (bars.length === 0 || (lookback > 0 && bars.length < lookback)) {
+    // lookback 未満でも analysis に渡す（ウォームアップ不足は null）。
+    // 週足では SMA200 等で必要な本数が年単位になり、上場浅い銘柄で全指標が落ちるのを避ける。
+    if (bars.length === 0) {
       throw new UnprocessableEntityException({
         code: API_ERROR_CODES.INSUFFICIENT_PRICE_DATA,
         message: 'Not enough daily prices to compute indicators',
@@ -126,7 +128,7 @@ export class IndicatorsService {
       { from: query.from, to: query.to, lookback, interval },
     );
 
-    if (bars.length === 0 || (lookback > 0 && bars.length < lookback)) {
+    if (bars.length === 0) {
       throw new UnprocessableEntityException({
         code: API_ERROR_CODES.INSUFFICIENT_PRICE_DATA,
         message: 'Not enough daily prices to compute trend score',

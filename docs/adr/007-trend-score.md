@@ -87,10 +87,11 @@ v0.2.0 Phase 3 で分類付きのテクニカル指標カタログを載せた�
 - ズーム/パンに追従するため lightweight-charts v5 の series primitive で描く
 - 基準日（未選択時は直近の有効バー）の総合スコアと状態ラベルをチャート上段に出す
 
-### スコア内訳（Phase 6）
+### スコア内訳（Phase 6 / Phase 7）
 
-- チャートクリックで基準日をセットする（lightweight-charts `subscribeClick`）
-- モードレスウィンドウで、基準日のグループ寄与（`groups`）と個別点数（`indicators`）を `scoreGroup` 順に表示する
+- チャートクリックまたは **基準日の日付入力** で基準日をセットする（入力はスコア点列の直前バーへスナップ）
+- 「スコア内訳」は指標設定と同様のオープンボタン。希望表示はチャート分析共通のラジオ（モードレス／別ウィンドウ）。ウィンドウ内切替はその窓だけ即時反映
+- 基準日のグループ寄与（`groups`）と個別点数（`indicators`）を `scoreGroup` 順に表示する
 - 新規 API は作らず、既存の `GET /symbols/:id/trend-score` 応答を使う
 - 採点ロジック・配点・`scoreGroup` 割り当ては変更しない
 
@@ -110,7 +111,7 @@ v0.2.0 Phase 3 で分類付きのテクニカル指標カタログを載せた�
 
 ## 関連
 
-- [開発ロードマップ](../roadmap/v0/v0.2/v0.2.0.md) Phase 4 / Phase 6
+- [開発ロードマップ](../roadmap/v0/v0.2/v0.2.0.md) Phase 4 / Phase 6 / Phase 7
 - [ADR 004: テクニカル分析](004-technical-analysis.md)
 - [ADR 005: チャート分析](005-chart-analysis.md)
 - [ADR 006: テクニカル指標カタログ](006-indicator-catalog.md)

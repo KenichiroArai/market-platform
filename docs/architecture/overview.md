@@ -228,7 +228,7 @@ packages:
 - **トレンドスコア**: FastAPI `POST /trend-score`。指標を 1 グループに固定して -100〜+100 を合成し、チャート背景に使う（[ADR 007](../adr/007-trend-score.md)）
 - **ゲートウェイ**: NestJS が日足を lookback 付きで読み、analysis に委譲して返却
 - **公開 API**: `GET /symbols/:id/indicators`、`GET /symbols/:id/trend-score`（JWT。[ADR 004](../adr/004-technical-analysis.md)）
-- **Web**: `/charts` はチャートを本画面に表示し、指標カタログはモードレスまたは別ウィンドウ。拡大は全画面の別ウィンドウ（[ADR 005](../adr/005-chart-analysis.md)）
+- **Web**: `/charts` はチャートを本画面に表示し、指標・セット呼び出し・スコア内訳は各ボタン＋画面共通の希望表示ラジオ（モードレス／別ウィンドウ）。拡大は全画面の別ウィンドウ（[ADR 005](../adr/005-chart-analysis.md)）
 - **指標セット（v0.2.0 / Phase 5）**: ユーザー所有の名前付きトグル集合。`GET|POST|DELETE /indicator-sets`。保存は指標設定ウィンドウ内、呼び出しは独立ウィンドウ（[ADR 008](../adr/008-indicator-sets.md)）
 
 ### 認証 UX（v0.2.0 / Phase 1）
