@@ -152,15 +152,23 @@ describe('IndicatorsService', () => {
     });
   });
 
-  it('throws INSUFFICIENT_PRICE_DATA when bars are too few', async () => {
+  it('still computes when bars are fewer than lookback (warmup nulls)', async () => {
+    const bars = makeBars(10);
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
-      bars: [{ date: '2026-01-01', close: 1 }],
+      bars,
       rangeStartIndex: 0,
     });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        indicators: [{ id: 'sma25', type: 'sma', params: { period: 25 } }],
+        points: bars.map((bar) => ({ date: bar.date, values: { sma25: null } })),
+      }),
+    }) as unknown as typeof fetch;
 
-    await expect(service.getForSymbol('s1', { indicators: 'sma25' })).rejects.toBeInstanceOf(
-      UnprocessableEntityException,
-    );
+    const result = await service.getForSymbol('s1', { indicators: 'sma25' });
+    expect(result.points).toHaveLength(10);
+    expect(global.fetch).toHaveBeenCalled();
   });
 
   it('throws INSUFFICIENT_PRICE_DATA when bars are empty', async () => {
@@ -370,14 +378,34 @@ describe('IndicatorsService trend score', () => {
     });
   });
 
-  it('throws INSUFFICIENT_PRICE_DATA for trend score when bars are too few', async () => {
+  it('still computes trend score when bars are fewer than lookback', async () => {
+    const bars = makeBars(10);
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
-      bars: makeBars(10),
+      bars,
       rangeStartIndex: 0,
     });
-    await expect(service.getTrendScoreForSymbol('s1', {})).rejects.toBeInstanceOf(
-      UnprocessableEntityException,
-    );
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        points: bars.map((bar) => ({
+          date: bar.date,
+          score: null,
+          groups: {
+            trend: null,
+            momentum: null,
+            oscillator: null,
+            volatility: null,
+            volume: null,
+            cycle: null,
+          },
+          indicators: {},
+        })),
+      }),
+    }) as unknown as typeof fetch;
+
+    const result = await service.getTrendScoreForSymbol('s1', {});
+    expect(result.points).toHaveLength(10);
+    expect(global.fetch).toHaveBeenCalled();
   });
 
   it('throws INSUFFICIENT_PRICE_DATA for trend score when bars are empty', async () => {
