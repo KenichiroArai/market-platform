@@ -1,10 +1,23 @@
 /**
  * @jest-environment jsdom
  */
-import { enlargedChartHeight, nextIndicatorUiMode } from './chart-window-state';
+import {
+  enlargedChartHeight,
+  nextIndicatorUiMode,
+  nextOpenToggle,
+} from './chart-window-state';
 
 describe('chart-window-state', () => {
-  it('toggles and switches indicator UI modes', () => {
+  it('opens, closes, and switches via nextOpenToggle with preferred mode', () => {
+    expect(nextOpenToggle('closed', 'modeless')).toBe('modeless');
+    expect(nextOpenToggle('closed', 'popout')).toBe('popout');
+    expect(nextOpenToggle('modeless', 'modeless')).toBe('closed');
+    expect(nextOpenToggle('popout', 'popout')).toBe('closed');
+    expect(nextOpenToggle('modeless', 'popout')).toBe('popout');
+    expect(nextOpenToggle('popout', 'modeless')).toBe('modeless');
+  });
+
+  it('keeps nextIndicatorUiMode as an alias of nextOpenToggle', () => {
     expect(nextIndicatorUiMode('closed', 'modeless')).toBe('modeless');
     expect(nextIndicatorUiMode('modeless', 'modeless')).toBe('closed');
     expect(nextIndicatorUiMode('modeless', 'popout')).toBe('popout');

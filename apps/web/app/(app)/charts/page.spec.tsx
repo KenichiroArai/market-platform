@@ -282,7 +282,7 @@ describe('ChartsPage', () => {
       ),
     );
 
-    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
+    fireEvent.click(screen.getByTestId('open-indicator'));
     fireEvent.click(screen.getByTestId('overlay-sma25'));
     fireEvent.click(screen.getByTestId('clear-indicators'));
     await waitFor(() => {
@@ -293,6 +293,22 @@ describe('ChartsPage', () => {
       const indicatorCalls = (fetchSymbolIndicators as jest.Mock).mock.calls;
       const last = indicatorCalls.at(-1);
       expect(last === undefined || last[0] === 'sym_2').toBe(true);
+    });
+  });
+
+  it('requests weekly indicators and trend score with interval 1w', async () => {
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByLabelText('週足')).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText('週足'));
+    await waitFor(() => {
+      expect(fetchSymbolIndicators).toHaveBeenCalledWith(
+        'sym_1',
+        expect.objectContaining({ interval: '1w' }),
+      );
+      expect(fetchSymbolTrendScore).toHaveBeenCalledWith(
+        'sym_1',
+        expect.objectContaining({ interval: '1w' }),
+      );
     });
   });
 
@@ -377,30 +393,38 @@ describe('ChartsPage', () => {
 
   it('opens indicator settings in a modeless window and closes it', async () => {
     render(<ChartsPage />);
-    await waitFor(() => expect(screen.getByTestId('open-indicator-modeless')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('open-indicator')).toBeInTheDocument());
     expect(screen.queryByTestId('indicator-catalog')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
+    fireEvent.click(screen.getByTestId('open-indicator'));
     expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
     expect(screen.getByTestId('indicator-catalog')).toBeInTheDocument();
-    expect(screen.getByTestId('open-indicator-modeless')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('open-indicator')).toHaveAttribute('aria-pressed', 'true');
 
     fireEvent.click(screen.getByTestId('modeless-close'));
     expect(screen.queryByTestId('modeless-window')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
-    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
+    fireEvent.click(screen.getByTestId('open-indicator'));
+    fireEvent.click(screen.getByTestId('open-indicator'));
     expect(screen.queryByTestId('modeless-window')).not.toBeInTheDocument();
   });
 
-  it('switches from modeless to a separate window', async () => {
+  it('does not change open window when preferred radio changes until button is pressed again', async () => {
     render(<ChartsPage />);
-    await waitFor(() => expect(screen.getByTestId('open-indicator-popout')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('open-indicator')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
+    fireEvent.click(screen.getByTestId('open-indicator'));
     expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('open-indicator-popout'));
+    const preferred = screen.getByTestId('display-preferred-mode');
+    const popoutRadio = preferred.querySelector(
+      'input[type="radio"][value="popout"]',
+    ) as HTMLInputElement;
+    fireEvent.click(popoutRadio);
+    expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
+    expect(screen.queryByTestId('popout-stub')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('open-indicator'));
     expect(screen.queryByTestId('modeless-window')).not.toBeInTheDocument();
     expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', '指標設定');
     expect(screen.getByTestId('indicator-catalog')).toBeInTheDocument();
@@ -408,10 +432,32 @@ describe('ChartsPage', () => {
     fireEvent.click(screen.getByTestId('popout-stub-close'));
     expect(screen.queryByTestId('popout-stub')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('open-indicator-popout'));
+    fireEvent.click(screen.getByTestId('open-indicator'));
     expect(screen.getByTestId('popout-stub')).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('open-indicator-popout'));
+    fireEvent.click(screen.getByTestId('open-indicator'));
     expect(screen.queryByTestId('popout-stub')).not.toBeInTheDocument();
+  });
+
+  it('switches display mode from inside the open window', async () => {
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('open-indicator')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('open-indicator'));
+    expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
+
+    const inWindow = screen.getByTestId('indicator-in-window-mode');
+    const popoutRadio = inWindow.querySelector(
+      'input[type="radio"][value="popout"]',
+    ) as HTMLInputElement;
+    fireEvent.click(popoutRadio);
+    expect(screen.queryByTestId('modeless-window')).not.toBeInTheDocument();
+    expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', '指標設定');
+
+    const popoutSwitch = screen.getByTestId('indicator-in-window-mode');
+    fireEvent.click(
+      popoutSwitch.querySelector('input[type="radio"][value="modeless"]') as HTMLInputElement,
+    );
+    expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
   });
 
   it('enlarges the chart into a fullscreen window', async () => {
@@ -435,15 +481,13 @@ describe('ChartsPage', () => {
 
   it('opens the indicator set picker independently and applies a set', async () => {
     render(<ChartsPage />);
-    await waitFor(() =>
-      expect(screen.getByTestId('open-indicator-set-modeless')).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByTestId('open-indicator-set')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
+    fireEvent.click(screen.getByTestId('open-indicator'));
     expect(screen.getByTestId('indicator-catalog')).toBeInTheDocument();
     expect(screen.getByTestId('indicator-set-save')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('open-indicator-set-modeless'));
+    fireEvent.click(screen.getByTestId('open-indicator-set'));
     await waitFor(() => expect(screen.getByTestId('indicator-set-picker')).toBeInTheDocument());
     expect(screen.getByTestId('indicator-catalog')).toBeInTheDocument();
 
@@ -457,13 +501,16 @@ describe('ChartsPage', () => {
     expect(screen.getByTestId('indicator-catalog')).toBeInTheDocument();
   });
 
-  it('opens the indicator set picker in a separate window', async () => {
+  it('opens the indicator set picker in a separate window via preferred mode', async () => {
     render(<ChartsPage />);
-    await waitFor(() =>
-      expect(screen.getByTestId('open-indicator-set-popout')).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByTestId('open-indicator-set')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByTestId('open-indicator-set-popout'));
+    const preferred = screen.getByTestId('display-preferred-mode');
+    const popoutRadio = preferred.querySelector(
+      'input[type="radio"][value="popout"]',
+    ) as HTMLInputElement;
+    fireEvent.click(popoutRadio);
+    fireEvent.click(screen.getByTestId('open-indicator-set'));
     await waitFor(() =>
       expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', '指標セット呼び出し'),
     );
@@ -472,16 +519,16 @@ describe('ChartsPage', () => {
     fireEvent.click(screen.getByTestId('popout-stub-close'));
     expect(screen.queryByTestId('indicator-set-picker')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('open-indicator-set-popout'));
+    fireEvent.click(screen.getByTestId('open-indicator-set'));
     expect(screen.getByTestId('popout-stub')).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('open-indicator-set-popout'));
+    fireEvent.click(screen.getByTestId('open-indicator-set'));
     expect(screen.queryByTestId('popout-stub')).not.toBeInTheDocument();
   });
 
   it('saves the current indicator selection from the settings window', async () => {
     render(<ChartsPage />);
-    await waitFor(() => expect(screen.getByTestId('open-indicator-modeless')).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId('open-indicator-modeless'));
+    await waitFor(() => expect(screen.getByTestId('open-indicator')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('open-indicator'));
     fireEvent.change(screen.getByTestId('indicator-set-name'), { target: { value: '新規' } });
     fireEvent.click(screen.getByTestId('indicator-set-save-button'));
     await waitFor(() =>
@@ -509,5 +556,135 @@ describe('ChartsPage', () => {
     fireEvent.click(screen.getByTestId('open-score-breakdown'));
     fireEvent.click(screen.getByTestId('open-score-breakdown'));
     expect(screen.queryByTestId('trend-score-breakdown')).not.toBeInTheDocument();
+  });
+
+  it('opens score breakdown in a separate window and accepts base date input', async () => {
+    (fetchSymbolTrendScore as jest.Mock).mockResolvedValue({
+      symbolId: 'sym_1',
+      points: [
+        {
+          date: '2026-01-02',
+          score: 12,
+          groups: {
+            trend: 8,
+            momentum: 2,
+            oscillator: 0,
+            volatility: 1,
+            volume: 1,
+            cycle: 0,
+          },
+          indicators: { sma25: 20 },
+        },
+        {
+          date: '2026-01-09',
+          score: -4,
+          groups: {
+            trend: -2,
+            momentum: -1,
+            oscillator: 0,
+            volatility: -1,
+            volume: 0,
+            cycle: 0,
+          },
+          indicators: { sma25: -10 },
+        },
+      ],
+    });
+
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('base-date-input')).toHaveValue('2026-01-09'),
+    );
+
+    fireEvent.change(screen.getByTestId('base-date-input'), { target: { value: '2026-01-07' } });
+    await waitFor(() =>
+      expect(screen.getByTestId('base-date-input')).toHaveValue('2026-01-02'),
+    );
+
+    fireEvent.change(screen.getByTestId('base-date-input'), { target: { value: '' } });
+    await waitFor(() =>
+      expect(screen.getByTestId('base-date-input')).toHaveValue('2026-01-09'),
+    );
+
+    const preferred = screen.getByTestId('display-preferred-mode');
+    const popoutRadio = preferred.querySelector(
+      'input[type="radio"][value="popout"]',
+    ) as HTMLInputElement;
+    fireEvent.click(popoutRadio);
+    fireEvent.click(screen.getByTestId('open-score-breakdown'));
+    expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', 'スコア内訳');
+    expect(screen.getByTestId('trend-score-breakdown-summary')).toHaveTextContent(
+      '基準日 2026-01-09',
+    );
+
+    fireEvent.click(screen.getByTestId('popout-stub-close'));
+    expect(screen.queryByTestId('trend-score-breakdown')).not.toBeInTheDocument();
+  });
+
+  it('switches recall and score windows from inside each window', async () => {
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('open-indicator-set')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('open-indicator-set'));
+    expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
+    const recallInWindow = screen.getByTestId('recall-in-window-mode');
+    fireEvent.click(
+      recallInWindow.querySelector('input[type="radio"][value="popout"]') as HTMLInputElement,
+    );
+    expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', '指標セット呼び出し');
+    const recallPopoutSwitch = screen.getByTestId('recall-in-window-mode');
+    fireEvent.click(
+      recallPopoutSwitch.querySelector(
+        'input[type="radio"][value="modeless"]',
+      ) as HTMLInputElement,
+    );
+    expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('modeless-close'));
+
+    fireEvent.click(screen.getByTestId('open-score-breakdown'));
+    expect(screen.getByTestId('trend-score-breakdown')).toBeInTheDocument();
+    const scoreInWindow = screen.getByTestId('score-in-window-mode');
+    fireEvent.click(
+      scoreInWindow.querySelector('input[type="radio"][value="popout"]') as HTMLInputElement,
+    );
+    expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', 'スコア内訳');
+    const scorePopoutSwitch = screen.getByTestId('score-in-window-mode');
+    fireEvent.click(
+      scorePopoutSwitch.querySelector(
+        'input[type="radio"][value="modeless"]',
+      ) as HTMLInputElement,
+    );
+    expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
+  });
+
+  it('keeps other windows unchanged when one window switches display mode inside itself', async () => {
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('open-indicator')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('open-indicator'));
+    fireEvent.click(screen.getByTestId('open-score-breakdown'));
+    expect(screen.getAllByTestId('modeless-window')).toHaveLength(2);
+
+    const indicatorSwitch = screen.getAllByTestId('indicator-in-window-mode')[0]!;
+    fireEvent.click(
+      indicatorSwitch.querySelector('input[type="radio"][value="popout"]') as HTMLInputElement,
+    );
+    expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', '指標設定');
+    expect(screen.getByTestId('trend-score-breakdown')).toBeInTheDocument();
+    expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
+    expect(screen.getByTestId('display-preferred-mode').querySelector('input[value="modeless"]')).toBeChecked();
+  });
+
+  it('keeps typed base date when there are no score points to snap to', async () => {
+    (fetchSymbolTrendScore as jest.Mock).mockResolvedValue({
+      symbolId: 'sym_1',
+      points: [],
+    });
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('analysis-chart-stub')).toHaveTextContent('ready'),
+    );
+    fireEvent.change(screen.getByTestId('base-date-input'), { target: { value: '2026-03-15' } });
+    expect(screen.getByTestId('base-date-input')).toHaveValue('2026-03-15');
   });
 });

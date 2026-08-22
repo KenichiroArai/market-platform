@@ -3,17 +3,43 @@
  *
  * Next.js の page.tsx は default export 以外を公開できないため、
  * トグルと高さ計算はここに置く。
+ *
+ * 希望表示（preferred）は画面で1つ。各窓の ui は独立に記憶する。
+ * 親のラジオ変更だけでは開いているウィンドウを切り替えない。
+ * ボタン再押下で preferred に合わせ、ウィンドウ内切替はその窓だけ即時変更する。
  */
 
-/** 指標設定の出し方。同時に両方は開かない。 */
-export type IndicatorUiMode = 'closed' | 'modeless' | 'popout';
+/** 表示の希望モード（親画面ラジオ・ウィンドウ内切替）。 */
+export type WindowDisplayMode = 'modeless' | 'popout';
 
-/** 同じ系統のウィンドウをトグルし、別系統へ切り替える。 */
+/** 実際の表示状態。閉じているか、どちらか一方で開いている。 */
+export type WindowUiState = 'closed' | WindowDisplayMode;
+
+/** @deprecated WindowUiState と同義。既存呼び出し互換。 */
+export type IndicatorUiMode = WindowUiState;
+
+/**
+ * オープンボタン押下時の次状態。
+ * - closed → preferred で開く
+ * - 開いていて current === preferred → 閉じる
+ * - 開いていて current !== preferred → preferred へ切替（再押下で切替）
+ */
+export function nextOpenToggle(
+  current: WindowUiState,
+  preferred: WindowDisplayMode,
+): WindowUiState {
+  return current === preferred ? 'closed' : preferred;
+}
+
+/**
+ * 同じ系統のウィンドウをトグルし、別系統へ切り替える。
+ * nextOpenToggle と同義（requested = preferred）。
+ */
 export function nextIndicatorUiMode(
   current: IndicatorUiMode,
-  requested: Exclude<IndicatorUiMode, 'closed'>,
+  requested: WindowDisplayMode,
 ): IndicatorUiMode {
-  return current === requested ? 'closed' : requested;
+  return nextOpenToggle(current, requested);
 }
 
 /** 拡大ウィンドウでは画面高さと指標ペイン必要高さの大きい方を使う。 */
