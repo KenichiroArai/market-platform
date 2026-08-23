@@ -33,9 +33,14 @@ describe('HomePage', () => {
 
     expect(screen.getByRole('heading', { name: 'market-platform' })).toBeInTheDocument();
     expect(screen.getByText(/"database": "up"/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '銘柄' })).toHaveAttribute('href', '/symbols');
+    expect(screen.getByRole('link', { name: 'ウォッチリスト' })).toHaveAttribute(
+      'href',
+      '/watchlists',
+    );
+    expect(screen.getByRole('link', { name: 'チャート分析' })).toHaveAttribute('href', '/charts');
     expect(screen.queryByRole('link', { name: 'ログイン' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '登録' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'ウォッチリスト' })).not.toBeInTheDocument();
   });
 
   it('renders connection error when health is unavailable', async () => {

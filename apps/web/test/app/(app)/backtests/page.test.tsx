@@ -106,6 +106,12 @@ describe('BacktestsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('SMA 5/20 (smaCross)')).toBeInTheDocument();
     });
+    expect(screen.getByRole('heading', { name: 'シグナル / バックテスト' })).toBeInTheDocument();
+    expect(screen.getByText(/最終資産=101000/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '詳細チャート' })).toHaveAttribute(
+      'href',
+      '/charts?symbolId=sym_1&from=2026-01-01&to=2026-06-30',
+    );
 
     fireEvent.change(screen.getByPlaceholderText('シグナル名'), { target: { value: 'New' } });
     fireEvent.submit(screen.getByPlaceholderText('シグナル名').closest('form')!);
@@ -132,7 +138,10 @@ describe('BacktestsPage', () => {
     (fetchSymbols as jest.Mock).mockResolvedValue([]);
     (createSignalDefinition as jest.Mock).mockRejectedValue(new Error('x'));
     render(<BacktestsPage />);
-    await waitFor(() => expect(screen.getByText('まだ結果がありません')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: '銘柄を追加' })).toHaveAttribute('href', '/symbols'),
+    );
+    expect(screen.getByText('まだ結果がありません')).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('シグナル名'), { target: { value: 'A' } });
     fireEvent.submit(screen.getByPlaceholderText('シグナル名').closest('form')!);

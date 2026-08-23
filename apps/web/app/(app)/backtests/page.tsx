@@ -1,11 +1,12 @@
 /* istanbul ignore file */
 /**
- * Phase 5: シグナル定義とバックテスト実行画面。
+ * シグナル定義とバックテスト実行画面。
  * 銘柄・期間の選択に連動して日足終値チャートを表示する。
  * 未ログイン誘導は共通レイアウト側。
  */
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useEffect, useState, type CSSProperties } from 'react';
 import type {
   BacktestRunDto,
@@ -24,6 +25,7 @@ import {
   fetchSymbols,
   runBacktest,
 } from '../../../lib/api-client';
+import { chartsHref, symbolsHref } from '../../../lib/app-routes';
 
 export default function BacktestsPage() {
   const [signals, setSignals] = useState<SignalDefinitionDto[]>([]);
@@ -172,10 +174,19 @@ export default function BacktestsPage() {
 
   return (
     <main style={pageStyle}>
-      <h1 style={titleStyle}>Signals / Backtest</h1>
+      <h1 style={titleStyle}>シグナル / バックテスト</h1>
+      <p style={leadStyle}>売買シグナルを定義し、過去期間でバックテストして検証します。</p>
 
       {loading ? <p style={{ opacity: 0.85 }}>読み込み中…</p> : null}
       {error ? <p style={errorStyle}>{error}</p> : null}
+      {!loading && symbols.length === 0 ? (
+        <p style={{ marginTop: '0.75rem', opacity: 0.85 }}>
+          登録済みの銘柄がありません。{' '}
+          <Link href={symbolsHref()} style={inlineLinkStyle}>
+            銘柄を追加
+          </Link>
+        </p>
+      ) : null}
 
       <section style={sectionStyle}>
         <h2 style={sectionTitleStyle}>シグナル定義</h2>
@@ -245,6 +256,13 @@ export default function BacktestsPage() {
             実行
           </button>
         </form>
+        {symbolId ? (
+          <p style={{ marginTop: '0.75rem' }}>
+            <Link href={chartsHref({ symbolId, from, to })} style={inlineLinkStyle}>
+              詳細チャート
+            </Link>
+          </p>
+        ) : null}
         {!symbolId ? (
           <p style={{ marginTop: '0.75rem', opacity: 0.85 }}>
             銘柄を選択するとチャートを表示します
@@ -263,8 +281,8 @@ export default function BacktestsPage() {
         <ul style={listStyle}>
           {runs.map((run) => (
             <li key={run.id}>
-              {run.fromDate}〜{run.toDate} final={run.summary.finalEquity} return=
-              {(run.summary.totalReturnRate * 100).toFixed(2)}% trades={run.summary.totalTrades}
+              {run.fromDate}〜{run.toDate} 最終資産={run.summary.finalEquity} リターン=
+              {(run.summary.totalReturnRate * 100).toFixed(2)}% 取引数={run.summary.totalTrades}
             </li>
           ))}
         </ul>
@@ -277,6 +295,12 @@ const pageStyle: CSSProperties = {
   padding: '2rem 1.5rem',
 };
 const titleStyle: CSSProperties = { fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', margin: 0 };
+const leadStyle: CSSProperties = {
+  margin: '0.75rem 0 0',
+  maxWidth: '40rem',
+  lineHeight: 1.6,
+  opacity: 0.85,
+};
 const sectionStyle: CSSProperties = { marginTop: '2rem', maxWidth: '48rem' };
 const sectionTitleStyle: CSSProperties = { fontSize: '1.1rem', fontWeight: 600 };
 const listStyle: CSSProperties = {
@@ -308,5 +332,10 @@ const buttonStyle: CSSProperties = {
   color: '#e8eef5',
   font: 'inherit',
   cursor: 'pointer',
+};
+const inlineLinkStyle: CSSProperties = {
+  color: '#e8eef5',
+  textDecoration: 'underline',
+  fontSize: '0.95rem',
 };
 const errorStyle: CSSProperties = { color: '#ffb4a8' };

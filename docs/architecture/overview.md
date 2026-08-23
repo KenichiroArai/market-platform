@@ -243,6 +243,25 @@ packages:
 - **Web**: `/symbols`（共通ヘッダーの「銘柄」）
 - **日足**: `DailyPrice` の最小日より前・最大日より後だけ取得（[ADR 002](../adr/002-market-data-provider.md)）
 
+### Web 画面構成（v0.3.0 / Ph1）
+
+ログイン後の各画面はヘッダーナビに加え、画面上部に役割説明（リード文）を置く。ナビの「シグナル / バックテスト」は `/backtests`。
+
+| パス | 役割 |
+| ---- | ---- |
+| `/` | 各機能への入口。API health の確認 |
+| `/symbols` | 銘柄マスタの追加・一覧 |
+| `/watchlists` | 注目銘柄リストの管理 |
+| `/portfolios` | 保有の登録・集計 |
+| `/backtests` | シグナル定義とバックテスト |
+| `/charts` | チャート分析（指標・スコア） |
+| `/me` | ログイン中アカウントの確認 |
+
+画面間連携はクエリで行う（`apps/web/lib/app-routes.ts`）:
+
+- `/charts?symbolId=&watchlistId=&from=&to=` — 銘柄・WL・期間を初期選択
+- 銘柄ゼロ時は各画面から `/symbols` へ「銘柄を追加」導線
+
 ### 後続で追加予定
 
 - ESLint flat config（shared-config への集約）

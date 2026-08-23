@@ -36,7 +36,7 @@ export default function MePage() {
   return (
     <main style={pageStyle}>
       <h1 style={titleStyle}>プロフィール</h1>
-      <p style={leadStyle}>ログイン中のユーザー</p>
+      <p style={leadStyle}>ログイン中のアカウント情報を確認します。</p>
       {error ? <p style={errorStyle}>{error}</p> : null}
       {user ? (
         <pre style={preStyle}>{JSON.stringify(user, null, 2)}</pre>
@@ -57,7 +57,12 @@ const titleStyle: CSSProperties = {
   letterSpacing: '-0.03em',
 };
 
-const leadStyle: CSSProperties = { marginTop: '0.75rem', opacity: 0.9 };
+const leadStyle: CSSProperties = {
+  margin: '0.75rem 0 0',
+  maxWidth: '40rem',
+  lineHeight: 1.6,
+  opacity: 0.85,
+};
 const errorStyle: CSSProperties = { color: '#ffb4a8' };
 const preStyle: CSSProperties = {
   marginTop: '1rem',

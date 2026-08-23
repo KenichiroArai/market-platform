@@ -6,9 +6,11 @@
  */
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useEffect, useState, type CSSProperties } from 'react';
 import type { Market, SymbolDto } from '@market/shared-types';
 import { ApiClientError, createSymbol, fetchSymbols } from '../../../lib/api-client';
+import { chartsHref } from '../../../lib/app-routes';
 
 export default function SymbolsPage() {
   const [symbols, setSymbols] = useState<SymbolDto[]>([]);
@@ -111,6 +113,9 @@ export default function SymbolsPage() {
                 <span>
                   {s.ticker} ({s.market}) — {s.name} / {s.currency}
                 </span>
+                <Link href={chartsHref({ symbolId: s.id })} style={inlineLinkStyle}>
+                  チャート
+                </Link>
               </li>
             ))}
           </ul>
@@ -171,5 +176,11 @@ const buttonStyle: CSSProperties = {
   color: '#e8eef5',
   font: 'inherit',
   cursor: 'pointer',
+};
+const inlineLinkStyle: CSSProperties = {
+  color: '#e8eef5',
+  textDecoration: 'underline',
+  fontSize: '0.95rem',
+  whiteSpace: 'nowrap',
 };
 const errorStyle: CSSProperties = { color: '#ffb4a8' };

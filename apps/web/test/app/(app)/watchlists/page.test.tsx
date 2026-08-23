@@ -84,6 +84,10 @@ describe('WatchlistsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Tech')).toBeInTheDocument();
     });
+    expect(screen.getByRole('link', { name: 'チャート' })).toHaveAttribute(
+      'href',
+      '/charts?symbolId=sym_1&watchlistId=wl_1',
+    );
 
     fireEvent.change(screen.getByPlaceholderText('新しいリスト名'), {
       target: { value: 'Growth' },
@@ -117,6 +121,16 @@ describe('WatchlistsPage', () => {
     render(<WatchlistsPage />);
     await waitFor(() => {
       expect(screen.getByText('boom')).toBeInTheDocument();
+    });
+  });
+
+  it('shows link to add symbols when none are registered', async () => {
+    (fetchWatchlists as jest.Mock).mockResolvedValue([]);
+    (fetchSymbols as jest.Mock).mockResolvedValue([]);
+
+    render(<WatchlistsPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: '銘柄を追加' })).toHaveAttribute('href', '/symbols');
     });
   });
 

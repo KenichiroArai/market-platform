@@ -107,6 +107,10 @@ describe('PortfoliosPage', () => {
       expect(screen.getByRole('button', { name: 'Core' })).toBeInTheDocument();
       expect(screen.getByText(/USD:/)).toBeInTheDocument();
     });
+    expect(screen.getByRole('link', { name: 'チャート' })).toHaveAttribute(
+      'href',
+      '/charts?symbolId=sym_1',
+    );
 
     fireEvent.change(screen.getByPlaceholderText('新しいポートフォリオ名'), {
       target: { value: 'Sat' },
@@ -265,7 +269,7 @@ describe('PortfoliosPage', () => {
 
     const { unmount } = render(<PortfoliosPage />);
     await waitFor(() => {
-      expect(screen.queryByText('読み込み中…')).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: '銘柄を追加' })).toHaveAttribute('href', '/symbols');
     });
     unmount();
 

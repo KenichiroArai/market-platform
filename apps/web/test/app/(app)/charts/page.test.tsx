@@ -3,6 +3,7 @@
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { useSearchParams } from 'next/navigation';
 import ChartsPage from '../../../../app/(app)/charts/page';
 import {
   ApiClientError,
@@ -141,6 +142,7 @@ describe('ChartsPage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (useSearchParams as jest.Mock).mockReturnValue(new URLSearchParams());
     (fetchSymbols as jest.Mock).mockResolvedValue([symbol, symbol2]);
     (fetchWatchlists as jest.Mock).mockResolvedValue([watchlist]);
     (fetchSymbolPrices as jest.Mock).mockResolvedValue([
@@ -224,6 +226,75 @@ describe('ChartsPage', () => {
       from: expectedFrom,
       to: expectedTo,
       interval: '1d',
+    });
+  });
+
+  it('applies symbolId watchlistId from and to from search params', async () => {
+    (useSearchParams as jest.Mock).mockReturnValue(
+      new URLSearchParams({
+        symbolId: 'sym_2',
+        from: '2025-01-01',
+        to: '2025-06-30',
+      }),
+    );
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(fetchSymbolPrices).toHaveBeenCalledWith('sym_2', {
+        from: '2025-01-01',
+        to: '2025-06-30',
+        interval: '1d',
+      }),
+    );
+    expect(screen.getByTestId('symbol-select')).toHaveValue('sym_2');
+    // 銘柄クエリのみのときは WL を「すべて」にして銘柄を選択肢に残す
+    expect(screen.getByTestId('watchlist-select')).toHaveValue('');
+  });
+
+  it('applies watchlistId from search params with symbol in that list', async () => {
+    (useSearchParams as jest.Mock).mockReturnValue(
+      new URLSearchParams({
+        symbolId: 'sym_1',
+        watchlistId: 'wl_1',
+        from: '2025-01-01',
+        to: '2025-06-30',
+      }),
+    );
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(fetchSymbolPrices).toHaveBeenCalledWith('sym_1', {
+        from: '2025-01-01',
+        to: '2025-06-30',
+        interval: '1d',
+      }),
+    );
+    expect(screen.getByTestId('symbol-select')).toHaveValue('sym_1');
+    expect(screen.getByTestId('watchlist-select')).toHaveValue('wl_1');
+  });
+
+  it('ignores invalid query ids and falls back to first rows', async () => {
+    (useSearchParams as jest.Mock).mockReturnValue(
+      new URLSearchParams({
+        symbolId: 'missing',
+        watchlistId: 'missing',
+      }),
+    );
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(fetchSymbolPrices).toHaveBeenCalledWith(
+        'sym_1',
+        expect.objectContaining({ interval: '1d' }),
+      ),
+    );
+    expect(screen.getByTestId('symbol-select')).toHaveValue('sym_1');
+    expect(screen.getByTestId('watchlist-select')).toHaveValue('wl_1');
+  });
+
+  it('shows link to add symbols when none are registered', async () => {
+    (fetchSymbols as jest.Mock).mockResolvedValue([]);
+    (fetchWatchlists as jest.Mock).mockResolvedValue([]);
+    render(<ChartsPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: '銘柄を追加' })).toHaveAttribute('href', '/symbols');
     });
   });
 

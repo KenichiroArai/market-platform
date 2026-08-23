@@ -6,6 +6,7 @@
  */
 'use client';
 
+import Link from 'next/link';
 import { FormEvent, useEffect, useState, type CSSProperties } from 'react';
 import type { PortfolioDto, SymbolDto } from '@market/shared-types';
 import {
@@ -18,6 +19,7 @@ import {
   removePortfolioHolding,
   updatePortfolioHolding,
 } from '../../../lib/api-client';
+import { chartsHref, symbolsHref } from '../../../lib/app-routes';
 
 export default function PortfoliosPage() {
   const [portfolios, setPortfolios] = useState<PortfolioDto[]>([]);
@@ -148,9 +150,20 @@ export default function PortfoliosPage() {
   return (
     <main style={pageStyle}>
       <h1 style={titleStyle}>ポートフォリオ</h1>
+      <p style={leadStyle}>
+        保有の登録・更新と通貨別集計を行います。保有行からチャート分析へ進めます。
+      </p>
 
       {loading ? <p style={{ opacity: 0.8 }}>読み込み中…</p> : null}
       {error ? <p style={errorStyle}>{error}</p> : null}
+      {!loading && symbols.length === 0 ? (
+        <p style={{ marginTop: '0.75rem', opacity: 0.85 }}>
+          登録済みの銘柄がありません。{' '}
+          <Link href={symbolsHref()} style={inlineLinkStyle}>
+            銘柄を追加
+          </Link>
+        </p>
+      ) : null}
 
       <section style={sectionStyle}>
         <h2 style={sectionTitleStyle}>ポートフォリオ一覧</h2>
@@ -216,6 +229,9 @@ export default function PortfoliosPage() {
                   {h.marketPrice ?? 'n/a'} pnl={h.unrealizedPnl ?? 'n/a'}
                 </span>
                 <div style={formRowStyle}>
+                  <Link href={chartsHref({ symbolId: h.symbolId })} style={inlineLinkStyle}>
+                    チャート
+                  </Link>
                   <button
                     type="button"
                     onClick={() => void onUpdateHolding(h.id)}
@@ -287,6 +303,12 @@ const titleStyle: CSSProperties = {
   margin: 0,
   letterSpacing: '-0.03em',
 };
+const leadStyle: CSSProperties = {
+  margin: '0.75rem 0 0',
+  maxWidth: '40rem',
+  lineHeight: 1.6,
+  opacity: 0.85,
+};
 const sectionStyle: CSSProperties = { marginTop: '2rem', maxWidth: '44rem' };
 const sectionTitleStyle: CSSProperties = { fontSize: '1.1rem', fontWeight: 600 };
 const subTitleStyle: CSSProperties = { fontSize: '1rem', marginTop: '1.25rem' };
@@ -330,5 +352,12 @@ const buttonStyle: CSSProperties = {
   color: '#e8eef5',
   font: 'inherit',
   cursor: 'pointer',
+};
+const inlineLinkStyle: CSSProperties = {
+  color: '#e8eef5',
+  textDecoration: 'underline',
+  fontSize: '0.95rem',
+  alignSelf: 'center',
+  whiteSpace: 'nowrap',
 };
 const errorStyle: CSSProperties = { color: '#ffb4a8' };

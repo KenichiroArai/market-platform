@@ -1,9 +1,18 @@
 /**
  * トップページ（ログイン後）。
  *
- * プロダクト名と API ヘルスを示す。機能への導線は共通ヘッダーに集約する。
+ * 各機能への入口と API ヘルスを示す。
  */
+import Link from 'next/link';
 import { fetchApiHealth } from '../../lib/fetch-api-health';
+
+const FEATURE_LINKS = [
+  { href: '/symbols', label: '銘柄' },
+  { href: '/watchlists', label: 'ウォッチリスト' },
+  { href: '/portfolios', label: 'ポートフォリオ' },
+  { href: '/backtests', label: 'シグナル / バックテスト' },
+  { href: '/charts', label: 'チャート分析' },
+] as const;
 
 export default async function HomePage() {
   // サーバー側で取得。失敗してもページ全体は 200 で返す
@@ -14,9 +23,29 @@ export default async function HomePage() {
       <h1 style={{ fontSize: 'clamp(2.5rem, 6vw, 4rem)', margin: 0, letterSpacing: '-0.03em' }}>
         market-platform
       </h1>
-      <p style={{ marginTop: '1rem', maxWidth: '36rem', lineHeight: 1.6, opacity: 0.9 }}>
-        株式・ETF・指数などの市場データと分析基盤のモノレポです。チャート分析ではローソク足とテクニカル指標を一体で確認できます。
+      <p style={{ marginTop: '0.75rem', maxWidth: '40rem', lineHeight: 1.6, opacity: 0.85 }}>
+        各機能への入口です。銘柄の登録からチャート分析・シグナル検証まで進めます。下に API
+        の稼働状態を表示します。
       </p>
+      <nav
+        aria-label="主要機能"
+        style={{
+          marginTop: '1.25rem',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '0.75rem 1.1rem',
+        }}
+      >
+        {FEATURE_LINKS.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            style={{ color: '#e8eef5', textDecoration: 'underline', fontSize: '0.95rem' }}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
       <section style={{ marginTop: '2.5rem' }}>
         <h2 style={{ fontSize: '1.1rem', fontWeight: 600 }}>API health</h2>
         {health ? (

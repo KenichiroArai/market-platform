@@ -31,6 +31,8 @@ describe('MePage', () => {
     await waitFor(() => {
       expect(screen.getByText(/"email": "a@b.c"/)).toBeInTheDocument();
     });
+    expect(screen.getByRole('heading', { name: 'プロフィール' })).toBeInTheDocument();
+    expect(screen.getByText('ログイン中のアカウント情報を確認します。')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'ログアウト' })).not.toBeInTheDocument();
   });
 

@@ -8,7 +8,9 @@
  */
 'use client';
 
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type {
   ChartInterval,
   DailyPriceDto,
@@ -53,6 +55,7 @@ import {
   fetchSymbols,
   fetchWatchlists,
 } from '../../../lib/api-client';
+import { symbolsHref } from '../../../lib/app-routes';
 import { defaultChartFromDate, defaultChartToDate } from '../../../lib/chart-date-range';
 import { snapBaseDate } from '../../../lib/snap-base-date';
 
@@ -60,7 +63,16 @@ const INDICATOR_POPOUT = { name: 'chart-indicator-settings', width: 440, height:
 const RECALL_POPOUT = { name: 'chart-indicator-set-picker', width: 440, height: 800 } as const;
 const SCORE_POPOUT = { name: 'chart-score-breakdown', width: 720, height: 800 } as const;
 
-export default function ChartsPage() {
+/** クエリ値が一覧にあればそれを、なければフォールバックを返す。 */
+function resolveQueryId(queryValue: string | null, ids: string[], fallback: string): string {
+  if (queryValue && ids.includes(queryValue)) {
+    return queryValue;
+  }
+  return fallback;
+}
+
+function ChartsPageContent() {
+  const searchParams = useSearchParams();
   const [symbols, setSymbols] = useState<SymbolDto[]>([]);
   const [watchlists, setWatchlists] = useState<WatchlistDto[]>([]);
   const [watchlistId, setWatchlistId] = useState('');
@@ -206,10 +218,33 @@ export default function ChartsPage() {
       try {
         const [symbolRows, listRows] = await Promise.all([fetchSymbols(), fetchWatchlists()]);
         if (!cancelled) {
+          const querySymbolId = searchParams.get('symbolId');
+          const queryWatchlistId = searchParams.get('watchlistId');
+          const queryFrom = searchParams.get('from');
+          const queryTo = searchParams.get('to');
+
           setSymbols(symbolRows);
           setWatchlists(listRows);
-          setSymbolId(symbolRows[0]?.id ?? '');
-          setWatchlistId(listRows[0]?.id ?? '');
+          const nextSymbolId = resolveQueryId(
+            querySymbolId,
+            symbolRows.map((row) => row.id),
+            symbolRows[0]?.id ?? '',
+          );
+          setSymbolId(nextSymbolId);
+          // 有効な銘柄クエリのみのときは WL 絞り込みを外し、選択肢に残す
+          if (queryWatchlistId && listRows.some((row) => row.id === queryWatchlistId)) {
+            setWatchlistId(queryWatchlistId);
+          } else if (querySymbolId && nextSymbolId === querySymbolId) {
+            setWatchlistId('');
+          } else {
+            setWatchlistId(listRows[0]?.id ?? '');
+          }
+          if (queryFrom) {
+            setFrom(queryFrom);
+          }
+          if (queryTo) {
+            setTo(queryTo);
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -224,7 +259,7 @@ export default function ChartsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!symbolId || loading) {
@@ -309,6 +344,14 @@ export default function ChartsPage() {
 
       {error ? <p style={errorStyle}>{error}</p> : null}
       {loading ? <p>読み込み中…</p> : null}
+      {!loading && symbols.length === 0 ? (
+        <p style={{ margin: '0 0 1rem', opacity: 0.85 }}>
+          登録済みの銘柄がありません。{' '}
+          <Link href={symbolsHref()} style={inlineLinkStyle}>
+            銘柄を追加
+          </Link>
+        </p>
+      ) : null}
 
       {!loading ? (
         <section style={controlsStyle}>
@@ -639,6 +682,21 @@ export default function ChartsPage() {
   );
 }
 
+/** useSearchParams 用の Suspense 境界。 */
+export default function ChartsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main style={pageStyle}>
+          <p>読み込み中…</p>
+        </main>
+      }
+    >
+      <ChartsPageContent />
+    </Suspense>
+  );
+}
+
 /** 別ウィンドウ側の高さに合わせてチャートを引き伸ばす。 */
 function EnlargedAnalysisChart({
   win,
@@ -668,6 +726,12 @@ function EnlargedAnalysisChart({
 
 const pageStyle: CSSProperties = {
   padding: '2rem 1.5rem',
+};
+
+const inlineLinkStyle: CSSProperties = {
+  color: '#e8eef5',
+  textDecoration: 'underline',
+  fontSize: '0.95rem',
 };
 
 const controlsStyle: CSSProperties = {

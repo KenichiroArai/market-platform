@@ -57,6 +57,10 @@ describe('SymbolsPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/AAPL/)).toBeInTheDocument();
     });
+    expect(screen.getByRole('link', { name: 'チャート' })).toHaveAttribute(
+      'href',
+      '/charts?symbolId=sym_1',
+    );
 
     fireEvent.change(screen.getByTestId('ticker-input'), { target: { value: '7203' } });
     fireEvent.change(screen.getByTestId('market-select'), { target: { value: 'JP' } });
