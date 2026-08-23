@@ -4,6 +4,7 @@
  * 各機能への入口と API ヘルスを示す。
  */
 import Link from 'next/link';
+import { getServerApiBaseUrl } from '../../lib/api-base-url';
 import { fetchApiHealth } from '../../lib/fetch-api-health';
 
 const FEATURE_LINKS = [
@@ -62,8 +63,7 @@ export default async function HomePage() {
         ) : (
           <p style={{ marginTop: '0.75rem', opacity: 0.8 }}>
             {/* 接続先を明示し、ローカル / Docker の設定ミス切り分けを助ける */}
-            API に接続できませんでした（{process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}
-            ）。
+            API に接続できませんでした（{getServerApiBaseUrl()}）。
           </p>
         )}
       </section>

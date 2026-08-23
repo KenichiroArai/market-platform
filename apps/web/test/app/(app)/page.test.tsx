@@ -10,14 +10,20 @@ jest.mock('../../../lib/fetch-api-health', () => ({
 }));
 
 describe('HomePage', () => {
-  const originalUrl = process.env.NEXT_PUBLIC_API_URL;
+  const originalPublic = process.env.NEXT_PUBLIC_API_URL;
+  const originalInternal = process.env.API_INTERNAL_URL;
 
   afterEach(() => {
     jest.clearAllMocks();
-    if (originalUrl === undefined) {
+    if (originalPublic === undefined) {
       delete process.env.NEXT_PUBLIC_API_URL;
     } else {
-      process.env.NEXT_PUBLIC_API_URL = originalUrl;
+      process.env.NEXT_PUBLIC_API_URL = originalPublic;
+    }
+    if (originalInternal === undefined) {
+      delete process.env.API_INTERNAL_URL;
+    } else {
+      process.env.API_INTERNAL_URL = originalInternal;
     }
   });
 
@@ -44,6 +50,7 @@ describe('HomePage', () => {
   });
 
   it('renders connection error when health is unavailable', async () => {
+    delete process.env.API_INTERNAL_URL;
     delete process.env.NEXT_PUBLIC_API_URL;
     (fetchApiHealth as jest.Mock).mockResolvedValue(null);
 
@@ -55,15 +62,16 @@ describe('HomePage', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows configured api url in the error message', async () => {
-    process.env.NEXT_PUBLIC_API_URL = 'http://custom:3001';
+  it('shows configured server api url in the error message', async () => {
+    process.env.API_INTERNAL_URL = 'http://api:3001';
+    process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
     (fetchApiHealth as jest.Mock).mockResolvedValue(null);
 
     const ui = await HomePage();
     render(ui);
 
     expect(
-      screen.getByText('API に接続できませんでした（http://custom:3001）。'),
+      screen.getByText('API に接続できませんでした（http://api:3001）。'),
     ).toBeInTheDocument();
   });
 });

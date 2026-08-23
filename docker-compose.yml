@@ -72,7 +72,8 @@ services:
       timeout: 5s
       retries: 10
 
-  # Next.js。ブラウザから見える API URL はホスト向け（localhost:3001）がデフォルト。
+  # Next.js。
+  # ブラウザ向けはホストの localhost:3001、SSR は Compose ネットワーク上の api:3001。
   web:
     build:
       context: .
@@ -81,6 +82,7 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:3001}
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:

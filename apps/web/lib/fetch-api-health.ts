@@ -5,13 +5,14 @@
  * fetchImpl を注入可能にし、単体テストでグローバル fetch に依存しなくてよいようにする。
  */
 import type { HealthResponse } from '@market/shared-types';
+import { getServerApiBaseUrl } from './api-base-url';
 
 /**
- * @param baseUrl - 省略時は NEXT_PUBLIC_API_URL、さらに無ければ localhost:3001
+ * @param baseUrl - 省略時は getServerApiBaseUrl()（API_INTERNAL_URL → NEXT_PUBLIC_API_URL → localhost）
  * @param fetchImpl - 既定はグローバル fetch（ブラウザ / Node / Next ランタイム）
  */
 export async function fetchApiHealth(
-  baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001',
+  baseUrl = getServerApiBaseUrl(),
   fetchImpl: typeof fetch = fetch,
 ): Promise<HealthResponse | null> {
   try {

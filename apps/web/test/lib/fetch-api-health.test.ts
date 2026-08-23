@@ -1,13 +1,19 @@
 import { fetchApiHealth } from '../../lib/fetch-api-health';
 
 describe('fetchApiHealth', () => {
-  const originalUrl = process.env.NEXT_PUBLIC_API_URL;
+  const originalPublic = process.env.NEXT_PUBLIC_API_URL;
+  const originalInternal = process.env.API_INTERNAL_URL;
 
   afterEach(() => {
-    if (originalUrl === undefined) {
+    if (originalPublic === undefined) {
       delete process.env.NEXT_PUBLIC_API_URL;
     } else {
-      process.env.NEXT_PUBLIC_API_URL = originalUrl;
+      process.env.NEXT_PUBLIC_API_URL = originalPublic;
+    }
+    if (originalInternal === undefined) {
+      delete process.env.API_INTERNAL_URL;
+    } else {
+      process.env.API_INTERNAL_URL = originalInternal;
     }
   });
 
@@ -34,7 +40,20 @@ describe('fetchApiHealth', () => {
     await expect(fetchApiHealth('http://api:3001', fetchImpl as unknown as typeof fetch)).resolves.toBeNull();
   });
 
-  it('uses NEXT_PUBLIC_API_URL by default', async () => {
+  it('uses API_INTERNAL_URL by default when set', async () => {
+    process.env.API_INTERNAL_URL = 'http://api:3001';
+    process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ok', service: 'api' }),
+    });
+
+    await fetchApiHealth(undefined, fetchImpl as unknown as typeof fetch);
+    expect(fetchImpl).toHaveBeenCalledWith('http://api:3001/health', { cache: 'no-store' });
+  });
+
+  it('uses NEXT_PUBLIC_API_URL when API_INTERNAL_URL is unset', async () => {
+    delete process.env.API_INTERNAL_URL;
     process.env.NEXT_PUBLIC_API_URL = 'http://custom:3001';
     const fetchImpl = jest.fn().mockResolvedValue({
       ok: true,
@@ -46,6 +65,7 @@ describe('fetchApiHealth', () => {
   });
 
   it('falls back to localhost when env is unset', async () => {
+    delete process.env.API_INTERNAL_URL;
     delete process.env.NEXT_PUBLIC_API_URL;
     const fetchImpl = jest.fn().mockResolvedValue({
       ok: true,
