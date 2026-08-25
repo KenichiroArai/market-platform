@@ -38,6 +38,8 @@ import {
   isPriceSyncJobResult,
   isSymbolDto,
   isBacktestRunDto,
+  isBacktestSummaryDto,
+  isOptimizeBacktestResponse,
   isSignalDefinitionDto,
   isSignalStrategyType,
   isWatchlistDto,
@@ -206,6 +208,10 @@ describe('shared-types signals', () => {
       maxDrawdownRate: 0.05,
       totalTrades: 5,
       winRate: 0.6,
+      sharpeRatio: 1.2,
+      profitFactor: 1.5,
+      buyHoldReturnRate: 0.08,
+      buyHoldFinalEquity: 108000,
     },
     trades: [],
     equityPoints: [],
@@ -227,6 +233,17 @@ describe('shared-types signals', () => {
     expect(isBacktestRunDto(null)).toBe(false);
     expect(isSignalDefinitionDto({ ...signal, strategyType: 'invalid' })).toBe(false);
     expect(isBacktestRunDto({ ...run, summary: null })).toBe(false);
+    expect(isBacktestSummaryDto(run.summary)).toBe(true);
+    expect(isBacktestSummaryDto(null)).toBe(false);
+    expect(
+      isOptimizeBacktestResponse({
+        results: [{ shortPeriod: 5, longPeriod: 20, summary: run.summary }],
+      }),
+    ).toBe(true);
+    expect(isOptimizeBacktestResponse({ results: [{ shortPeriod: 5 }] })).toBe(false);
+    expect(isOptimizeBacktestResponse(null)).toBe(false);
+    expect(isOptimizeBacktestResponse({ results: 'x' })).toBe(false);
+    expect(isOptimizeBacktestResponse({ results: [null] })).toBe(false);
   });
 });
 

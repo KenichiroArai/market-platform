@@ -11,6 +11,7 @@ import {
   isDailyPriceDto,
   isIndicatorSetDto,
   isIndicatorsResponseDto,
+  isOptimizeBacktestResponse,
   isPortfolioDto,
   isSignalDefinitionDto,
   isSymbolDto,
@@ -24,6 +25,7 @@ import {
   type IndicatorCatalogId,
   type IndicatorSetDto,
   type LoginRequest,
+  type OptimizeBacktestResponse,
   type PortfolioDto,
   type BacktestRunDto,
   type RegisterRequest,
@@ -506,6 +508,33 @@ export async function runBacktest(
   );
   if (!isBacktestRunDto(result)) {
     throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected backtest run response', result);
+  }
+  return result;
+}
+
+/** POST /backtests/optimize（SMA Cross 総当たり。結果は永続化されない） */
+export async function optimizeBacktest(
+  body: {
+    symbolId: string;
+    from: string;
+    to: string;
+    initialCash: number;
+    feeRate: number;
+    slippageRate: number;
+    shortMin?: number;
+    shortMax?: number;
+    longMin?: number;
+    longMax?: number;
+  },
+  fetchImpl?: typeof fetch,
+): Promise<OptimizeBacktestResponse> {
+  const result = await apiFetch<unknown>(
+    '/backtests/optimize',
+    { method: 'POST', body: JSON.stringify(body) },
+    fetchImpl,
+  );
+  if (!isOptimizeBacktestResponse(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected optimize response', result);
   }
   return result;
 }

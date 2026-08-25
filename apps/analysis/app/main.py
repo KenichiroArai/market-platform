@@ -9,6 +9,7 @@ NestJS（api）からは内部 HTTP（ANALYSIS_URL）経由で呼ばれる想定
 from __future__ import annotations
 
 import time
+from math import sqrt
 
 from fastapi import FastAPI
 
@@ -30,6 +31,9 @@ from app.schemas import (
     ComputeSignalsRequest,
     ComputeSignalsResponse,
     HealthResponse,
+    OptimizeBacktestRequest,
+    OptimizeBacktestResponse,
+    OptimizeBacktestResultItem,
     RunBacktestRequest,
     RunBacktestResponse,
     SignalPoint,
@@ -132,8 +136,51 @@ def run_backtest(body: RunBacktestRequest) -> RunBacktestResponse:
         fee_rate=body.feeRate,
         slippage_rate=body.slippageRate,
     )
-    summary = _build_backtest_summary(initial_cash=body.initialCash, trades=trades, equity_points=equity_points)
+    summary = _build_backtest_summary(
+        initial_cash=body.initialCash,
+        closes=closes,
+        trades=trades,
+        equity_points=equity_points,
+    )
     return RunBacktestResponse(summary=summary, trades=trades, equityPoints=equity_points)
+
+
+@app.post(
+    "/backtests/optimize",
+    response_model=OptimizeBacktestResponse,
+    tags=["backtests"],
+)
+def optimize_backtest(body: OptimizeBacktestRequest) -> OptimizeBacktestResponse:
+    """SMA Cross の short/long を総当たりし、totalReturnRate 降順で返す（非永続）。"""
+    closes = [bar.close for bar in body.bars]
+    dates = [bar.date for bar in body.bars]
+    results: list[OptimizeBacktestResultItem] = []
+    for short in range(body.shortMin, body.shortMax + 1):
+        for long in range(body.longMin, body.longMax + 1):
+            if short >= long:
+                continue
+            spec = SignalSpec(strategyType="smaCross", shortPeriod=short, longPeriod=long)
+            points = _build_signal_points(dates, closes, spec)
+            trades, equity_points = _simulate_long_only(
+                symbol_id=body.symbolId,
+                dates=dates,
+                closes=closes,
+                signals=points,
+                initial_cash=body.initialCash,
+                fee_rate=body.feeRate,
+                slippage_rate=body.slippageRate,
+            )
+            summary = _build_backtest_summary(
+                initial_cash=body.initialCash,
+                closes=closes,
+                trades=trades,
+                equity_points=equity_points,
+            )
+            results.append(
+                OptimizeBacktestResultItem(shortPeriod=short, longPeriod=long, summary=summary)
+            )
+    results.sort(key=lambda item: item.summary.totalReturnRate, reverse=True)
+    return OptimizeBacktestResponse(results=results)
 
 
 def _build_signal_points(dates: list[str], closes: list[float], spec: SignalSpec) -> list[SignalPoint]:
@@ -307,17 +354,68 @@ def _simulate_long_only(
 
 
 def _build_backtest_summary(
-    *, initial_cash: float, trades: list[BacktestTrade], equity_points: list[BacktestEquityPoint]
+    *,
+    initial_cash: float,
+    closes: list[float],
+    trades: list[BacktestTrade],
+    equity_points: list[BacktestEquityPoint],
 ) -> BacktestSummary:
     """トレードとエクイティカーブから集計値を算出する。"""
     final_equity = equity_points[-1].equity if equity_points else initial_cash
     max_drawdown = max((point.drawdownRate for point in equity_points), default=0.0)
     win_count = len([trade for trade in trades if trade.netPnl > 0.0])
     win_rate = 0.0 if len(trades) == 0 else win_count / len(trades)
+    buy_hold_final, buy_hold_return = _buy_hold_metrics(initial_cash=initial_cash, closes=closes)
     return BacktestSummary(
         finalEquity=final_equity,
         totalReturnRate=0.0 if initial_cash == 0 else (final_equity - initial_cash) / initial_cash,
         maxDrawdownRate=max_drawdown,
         totalTrades=len(trades),
         winRate=win_rate,
+        sharpeRatio=_sharpe_ratio(equity_points),
+        profitFactor=_profit_factor(trades),
+        buyHoldReturnRate=buy_hold_return,
+        buyHoldFinalEquity=buy_hold_final,
     )
+
+
+def _buy_hold_metrics(*, initial_cash: float, closes: list[float]) -> tuple[float, float]:
+    """初日終値で全額買い・末日終値で評価（手数料・スリッページなし）。"""
+    if not closes or closes[0] == 0.0 or initial_cash == 0.0:
+        return initial_cash, 0.0
+    quantity = initial_cash / closes[0]
+    final_equity = quantity * closes[-1]
+    return final_equity, (final_equity - initial_cash) / initial_cash
+
+
+def _sharpe_ratio(equity_points: list[BacktestEquityPoint]) -> float:
+    """日次エクイティ収益率から年率シャープ（リスクフリー 0、√252）。"""
+    if len(equity_points) < 2:
+        return 0.0
+    returns: list[float] = []
+    for prev, curr in zip(equity_points, equity_points[1:], strict=False):
+        if prev.equity == 0.0:
+            returns.append(0.0)
+        else:
+            returns.append((curr.equity - prev.equity) / prev.equity)
+    mean = sum(returns) / len(returns)
+    variance = sum((value - mean) ** 2 for value in returns) / len(returns)
+    std = sqrt(variance)
+    if std == 0.0:
+        return 0.0
+    return (mean / std) * sqrt(252)
+
+
+def _profit_factor(trades: list[BacktestTrade]) -> float:
+    """勝ち純損益合計 / |負け純損益合計|。
+
+    負けが 0 かつ勝ちがある場合は勝ち合計を返す（無限大の代わりの有限規約）。
+    トレードなし、または勝ちが無い場合は 0。
+    """
+    wins = sum(trade.netPnl for trade in trades if trade.netPnl > 0.0)
+    losses = sum(trade.netPnl for trade in trades if trade.netPnl < 0.0)
+    if wins <= 0.0:
+        return 0.0
+    if losses == 0.0:
+        return wins
+    return wins / abs(losses)

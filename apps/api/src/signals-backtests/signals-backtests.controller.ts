@@ -9,11 +9,12 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import type { BacktestRunDto, SignalDefinitionDto } from '@market/shared-types';
+import type { BacktestRunDto, OptimizeBacktestResponse, SignalDefinitionDto } from '@market/shared-types';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import {
   CreateSignalDefinitionDto,
+  OptimizeBacktestDto,
   RunBacktestDto,
   UpdateSignalDefinitionDto,
 } from './signals-backtests.dto';
@@ -87,5 +88,14 @@ export class SignalsBacktestsController {
     @Body() dto: RunBacktestDto,
   ): Promise<BacktestRunDto> {
     return this.signalsBacktestsService.runBacktest(user.id, dto);
+  }
+
+  @Post('backtests/optimize')
+  @ApiOkResponse({ description: 'Brute-force SMA Cross params (not persisted)' })
+  optimizeBacktest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: OptimizeBacktestDto,
+  ): Promise<OptimizeBacktestResponse> {
+    return this.signalsBacktestsService.optimizeBacktest(user.id, dto);
   }
 }

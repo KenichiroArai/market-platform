@@ -1,5 +1,6 @@
 import {
   CreateSignalDefinitionDto,
+  OptimizeBacktestDto,
   RunBacktestDto,
   UpdateSignalDefinitionDto,
 } from '../../src/signals-backtests/signals-backtests.dto';
@@ -39,5 +40,20 @@ describe('signals-backtests DTOs', () => {
     expect(typeof transformed.initialCash).toBe('number');
     expect(typeof transformed.feeRate).toBe('number');
     expect(typeof transformed.slippageRate).toBe('number');
+
+    const optimize = plainToInstance(OptimizeBacktestDto, {
+      symbolId: 'sym',
+      from: '2026-01-01',
+      to: '2026-06-30',
+      initialCash: '100000',
+      feeRate: '0.001',
+      slippageRate: '0.001',
+      shortMin: '5',
+      shortMax: '50',
+      longMin: '5',
+      longMax: '50',
+    });
+    expect(optimize.shortMin).toBe(5);
+    expect(optimize.longMax).toBe(50);
   });
 });

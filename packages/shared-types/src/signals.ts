@@ -70,6 +70,12 @@ export interface BacktestSummaryDto {
   maxDrawdownRate: number;
   totalTrades: number;
   winRate: number;
+  /** 日次エクイティ収益率の年率シャープ（リスクフリー 0） */
+  sharpeRatio: number;
+  /** 勝ち純損益合計 / |負け合計|。負け 0 かつ勝ちありなら勝ち合計 */
+  profitFactor: number;
+  buyHoldReturnRate: number;
+  buyHoldFinalEquity: number;
 }
 
 export interface BacktestRunDto {
@@ -149,6 +155,69 @@ export interface ComputeBacktestResponse {
   equityPoints: Array<Omit<BacktestEquityPointDto, 'id' | 'backtestRunId'>>;
 }
 
+/** Nest → Analysis および Web → Nest の SMA 最適化リクエスト */
+export interface OptimizeBacktestRequest {
+  symbolId: string;
+  from: string;
+  to: string;
+  initialCash: number;
+  feeRate: number;
+  slippageRate: number;
+  shortMin?: number;
+  shortMax?: number;
+  longMin?: number;
+  longMax?: number;
+}
+
+export interface OptimizeBacktestResultItem {
+  shortPeriod: number;
+  longPeriod: number;
+  summary: BacktestSummaryDto;
+}
+
+export interface OptimizeBacktestResponse {
+  results: OptimizeBacktestResultItem[];
+}
+
+export function isBacktestSummaryDto(value: unknown): value is BacktestSummaryDto {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.finalEquity === 'number' &&
+    typeof record.totalReturnRate === 'number' &&
+    typeof record.maxDrawdownRate === 'number' &&
+    typeof record.totalTrades === 'number' &&
+    typeof record.winRate === 'number' &&
+    typeof record.sharpeRatio === 'number' &&
+    typeof record.profitFactor === 'number' &&
+    typeof record.buyHoldReturnRate === 'number' &&
+    typeof record.buyHoldFinalEquity === 'number'
+  );
+}
+
+export function isOptimizeBacktestResponse(value: unknown): value is OptimizeBacktestResponse {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  if (!Array.isArray(record.results)) {
+    return false;
+  }
+  return record.results.every((item) => {
+    if (item === null || typeof item !== 'object') {
+      return false;
+    }
+    const row = item as Record<string, unknown>;
+    return (
+      typeof row.shortPeriod === 'number' &&
+      typeof row.longPeriod === 'number' &&
+      isBacktestSummaryDto(row.summary)
+    );
+  });
+}
+
 export function isSignalStrategyType(value: unknown): value is SignalStrategyType {
   return value === 'smaCross' || value === 'rsiThreshold' || value === 'macdCross';
 }
@@ -188,7 +257,6 @@ export function isBacktestRunDto(value: unknown): value is BacktestRunDto {
     typeof record.updatedAt === 'string' &&
     Array.isArray(record.trades) &&
     Array.isArray(record.equityPoints) &&
-    record.summary !== null &&
-    typeof record.summary === 'object'
+    isBacktestSummaryDto(record.summary)
   );
 }

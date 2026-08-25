@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import type { DailyPriceDto } from '@market/shared-types';
+import type { BacktestTradeDto, DailyPriceDto } from '@market/shared-types';
 import { PriceChart } from '../../components/price-chart';
 
 jest.mock('recharts', () => {
@@ -8,7 +8,7 @@ jest.mock('recharts', () => {
     ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
       <div data-testid="responsive">{children}</div>
     ),
-    LineChart: ({ children }: { children: React.ReactNode }) => (
+    ComposedChart: ({ children }: { children: React.ReactNode }) => (
       <div data-testid="line-chart">{children}</div>
     ),
     CartesianGrid: () => null,
@@ -16,6 +16,7 @@ jest.mock('recharts', () => {
     YAxis: () => null,
     Tooltip: () => null,
     Line: () => null,
+    Scatter: ({ name }: { name?: string }) => <div data-testid={`scatter-${name}`} />,
   };
 });
 
@@ -30,6 +31,22 @@ const price: DailyPriceDto = {
   volume: 1000,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+const trade: BacktestTradeDto = {
+  id: 't_1',
+  backtestRunId: 'run_1',
+  symbolId: 'sym_1',
+  entryDate: '2026-01-02',
+  exitDate: '2026-01-02',
+  entryPrice: 100,
+  exitPrice: 103,
+  quantity: 1,
+  side: 'buy',
+  grossPnl: 3,
+  feeAmount: 0,
+  slippageAmount: 0,
+  netPnl: 3,
 };
 
 describe('PriceChart', () => {
@@ -47,5 +64,11 @@ describe('PriceChart', () => {
     render(<PriceChart prices={[price]} />);
     expect(screen.getByTestId('price-chart')).toBeInTheDocument();
     expect(screen.getByTestId('line-chart')).toBeInTheDocument();
+  });
+
+  it('renders buy/sell scatter series when trades are present', () => {
+    render(<PriceChart prices={[price]} trades={[trade]} />);
+    expect(screen.getByTestId('scatter-▲Buy')).toBeInTheDocument();
+    expect(screen.getByTestId('scatter-▼Sell')).toBeInTheDocument();
   });
 });

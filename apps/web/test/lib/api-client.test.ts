@@ -27,6 +27,7 @@ import {
   removePortfolioHolding,
   removeWatchlistItem,
   runBacktest,
+  optimizeBacktest,
   updatePortfolioHolding,
   updateSignalDefinition,
 } from '../../lib/api-client';
@@ -143,6 +144,10 @@ const run = {
     maxDrawdownRate: 0.05,
     totalTrades: 5,
     winRate: 0.6,
+    sharpeRatio: 1.2,
+    profitFactor: 1.5,
+    buyHoldReturnRate: 0.08,
+    buyHoldFinalEquity: 108000,
   },
   trades: [],
   equityPoints: [],
@@ -463,6 +468,23 @@ describe('api-client', () => {
         okJson(run) as unknown as typeof fetch,
       ),
     ).resolves.toEqual(run);
+
+    const optimizeBody = {
+      results: [{ shortPeriod: 5, longPeriod: 20, summary: run.summary }],
+    };
+    await expect(
+      optimizeBacktest(
+        {
+          symbolId: 'sym_1',
+          from: '2026-01-01',
+          to: '2026-06-30',
+          initialCash: 100000,
+          feeRate: 0.001,
+          slippageRate: 0.001,
+        },
+        okJson(optimizeBody) as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual(optimizeBody);
   });
 
   it('handles indicator set APIs', async () => {
@@ -532,6 +554,19 @@ describe('api-client', () => {
           slippageRate: 0.001,
         },
         okJson({ id: 1 }) as unknown as typeof fetch,
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      optimizeBacktest(
+        {
+          symbolId: 'sym_1',
+          from: '2026-01-01',
+          to: '2026-06-30',
+          initialCash: 100000,
+          feeRate: 0.001,
+          slippageRate: 0.001,
+        },
+        okJson({ results: [{ shortPeriod: 5 }] }) as unknown as typeof fetch,
       ),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     await expect(

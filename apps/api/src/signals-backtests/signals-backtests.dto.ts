@@ -94,3 +94,64 @@ export class RunBacktestDto {
   @Min(0)
   slippageRate!: number;
 }
+
+/** SMA Cross の short/long 総当たり最適化（結果は永続化しない）。 */
+export class OptimizeBacktestDto {
+  @ApiProperty()
+  @IsString()
+  symbolId!: string;
+
+  @ApiProperty({ example: '2026-01-01' })
+  @IsString()
+  from!: string;
+
+  @ApiProperty({ example: '2026-06-30' })
+  @IsString()
+  to!: string;
+
+  @ApiProperty({ example: 100000 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  initialCash!: number;
+
+  @ApiProperty({ example: 0.001 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  feeRate!: number;
+
+  @ApiProperty({ example: 0.001 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  slippageRate!: number;
+
+  @ApiPropertyOptional({ example: 5, default: 5 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  shortMin?: number;
+
+  @ApiPropertyOptional({ example: 50, default: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  shortMax?: number;
+
+  @ApiPropertyOptional({ example: 5, default: 5 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  longMin?: number;
+
+  @ApiPropertyOptional({ example: 50, default: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  longMax?: number;
+}

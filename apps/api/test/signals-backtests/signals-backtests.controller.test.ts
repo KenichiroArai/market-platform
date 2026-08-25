@@ -13,6 +13,7 @@ describe('SignalsBacktestsController', () => {
     listBacktestRuns: jest.fn(),
     getBacktestRun: jest.fn(),
     runBacktest: jest.fn(),
+    optimizeBacktest: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -32,6 +33,7 @@ describe('SignalsBacktestsController', () => {
     service.listBacktestRuns.mockResolvedValue([]);
     service.getBacktestRun.mockResolvedValue({ id: 'r' });
     service.runBacktest.mockResolvedValue({ id: 'r' });
+    service.optimizeBacktest.mockResolvedValue({ results: [] });
     service.removeSignalDefinition.mockResolvedValue(undefined);
 
     const user = { id: 'u' } as any;
@@ -42,6 +44,7 @@ describe('SignalsBacktestsController', () => {
     await expect(controller.listBacktests(user)).resolves.toEqual([]);
     await expect(controller.getBacktest(user, 'r')).resolves.toEqual({ id: 'r' });
     await expect(controller.runBacktest(user, {} as any)).resolves.toEqual({ id: 'r' });
+    await expect(controller.optimizeBacktest(user, {} as any)).resolves.toEqual({ results: [] });
     await expect(controller.removeSignal(user, 's')).resolves.toBeUndefined();
   });
 });

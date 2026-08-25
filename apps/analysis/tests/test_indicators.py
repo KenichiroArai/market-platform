@@ -7,11 +7,20 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app import indicators
-from app.main import app, compute_indicators
+from app.main import (
+    app,
+    compute_indicators,
+    _buy_hold_metrics,
+    _profit_factor,
+    _sharpe_ratio,
+)
 from app.schemas import (
+    BacktestEquityPoint,
+    BacktestTrade,
     ComputeIndicatorsRequest,
     IndicatorSpec,
     OhlcBar,
+    OptimizeBacktestRequest,
     SignalSpec,
 )
 
@@ -287,6 +296,14 @@ def test_post_backtests_run_with_trade() -> None:
     body = response.json()
     assert body["summary"]["totalTrades"] >= 1
     assert len(body["equityPoints"]) == 6
+    summary = body["summary"]
+    assert "sharpeRatio" in summary
+    assert "profitFactor" in summary
+    assert "buyHoldReturnRate" in summary
+    assert "buyHoldFinalEquity" in summary
+    # Buy & Hold: 1.0 → 1.0 なのでリターン 0
+    assert summary["buyHoldFinalEquity"] == 10000.0
+    assert summary["buyHoldReturnRate"] == 0.0
 
 
 def test_post_backtests_run_without_trade() -> None:
@@ -305,6 +322,9 @@ def test_post_backtests_run_without_trade() -> None:
     body = response.json()
     assert body["summary"]["totalTrades"] == 0
     assert body["summary"]["winRate"] == 0
+    assert body["summary"]["profitFactor"] == 0
+    assert body["summary"]["sharpeRatio"] == 0
+    assert body["summary"]["buyHoldReturnRate"] == 0.0
 
 
 def test_post_backtests_run_force_close_at_end() -> None:
@@ -323,3 +343,134 @@ def test_post_backtests_run_force_close_at_end() -> None:
     body = response.json()
     assert body["summary"]["totalTrades"] >= 1
     assert body["equityPoints"][-1]["positionValue"] == 0
+    # Buy & Hold: 1 → 4 で 4 倍
+    assert body["summary"]["buyHoldFinalEquity"] == 40000.0
+    assert body["summary"]["buyHoldReturnRate"] == 3.0
+
+
+def test_post_backtests_run_buy_hold_metrics() -> None:
+    """Buy&Hold は初日→末日の終値比で算出する。"""
+    client = TestClient(app)
+    payload = {
+        "symbolId": "sym_1",
+        "bars": _bars([1.0, 1.0, 1.0, 2.0, 3.0, 4.0]),
+        "signal": {"strategyType": "smaCross", "shortPeriod": 2, "longPeriod": 3},
+        "initialCash": 1000,
+        "feeRate": 0.0,
+        "slippageRate": 0.0,
+    }
+    response = client.post("/backtests/run", json=payload)
+    assert response.status_code == 200
+    summary = response.json()["summary"]
+    assert summary["buyHoldFinalEquity"] == 4000.0
+    assert summary["buyHoldReturnRate"] == 3.0
+    assert isinstance(summary["sharpeRatio"], float)
+    assert isinstance(summary["profitFactor"], float)
+
+
+def test_post_backtests_optimize_sma_grid() -> None:
+    """SMA 総当たりが short < long のみ返し、リターン降順になる。"""
+    client = TestClient(app)
+    payload = {
+        "symbolId": "sym_1",
+        "bars": _bars([1.0, 1.0, 1.0, 2.0, 3.0, 2.0, 4.0, 5.0, 4.0, 6.0]),
+        "initialCash": 10000,
+        "feeRate": 0.0,
+        "slippageRate": 0.0,
+        "shortMin": 2,
+        "shortMax": 3,
+        "longMin": 3,
+        "longMax": 4,
+    }
+    response = client.post("/backtests/optimize", json=payload)
+    assert response.status_code == 200
+    results = response.json()["results"]
+    # (2,3), (2,4), (3,4) の 3 組
+    assert len(results) == 3
+    pairs = {(item["shortPeriod"], item["longPeriod"]) for item in results}
+    assert pairs == {(2, 3), (2, 4), (3, 4)}
+    returns = [item["summary"]["totalReturnRate"] for item in results]
+    assert returns == sorted(returns, reverse=True)
+
+
+def test_optimize_backtest_request_validation() -> None:
+    """最適化レンジの検証（shortMin>shortMax / longMin>longMax）。"""
+    with pytest.raises(ValidationError):
+        OptimizeBacktestRequest(
+            symbolId="sym_1",
+            bars=[],
+            initialCash=10000,
+            feeRate=0.0,
+            slippageRate=0.0,
+            shortMin=10,
+            shortMax=5,
+        )
+    with pytest.raises(ValidationError):
+        OptimizeBacktestRequest(
+            symbolId="sym_1",
+            bars=[],
+            initialCash=10000,
+            feeRate=0.0,
+            slippageRate=0.0,
+            longMin=40,
+            longMax=10,
+        )
+
+
+def test_backtest_helper_edge_cases() -> None:
+    """Buy&Hold / Sharpe / ProfitFactor の境界。"""
+    assert _buy_hold_metrics(initial_cash=1000, closes=[]) == (1000, 0.0)
+    assert _buy_hold_metrics(initial_cash=1000, closes=[0.0, 10.0]) == (1000, 0.0)
+    assert _sharpe_ratio([]) == 0.0
+    assert _sharpe_ratio(
+        [
+            BacktestEquityPoint(date="2026-01-01", cash=0, positionValue=0, equity=0, drawdownRate=0),
+            BacktestEquityPoint(date="2026-01-02", cash=100, positionValue=0, equity=100, drawdownRate=0),
+        ]
+    ) == 0.0  # prev.equity == 0 の日は return 0、その後の分散次第だが少なくとも例外なし
+
+    # 負けトレードのみ → profitFactor 0
+    losing = BacktestTrade(
+        symbolId="s",
+        entryDate="2026-01-01",
+        exitDate="2026-01-02",
+        entryPrice=10,
+        exitPrice=5,
+        quantity=1,
+        side="buy",
+        grossPnl=-5,
+        feeAmount=0,
+        slippageAmount=0,
+        netPnl=-5,
+    )
+    assert _profit_factor([losing]) == 0.0
+
+    # 勝ちと負け
+    winning = BacktestTrade(
+        symbolId="s",
+        entryDate="2026-01-01",
+        exitDate="2026-01-02",
+        entryPrice=5,
+        exitPrice=15,
+        quantity=1,
+        side="buy",
+        grossPnl=10,
+        feeAmount=0,
+        slippageAmount=0,
+        netPnl=10,
+    )
+    assert _profit_factor([winning, losing]) == 2.0
+
+    # 勝ちのみ → 勝ち合計
+    assert _profit_factor([winning]) == 10.0
+
+    # エクイティ変動あり → 非ゼロ Sharpe
+    points = [
+        BacktestEquityPoint(date="2026-01-01", cash=100, positionValue=0, equity=100, drawdownRate=0),
+        BacktestEquityPoint(date="2026-01-02", cash=110, positionValue=0, equity=110, drawdownRate=0),
+        BacktestEquityPoint(date="2026-01-03", cash=105, positionValue=0, equity=105, drawdownRate=0),
+    ]
+    assert _sharpe_ratio(points) != 0.0
+
+    # initial_cash == 0 の Buy&Hold
+    assert _buy_hold_metrics(initial_cash=0.0, closes=[1.0, 2.0]) == (0.0, 0.0)

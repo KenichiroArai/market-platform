@@ -7,6 +7,7 @@
  */
 import {
   BadGatewayException,
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -17,6 +18,7 @@ import {
   type ComputeBacktestResponse,
   type ComputeSignalRequest,
   type CreateSignalDefinitionRequest,
+  type OptimizeBacktestResponse,
   type RunBacktestRequest,
   type SignalStrategyParams,
   type SignalDefinitionDto,
@@ -27,6 +29,7 @@ import { PricesService } from '../prices/prices.service';
 import { PrismaService } from '../prisma.service';
 import type {
   CreateSignalDefinitionDto,
+  OptimizeBacktestDto,
   RunBacktestDto,
   UpdateSignalDefinitionDto,
 } from './signals-backtests.dto';
@@ -175,6 +178,10 @@ export class SignalsBacktestsService {
         maxDrawdownRate: result.summary.maxDrawdownRate,
         totalTrades: result.summary.totalTrades,
         winRate: result.summary.winRate,
+        sharpeRatio: result.summary.sharpeRatio,
+        profitFactor: result.summary.profitFactor,
+        buyHoldReturnRate: result.summary.buyHoldReturnRate,
+        buyHoldFinalEquity: result.summary.buyHoldFinalEquity,
         trades: {
           create: result.trades.map((trade) => ({
             symbolId: dto.symbolId,
@@ -203,6 +210,70 @@ export class SignalsBacktestsService {
       include: { trades: true, equityPoints: true },
     });
     return this.toBacktestRunDto(created);
+  }
+
+  /**
+   * SMA Cross の short/long を総当たり最適化する。結果は永続化しない。
+   * userId は JWT 認証済みであることの確認用（所有データは触らない）。
+   */
+  async optimizeBacktest(
+    _userId: string,
+    dto: OptimizeBacktestDto,
+  ): Promise<OptimizeBacktestResponse> {
+    const shortMin = dto.shortMin ?? 5;
+    const shortMax = dto.shortMax ?? 50;
+    const longMin = dto.longMin ?? 5;
+    const longMax = dto.longMax ?? 50;
+    if (shortMin > shortMax || longMin > longMax) {
+      throw new BadRequestException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: 'Invalid SMA period range',
+      });
+    }
+    const prices = await this.pricesService.listBySymbolId(dto.symbolId, {
+      from: dto.from,
+      to: dto.to,
+    });
+    const analysisUrl = process.env.ANALYSIS_URL ?? 'http://localhost:8000';
+    let response: Response;
+    try {
+      response = await fetch(`${analysisUrl}/backtests/optimize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbolId: dto.symbolId,
+          bars: prices.map((price) => ({
+            date: price.date,
+            open: price.open,
+            high: price.high,
+            low: price.low,
+            close: price.close,
+            volume: price.volume,
+          })),
+          initialCash: dto.initialCash,
+          feeRate: dto.feeRate,
+          slippageRate: dto.slippageRate,
+          strategyType: 'smaCross',
+          shortMin,
+          shortMax,
+          longMin,
+          longMax,
+        }),
+      });
+    } catch (error) {
+      throw new BadGatewayException({
+        code: API_ERROR_CODES.ANALYSIS_UPSTREAM_ERROR,
+        message: 'Failed to reach analysis service',
+        details: { error: error instanceof Error ? error.message : 'unknown' },
+      });
+    }
+    if (!response.ok) {
+      throw new BadGatewayException({
+        code: API_ERROR_CODES.ANALYSIS_UPSTREAM_ERROR,
+        message: 'Analysis service returned an error',
+      });
+    }
+    return (await response.json()) as OptimizeBacktestResponse;
   }
 
   private async buildComputeBacktestRequest(
@@ -306,6 +377,10 @@ export class SignalsBacktestsService {
       maxDrawdownRate: DecimalLike;
       totalTrades: number;
       winRate: DecimalLike;
+      sharpeRatio: DecimalLike;
+      profitFactor: DecimalLike;
+      buyHoldReturnRate: DecimalLike;
+      buyHoldFinalEquity: DecimalLike;
       createdAt: Date;
       updatedAt: Date;
       trades: Array<{
@@ -350,6 +425,10 @@ export class SignalsBacktestsService {
         maxDrawdownRate: this.toNumber(row.maxDrawdownRate),
         totalTrades: row.totalTrades,
         winRate: this.toNumber(row.winRate),
+        sharpeRatio: this.toNumber(row.sharpeRatio),
+        profitFactor: this.toNumber(row.profitFactor),
+        buyHoldReturnRate: this.toNumber(row.buyHoldReturnRate),
+        buyHoldFinalEquity: this.toNumber(row.buyHoldFinalEquity),
       },
       trades: row.trades.map((trade) => ({
         id: trade.id,

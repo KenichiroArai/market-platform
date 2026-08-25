@@ -259,13 +259,23 @@ class BacktestEquityPoint(BaseModel):
 
 
 class BacktestSummary(BaseModel):
-    """バックテスト集計。率は小数（例: 0.12 = 12%）。"""
+    """バックテスト集計。率は小数（例: 0.12 = 12%）。
+
+    sharpeRatio: 日次エクイティ収益率の年率シャープ（リスクフリー 0、√252）。
+    profitFactor: 勝ちトレード純損益合計 / |負け合計|。負け 0 かつ勝ちありなら勝ち合計、
+                  トレードなしまたは勝ちなしなら 0。
+    buyHold*: 初日終値で全額買い・末日終値で評価（fee/slippage なし）。
+    """
 
     finalEquity: float
     totalReturnRate: float
     maxDrawdownRate: float
     totalTrades: int
     winRate: float
+    sharpeRatio: float
+    profitFactor: float
+    buyHoldReturnRate: float
+    buyHoldFinalEquity: float
 
 
 class RunBacktestRequest(BaseModel):
@@ -285,3 +295,40 @@ class RunBacktestResponse(BaseModel):
     summary: BacktestSummary
     trades: list[BacktestTrade]
     equityPoints: list[BacktestEquityPoint]
+
+
+class OptimizeBacktestRequest(BaseModel):
+    """POST /backtests/optimize の入力。SMA Cross の short/long 総当たり。"""
+
+    symbolId: str
+    bars: list[OhlcBar]
+    initialCash: float = Field(gt=0)
+    feeRate: float = Field(ge=0)
+    slippageRate: float = Field(ge=0)
+    strategyType: Literal["smaCross"] = "smaCross"
+    shortMin: int = Field(default=5, ge=1)
+    shortMax: int = Field(default=50, ge=1)
+    longMin: int = Field(default=5, ge=1)
+    longMax: int = Field(default=50, ge=1)
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> "OptimizeBacktestRequest":
+        if self.shortMin > self.shortMax:
+            raise ValueError("shortMin must be <= shortMax")
+        if self.longMin > self.longMax:
+            raise ValueError("longMin must be <= longMax")
+        return self
+
+
+class OptimizeBacktestResultItem(BaseModel):
+    """最適化の 1 組み合わせ結果。"""
+
+    shortPeriod: int
+    longPeriod: int
+    summary: BacktestSummary
+
+
+class OptimizeBacktestResponse(BaseModel):
+    """POST /backtests/optimize の出力。totalReturnRate 降順。"""
+
+    results: list[OptimizeBacktestResultItem]

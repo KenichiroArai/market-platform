@@ -1,5 +1,17 @@
-import { BadGatewayException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { SignalsBacktestsService } from '../../src/signals-backtests/signals-backtests.service';
+
+const enrichedSummary = {
+  finalEquity: 100001,
+  totalReturnRate: 0.00001,
+  maxDrawdownRate: 0,
+  totalTrades: 1,
+  winRate: 1,
+  sharpeRatio: 0.5,
+  profitFactor: 1.2,
+  buyHoldReturnRate: 0.01,
+  buyHoldFinalEquity: 101000,
+};
 
 describe('SignalsBacktestsService', () => {
   const prisma = {
@@ -95,6 +107,10 @@ describe('SignalsBacktestsService', () => {
       maxDrawdownRate: { toString: () => '0.05' },
       totalTrades: 1,
       winRate: { toString: () => '1' },
+      sharpeRatio: { toString: () => '0.5' },
+      profitFactor: { toString: () => '1.2' },
+      buyHoldReturnRate: { toString: () => '0.01' },
+      buyHoldFinalEquity: { toString: () => '101000' },
       trades: [
         {
           id: 't_1',
@@ -143,13 +159,7 @@ describe('SignalsBacktestsService', () => {
     globalThis.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        summary: {
-          finalEquity: 100001,
-          totalReturnRate: 0.00001,
-          maxDrawdownRate: 0,
-          totalTrades: 1,
-          winRate: 1,
-        },
+        summary: enrichedSummary,
         trades: [
           {
             symbolId: 'sym_1',
@@ -198,6 +208,10 @@ describe('SignalsBacktestsService', () => {
       maxDrawdownRate: 0,
       totalTrades: 0,
       winRate: 0,
+      sharpeRatio: 0,
+      profitFactor: 0,
+      buyHoldReturnRate: 0,
+      buyHoldFinalEquity: 100000,
       trades: [],
       equityPoints: [],
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -215,6 +229,99 @@ describe('SignalsBacktestsService', () => {
           slippageRate: 0.001,
         } as any),
       ).resolves.toMatchObject({ id: 'run_1' });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('optimizes SMA params without persisting', async () => {
+    pricesService.listBySymbolId.mockResolvedValue([
+      { date: '2026-01-01', open: 1, high: 1, low: 1, close: 1, volume: 1 },
+    ]);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [{ shortPeriod: 5, longPeriod: 20, summary: enrichedSummary }],
+      }),
+    }) as any;
+    try {
+      await expect(
+        service.optimizeBacktest('u_1', {
+          symbolId: 'sym_1',
+          from: '2026-01-01',
+          to: '2026-06-30',
+          initialCash: 100000,
+          feeRate: 0.001,
+          slippageRate: 0.001,
+        } as any),
+      ).resolves.toMatchObject({ results: [{ shortPeriod: 5, longPeriod: 20 }] });
+      expect(prisma.backtestRun.create).not.toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('rejects invalid optimize ranges and upstream errors', async () => {
+    await expect(
+      service.optimizeBacktest('u_1', {
+        symbolId: 'sym_1',
+        from: '2026-01-01',
+        to: '2026-06-30',
+        initialCash: 100000,
+        feeRate: 0,
+        slippageRate: 0,
+        shortMin: 20,
+        shortMax: 5,
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    pricesService.listBySymbolId.mockResolvedValue([]);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error('down')) as any;
+    try {
+      await expect(
+        service.optimizeBacktest('u_1', {
+          symbolId: 'sym_1',
+          from: '2026-01-01',
+          to: '2026-06-30',
+          initialCash: 1,
+          feeRate: 0,
+          slippageRate: 0,
+        } as any),
+      ).rejects.toBeInstanceOf(BadGatewayException);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    globalThis.fetch = jest.fn().mockRejectedValue('down') as any;
+    try {
+      await expect(
+        service.optimizeBacktest('u_1', {
+          symbolId: 'sym_1',
+          from: '2026-01-01',
+          to: '2026-06-30',
+          initialCash: 1,
+          feeRate: 0,
+          slippageRate: 0,
+        } as any),
+      ).rejects.toBeInstanceOf(BadGatewayException);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    globalThis.fetch = jest.fn().mockResolvedValue({ ok: false }) as any;
+    try {
+      await expect(
+        service.optimizeBacktest('u_1', {
+          symbolId: 'sym_1',
+          from: '2026-01-01',
+          to: '2026-06-30',
+          initialCash: 1,
+          feeRate: 0,
+          slippageRate: 0,
+        } as any),
+      ).rejects.toBeInstanceOf(BadGatewayException);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -307,6 +414,10 @@ describe('SignalsBacktestsService', () => {
       maxDrawdownRate: 0,
       totalTrades: 1,
       winRate: 0,
+      sharpeRatio: 0,
+      profitFactor: 0,
+      buyHoldReturnRate: 0,
+      buyHoldFinalEquity: 1,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       trades: [

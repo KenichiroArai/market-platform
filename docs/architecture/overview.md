@@ -262,6 +262,13 @@ packages:
 - `/charts?symbolId=&watchlistId=&from=&to=` — 銘柄・WL・期間を初期選択
 - 銘柄ゼロ時は各画面から `/symbols` へ「銘柄を追加」導線
 
+### シグナル / バックテスト検証 UX（v0.3.0 / Ph2）
+
+- **Web** `/backtests`: 開始資金、戦略種別・パラメータ付きシグナル作成、結果選択、サマリーカード、売買マーカー付き価格チャート、エクイティ（戦略 + Buy&Hold）、取引履歴、SMA 総当たり最適化
+- **Analysis**: 拡張サマリー（Sharpe / Profit Factor / Buy&Hold）、`POST /backtests/optimize`
+- **Nest**: 拡張列の永続化、`POST /backtests/optimize`（非永続）
+- 詳細は [ADR 009](../adr/009-backtest-enrichment.md)
+
 ### 後続で追加予定
 
 - ESLint flat config（shared-config への集約）
@@ -272,7 +279,7 @@ ESLint 本体は必要になったタイミングで最小構成で入れる。
 ## 関連ドキュメント
 
 - [ドキュメント索引](../README.md)
-- [開発ロードマップ](../roadmap/README.md)（現行: [v0.2.0](../roadmap/v0/v0.2/v0.2.0.md)）
+- [開発ロードマップ](../roadmap/README.md)（現行: [v0.3.0](../roadmap/v0/v0.3/v0.3.0.md)）
 - [ADR 001: JWT 認証](../adr/001-authentication-jwt.md)
 - [ADR 002: 市場データプロバイダ](../adr/002-market-data-provider.md)
 - [ADR 003: ウォッチリスト / ポートフォリオ](../adr/003-watchlist-portfolio.md)
@@ -281,3 +288,4 @@ ESLint 本体は必要になったタイミングで最小構成で入れる。
 - [ADR 006: テクニカル指標カタログ](../adr/006-indicator-catalog.md)
 - [ADR 007: トレンドスコア](../adr/007-trend-score.md)
 - [ADR 008: テクニカル指標セット](../adr/008-indicator-sets.md)
+- [ADR 009: バックテスト結果の拡張と SMA 最適化](../adr/009-backtest-enrichment.md)
