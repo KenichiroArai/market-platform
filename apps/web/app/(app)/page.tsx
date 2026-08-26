@@ -11,7 +11,7 @@ const FEATURE_LINKS = [
   { href: '/symbols', label: '銘柄' },
   { href: '/watchlists', label: 'ウォッチリスト' },
   { href: '/portfolios', label: 'ポートフォリオ' },
-  { href: '/backtests', label: 'シグナル / バックテスト' },
+  { href: '/backtests', label: 'バックテスト' },
   { href: '/charts', label: 'チャート分析' },
 ] as const;
 

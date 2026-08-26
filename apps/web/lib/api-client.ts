@@ -25,10 +25,12 @@ import {
   type IndicatorCatalogId,
   type IndicatorSetDto,
   type LoginRequest,
+  type OptimizeBacktestRequest,
   type OptimizeBacktestResponse,
   type PortfolioDto,
   type BacktestRunDto,
   type RegisterRequest,
+  type RunBacktestRequest,
   type SignalDefinitionDto,
   type SignalStrategyParams,
   type SignalStrategyType,
@@ -488,17 +490,9 @@ export async function fetchBacktestRuns(fetchImpl?: typeof fetch): Promise<Backt
   return assertArray(result, isBacktestRunDto, 'backtest runs');
 }
 
-/** POST /backtests/run */
+/** POST /backtests/run（指標セット起点。シグナルはカタログから導出） */
 export async function runBacktest(
-  body: {
-    signalDefinitionId: string;
-    symbolId: string;
-    from: string;
-    to: string;
-    initialCash: number;
-    feeRate: number;
-    slippageRate: number;
-  },
+  body: RunBacktestRequest,
   fetchImpl?: typeof fetch,
 ): Promise<BacktestRunDto> {
   const result = await apiFetch<unknown>(
@@ -512,20 +506,9 @@ export async function runBacktest(
   return result;
 }
 
-/** POST /backtests/optimize（SMA Cross 総当たり。結果は永続化されない） */
+/** POST /backtests/optimize（カタログ SMA ペアのみ。結果は永続化されない） */
 export async function optimizeBacktest(
-  body: {
-    symbolId: string;
-    from: string;
-    to: string;
-    initialCash: number;
-    feeRate: number;
-    slippageRate: number;
-    shortMin?: number;
-    shortMax?: number;
-    longMin?: number;
-    longMax?: number;
-  },
+  body: OptimizeBacktestRequest,
   fetchImpl?: typeof fetch,
 ): Promise<OptimizeBacktestResponse> {
   const result = await apiFetch<unknown>(

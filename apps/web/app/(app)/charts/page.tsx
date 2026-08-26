@@ -17,6 +17,7 @@ import type {
   IndicatorCatalogId,
   IndicatorDrawings,
   IndicatorSeriesPoint,
+  IndicatorSetDto,
   SymbolDto,
   TrendScorePoint,
   WatchlistDto,
@@ -55,8 +56,9 @@ import {
   fetchSymbols,
   fetchWatchlists,
 } from '../../../lib/api-client';
-import { symbolsHref } from '../../../lib/app-routes';
+import { backtestsHref, symbolsHref } from '../../../lib/app-routes';
 import { defaultChartFromDate, defaultChartToDate } from '../../../lib/chart-date-range';
+import { signalRulePreviewText } from '../../../lib/signal-rule-preview';
 import { snapBaseDate } from '../../../lib/snap-base-date';
 
 const INDICATOR_POPOUT = { name: 'chart-indicator-settings', width: 440, height: 800 } as const;
@@ -102,10 +104,22 @@ function ChartsPageContent() {
   const [chartPopout, setChartPopout] = useState(false);
   /** スコア内訳の基準日。未選択時は直近の有効スコア日。 */
   const [baseDate, setBaseDate] = useState<string | null>(null);
+  /** 保存または呼び出した指標セット。バックテストへのディープリンク用。 */
+  const [activeIndicatorSetId, setActiveIndicatorSetId] = useState<string | null>(null);
+
+  const signalRulePreview = useMemo(
+    () => signalRulePreviewText(enabledIds),
+    [enabledIds],
+  );
 
   /** 呼び出しウィンドウから選んだセットを現行の指標指定へ反映する。 */
-  function applyIndicatorSet(ids: IndicatorCatalogId[]) {
+  function applyIndicatorSet(ids: IndicatorCatalogId[], setId: string) {
     setEnabledIds(new Set(ids));
+    setActiveIndicatorSetId(setId);
+  }
+
+  function onIndicatorSetSaved(set: IndicatorSetDto) {
+    setActiveIndicatorSetId(set.id);
   }
 
   /** オープンボタン: 共通 preferred で開く／同モードなら閉じる／異なれば切替。 */
@@ -339,7 +353,7 @@ function ChartsPageContent() {
     <main style={pageStyle}>
       <h1 style={{ fontSize: '1.75rem', margin: '0 0 0.5rem' }}>チャート分析</h1>
       <p style={{ margin: '0 0 1.25rem', opacity: 0.85, maxWidth: '46rem' }}>
-        チャートは本画面に表示します。指標・セット呼び出し・スコア内訳は希望の表示（モードレス／別ウィンドウ）を画面で1つ選び、各ボタンで開きます。拡大で全画面の別ウィンドウを開けます。初期表示はおすすめ構成です。背景色はトレンドスコアです。基準日は日付入力またはチャートクリックで変更できます。
+        指標設定は本画面。保存セットをバックテストで利用できます。チャートは本画面に表示し、指標・セット呼び出し・スコア内訳は希望の表示（モードレス／別ウィンドウ）を画面で1つ選び各ボタンで開きます。拡大で全画面の別ウィンドウを開けます。初期表示はおすすめ構成です。背景色はトレンドスコアです。基準日は日付入力またはチャートクリックで変更できます。
       </p>
 
       {error ? <p style={errorStyle}>{error}</p> : null}
@@ -543,7 +557,11 @@ function ChartsPageContent() {
               testId="indicator-in-window-mode"
               legend="このウィンドウの表示"
             />
-            <IndicatorSetSaveForm enabledIds={enabledIds} />
+            <IndicatorSetSaveForm enabledIds={enabledIds} onSaved={onIndicatorSetSaved} />
+            <SignalRulePanel
+              preview={signalRulePreview}
+              indicatorSetId={activeIndicatorSetId}
+            />
             <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
           </div>
         </ModelessWindow>
@@ -566,7 +584,11 @@ function ChartsPageContent() {
               testId="indicator-in-window-mode"
               legend="このウィンドウの表示"
             />
-            <IndicatorSetSaveForm enabledIds={enabledIds} />
+            <IndicatorSetSaveForm enabledIds={enabledIds} onSaved={onIndicatorSetSaved} />
+            <SignalRulePanel
+              preview={signalRulePreview}
+              indicatorSetId={activeIndicatorSetId}
+            />
             <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
           </div>
         </PopoutWindow>
@@ -697,6 +719,34 @@ export default function ChartsPage() {
   );
 }
 
+/** 指標設定パネル内のシグナル規則プレビューとバックテスト導線。 */
+function SignalRulePanel({
+  preview,
+  indicatorSetId,
+}: {
+  preview: string;
+  indicatorSetId: string | null;
+}) {
+  return (
+    <div style={signalRulePanelStyle} data-testid="signal-rule-panel">
+      <p style={signalRulePreviewStyle} data-testid="signal-rule-preview">
+        {preview}
+      </p>
+      {indicatorSetId ? (
+        <Link
+          href={backtestsHref({ indicatorSetId })}
+          style={inlineLinkStyle}
+          data-testid="backtest-with-set-link"
+        >
+          このセットでバックテスト
+        </Link>
+      ) : (
+        <p style={signalRuleHintStyle}>セットを保存または呼び出すと、バックテストへ進めます。</p>
+      )}
+    </div>
+  );
+}
+
 /** 別ウィンドウ側の高さに合わせてチャートを引き伸ばす。 */
 function EnlargedAnalysisChart({
   win,
@@ -754,6 +804,28 @@ const windowBodyStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: '0.75rem',
+};
+
+const signalRulePanelStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.4rem',
+  border: '1px solid rgba(232, 238, 245, 0.2)',
+  borderRadius: 4,
+  padding: '0.6rem',
+};
+
+const signalRulePreviewStyle: CSSProperties = {
+  margin: 0,
+  fontSize: '0.85rem',
+  lineHeight: 1.45,
+  opacity: 0.95,
+};
+
+const signalRuleHintStyle: CSSProperties = {
+  margin: 0,
+  fontSize: '0.8rem',
+  opacity: 0.7,
 };
 
 const buttonStyle: CSSProperties = {

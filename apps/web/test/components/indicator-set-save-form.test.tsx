@@ -40,14 +40,24 @@ describe('IndicatorSetSaveForm', () => {
   });
 
   it('saves the current ids and shows success', async () => {
-    (createIndicatorSet as jest.Mock).mockResolvedValue({ id: 'set_1' });
-    render(<IndicatorSetSaveForm enabledIds={new Set(['rsi', 'volume'])} />);
+    const created = {
+      id: 'set_1',
+      userId: 'u_1',
+      name: 'スイング',
+      indicatorIds: ['rsi', 'volume'],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    (createIndicatorSet as jest.Mock).mockResolvedValue(created);
+    const onSaved = jest.fn();
+    render(<IndicatorSetSaveForm enabledIds={new Set(['rsi', 'volume'])} onSaved={onSaved} />);
     fireEvent.change(screen.getByTestId('indicator-set-name'), { target: { value: ' スイング ' } });
     fireEvent.click(screen.getByTestId('indicator-set-save-button'));
     await waitFor(() =>
       expect(screen.getByTestId('indicator-set-save-success')).toHaveTextContent('保存しました'),
     );
     expect(createIndicatorSet).toHaveBeenCalledWith('スイング', ['rsi', 'volume']);
+    expect(onSaved).toHaveBeenCalledWith(created);
     expect(screen.getByTestId('indicator-set-name')).toHaveValue('');
   });
 

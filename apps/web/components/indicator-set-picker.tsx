@@ -19,7 +19,8 @@ import { filterIndicatorSets } from '../lib/indicator-set-filter';
 import { toggleIndicatorId } from './indicator-catalog';
 
 export type IndicatorSetPickerProps = {
-  onApply: (ids: IndicatorCatalogId[]) => void;
+  /** 呼び出したセットの指標 ID とセット ID（バックテスト連携用）。 */
+  onApply: (ids: IndicatorCatalogId[], setId: string) => void;
 };
 
 /** セットに含まれる指標の表示用ラベル。 */
@@ -133,7 +134,7 @@ export function IndicatorSetPicker({ onApply }: IndicatorSetPickerProps) {
                     type="button"
                     style={buttonStyle}
                     data-testid={`indicator-set-apply-${set.id}`}
-                    onClick={() => onApply(set.indicatorIds)}
+                    onClick={() => onApply(set.indicatorIds, set.id)}
                   >
                     呼び出す
                   </button>

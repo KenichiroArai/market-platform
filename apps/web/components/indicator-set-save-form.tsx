@@ -7,11 +7,17 @@
 'use client';
 
 import { useState, type CSSProperties, type FormEvent } from 'react';
-import { INDICATOR_CATALOG_BY_ID, type IndicatorCatalogId } from '@market/shared-types';
+import {
+  INDICATOR_CATALOG_BY_ID,
+  type IndicatorCatalogId,
+  type IndicatorSetDto,
+} from '@market/shared-types';
 import { ApiClientError, createIndicatorSet } from '../lib/api-client';
 
 export type IndicatorSetSaveFormProps = {
   enabledIds: Set<IndicatorCatalogId>;
+  /** 保存成功時。バックテストへのディープリンク用にセット ID を親へ渡す。 */
+  onSaved?: (set: IndicatorSetDto) => void;
 };
 
 /** 保存対象から説明専用（disabled）の ID を除く。 */
@@ -19,7 +25,7 @@ export function idsForIndicatorSet(enabledIds: Set<IndicatorCatalogId>): Indicat
   return [...enabledIds].filter((id) => !INDICATOR_CATALOG_BY_ID[id].disabled);
 }
 
-export function IndicatorSetSaveForm({ enabledIds }: IndicatorSetSaveFormProps) {
+export function IndicatorSetSaveForm({ enabledIds, onSaved }: IndicatorSetSaveFormProps) {
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,9 +44,10 @@ export function IndicatorSetSaveForm({ enabledIds }: IndicatorSetSaveFormProps) 
     setError(null);
     setSuccess(null);
     try {
-      await createIndicatorSet(trimmed, idsForIndicatorSet(enabledIds));
+      const created = await createIndicatorSet(trimmed, idsForIndicatorSet(enabledIds));
       setName('');
       setSuccess('保存しました');
+      onSaved?.(created);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : '保存に失敗しました');
     } finally {

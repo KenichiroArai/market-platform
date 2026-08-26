@@ -33,3 +33,29 @@ export function chartsHref(params: ChartsHrefParams = {}): string {
   const qs = search.toString();
   return qs ? `/charts?${qs}` : '/charts';
 }
+
+export type BacktestsHrefParams = {
+  indicatorSetId?: string;
+  symbolId?: string;
+  from?: string;
+  to?: string;
+};
+
+/** バックテスト実行画面への URL。指標セット ID などをクエリで渡せる。 */
+export function backtestsHref(params: BacktestsHrefParams = {}): string {
+  const search = new URLSearchParams();
+  if (params.indicatorSetId) {
+    search.set('indicatorSetId', params.indicatorSetId);
+  }
+  if (params.symbolId) {
+    search.set('symbolId', params.symbolId);
+  }
+  if (params.from) {
+    search.set('from', params.from);
+  }
+  if (params.to) {
+    search.set('to', params.to);
+  }
+  const qs = search.toString();
+  return qs ? `/backtests?${qs}` : '/backtests';
+}

@@ -37,11 +37,15 @@ import {
   isPortfolioHoldingDto,
   isPriceSyncJobResult,
   isSymbolDto,
+  describeSignalRule,
   isBacktestRunDto,
   isBacktestSummaryDto,
   isOptimizeBacktestResponse,
+  isSignalCapableIndicatorIds,
   isSignalDefinitionDto,
   isSignalStrategyType,
+  listCatalogSmaPairs,
+  resolveSignalRule,
   isWatchlistDto,
   isWatchlistItemDto,
   isIndicatorSetDto,
@@ -195,7 +199,10 @@ describe('shared-types signals', () => {
   const run = {
     id: 'run_1',
     userId: 'u_1',
-    signalDefinitionId: 'sig_1',
+    indicatorSetId: 'iset_1',
+    signalDefinitionId: null,
+    strategyType: 'smaCross' as const,
+    params: { shortPeriod: 25, longPeriod: 75 },
     symbolId: 'sym_1',
     fromDate: '2026-01-01',
     toDate: '2026-06-30',
@@ -244,6 +251,62 @@ describe('shared-types signals', () => {
     expect(isOptimizeBacktestResponse(null)).toBe(false);
     expect(isOptimizeBacktestResponse({ results: 'x' })).toBe(false);
     expect(isOptimizeBacktestResponse({ results: [null] })).toBe(false);
+    expect(isBacktestRunDto({ ...run, indicatorSetId: 1 })).toBe(false);
+    expect(isBacktestRunDto({ ...run, signalDefinitionId: 1 })).toBe(false);
+    expect(isBacktestRunDto({ ...run, strategyType: 'invalid' })).toBe(false);
+  });
+});
+
+describe('shared-types signal-from-catalog', () => {
+  it('resolves SMA cross when exactly two SMA ids are enabled', () => {
+    const rule = resolveSignalRule(['sma25', 'sma200', 'bb']);
+    expect(rule).toEqual({
+      strategyType: 'smaCross',
+      params: { shortPeriod: 25, longPeriod: 200 },
+      label: 'SMAクロス 25/200',
+    });
+    expect(isSignalCapableIndicatorIds(new Set(['sma75', 'sma25']))).toBe(true);
+  });
+
+  it('prefers SMA over macd/rsi when two SMAs are present', () => {
+    const rule = resolveSignalRule(['sma25', 'sma75', 'macd', 'rsi']);
+    expect(rule?.strategyType).toBe('smaCross');
+    expect(rule?.params).toEqual({ shortPeriod: 25, longPeriod: 75 });
+  });
+
+  it('resolves MACD then RSI when SMA count is not two', () => {
+    expect(resolveSignalRule(['macd', 'rsi', 'sma25'])).toMatchObject({
+      strategyType: 'macdCross',
+      params: { fast: 12, slow: 26, signal: 9 },
+    });
+    expect(resolveSignalRule(['rsi', 'volume'])).toMatchObject({
+      strategyType: 'rsiThreshold',
+      params: { period: 14, lower: 30, upper: 70 },
+    });
+  });
+
+  it('returns null and describes why when unresolved', () => {
+    expect(resolveSignalRule(['bb', 'volume'])).toBeNull();
+    expect(isSignalCapableIndicatorIds(['bb'])).toBe(false);
+    expect(describeSignalRule(['sma25'])).toContain('ちょうど 2 本');
+    expect(describeSignalRule(['sma25', 'sma75', 'sma200'])).toContain('ちょうど 2 本');
+    expect(describeSignalRule(['bb'])).toContain('MACD / RSI');
+    expect(describeSignalRule(['sma25', 'sma75'])).toContain('バックテスト用');
+  });
+
+  it('lists the three catalog SMA pairs', () => {
+    expect(listCatalogSmaPairs()).toEqual([
+      { shortId: 'sma25', longId: 'sma75', shortPeriod: 25, longPeriod: 75 },
+      { shortId: 'sma25', longId: 'sma200', shortPeriod: 25, longPeriod: 200 },
+      { shortId: 'sma75', longId: 'sma200', shortPeriod: 75, longPeriod: 200 },
+    ]);
+  });
+
+  it('throws when a catalog numeric param is missing', () => {
+    const originalFast = INDICATOR_CATALOG_BY_ID.macd.params.fast as number;
+    INDICATOR_CATALOG_BY_ID.macd.params.fast = Number.NaN;
+    expect(() => resolveSignalRule(['macd'])).toThrow(/missing numeric param/);
+    INDICATOR_CATALOG_BY_ID.macd.params.fast = originalFast;
   });
 });
 

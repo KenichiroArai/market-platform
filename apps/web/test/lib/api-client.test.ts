@@ -131,7 +131,10 @@ const dailyPrice = {
 const run = {
   id: 'run_1',
   userId: 'user_1',
-  signalDefinitionId: 'sig_1',
+  indicatorSetId: 'set_1',
+  signalDefinitionId: null,
+  strategyType: 'smaCross' as const,
+  params: { shortPeriod: 25, longPeriod: 75 },
   symbolId: 'sym_1',
   fromDate: '2026-01-01',
   toDate: '2026-06-30',
@@ -457,7 +460,7 @@ describe('api-client', () => {
     await expect(
       runBacktest(
         {
-          signalDefinitionId: 'sig_1',
+          indicatorSetId: 'set_1',
           symbolId: 'sym_1',
           from: '2026-01-01',
           to: '2026-06-30',
@@ -545,7 +548,7 @@ describe('api-client', () => {
     await expect(
       runBacktest(
         {
-          signalDefinitionId: 'sig_1',
+          indicatorSetId: 'set_1',
           symbolId: 'sym_1',
           from: '2026-01-01',
           to: '2026-06-30',

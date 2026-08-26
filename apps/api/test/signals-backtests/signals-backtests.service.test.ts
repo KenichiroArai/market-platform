@@ -13,6 +13,32 @@ const enrichedSummary = {
   buyHoldFinalEquity: 101000,
 };
 
+const backtestRunBase = {
+  id: 'run_1',
+  userId: 'u_1',
+  indicatorSetId: 'iset_1',
+  signalDefinitionId: null as string | null,
+  strategyType: 'SMA_CROSS' as const,
+  paramsJson: { shortPeriod: 25, longPeriod: 75 },
+  symbolId: 'sym_1',
+  fromDate: new Date('2026-01-01'),
+  toDate: new Date('2026-06-30'),
+  initialCash: { toString: () => '100000' },
+  feeRate: { toString: () => '0.001' },
+  slippageRate: { toString: () => '0.001' },
+  finalEquity: { toString: () => '110000' },
+  totalReturnRate: { toString: () => '0.1' },
+  maxDrawdownRate: { toString: () => '0.05' },
+  totalTrades: 1,
+  winRate: { toString: () => '1' },
+  sharpeRatio: { toString: () => '0.5' },
+  profitFactor: { toString: () => '1.2' },
+  buyHoldReturnRate: { toString: () => '0.01' },
+  buyHoldFinalEquity: { toString: () => '101000' },
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+};
+
 describe('SignalsBacktestsService', () => {
   const prisma = {
     signalDefinition: {
@@ -21,6 +47,9 @@ describe('SignalsBacktestsService', () => {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+    },
+    indicatorSet: {
+      findFirst: jest.fn(),
     },
     backtestRun: {
       findMany: jest.fn(),
@@ -40,6 +69,15 @@ describe('SignalsBacktestsService', () => {
     strategyType: 'SMA_CROSS',
     paramsJson: { shortPeriod: 5, longPeriod: 20 },
     isActive: true,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  };
+
+  const indicatorSetRow = {
+    id: 'iset_1',
+    userId: 'u_1',
+    name: 'SMA 25/75',
+    indicatorIds: ['sma25', 'sma75'],
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
@@ -93,24 +131,7 @@ describe('SignalsBacktestsService', () => {
 
   it('lists and gets backtest runs', async () => {
     const row = {
-      id: 'run_1',
-      userId: 'u_1',
-      signalDefinitionId: 'sig_1',
-      symbolId: 'sym_1',
-      fromDate: new Date('2026-01-01'),
-      toDate: new Date('2026-06-30'),
-      initialCash: { toString: () => '100000' },
-      feeRate: { toString: () => '0.001' },
-      slippageRate: { toString: () => '0.001' },
-      finalEquity: { toString: () => '110000' },
-      totalReturnRate: { toString: () => '0.1' },
-      maxDrawdownRate: { toString: () => '0.05' },
-      totalTrades: 1,
-      winRate: { toString: () => '1' },
-      sharpeRatio: { toString: () => '0.5' },
-      profitFactor: { toString: () => '1.2' },
-      buyHoldReturnRate: { toString: () => '0.01' },
-      buyHoldFinalEquity: { toString: () => '101000' },
+      ...backtestRunBase,
       trades: [
         {
           id: 't_1',
@@ -139,19 +160,25 @@ describe('SignalsBacktestsService', () => {
           drawdownRate: 0,
         },
       ],
-      createdAt: new Date('2026-01-01T00:00:00.000Z'),
-      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     };
     prisma.backtestRun.findMany.mockResolvedValue([row]);
     prisma.backtestRun.findFirst.mockResolvedValue(row);
-    await expect(service.listBacktestRuns('u_1')).resolves.toHaveLength(1);
+    const listed = await service.listBacktestRuns('u_1');
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({
+      id: 'run_1',
+      indicatorSetId: 'iset_1',
+      signalDefinitionId: null,
+      strategyType: 'smaCross',
+      params: { shortPeriod: 25, longPeriod: 75 },
+    });
     await expect(service.getBacktestRun('u_1', 'run_1')).resolves.toMatchObject({ id: 'run_1' });
     prisma.backtestRun.findFirst.mockResolvedValueOnce(null);
     await expect(service.getBacktestRun('u_1', 'x')).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('runs backtest and persists result', async () => {
-    prisma.signalDefinition.findFirst.mockResolvedValue(signalRow);
+  it('runs backtest from indicator set and persists result', async () => {
+    prisma.indicatorSet.findFirst.mockResolvedValue(indicatorSetRow);
     pricesService.listBySymbolId.mockResolvedValue([
       { date: '2026-01-01', open: 1, high: 1, low: 1, close: 1, volume: 1 },
     ]);
@@ -194,12 +221,7 @@ describe('SignalsBacktestsService', () => {
       }),
     }) as any;
     prisma.backtestRun.create.mockResolvedValue({
-      id: 'run_1',
-      userId: 'u_1',
-      signalDefinitionId: 'sig_1',
-      symbolId: 'sym_1',
-      fromDate: new Date('2026-01-01'),
-      toDate: new Date('2026-06-30'),
+      ...backtestRunBase,
       initialCash: 100000,
       feeRate: 0.001,
       slippageRate: 0.001,
@@ -214,13 +236,11 @@ describe('SignalsBacktestsService', () => {
       buyHoldFinalEquity: 100000,
       trades: [],
       equityPoints: [],
-      createdAt: new Date('2026-01-01T00:00:00.000Z'),
-      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     });
     try {
       await expect(
         service.runBacktest('u_1', {
-          signalDefinitionId: 'sig_1',
+          indicatorSetId: 'iset_1',
           symbolId: 'sym_1',
           from: '2026-01-01',
           to: '2026-06-30',
@@ -228,54 +248,104 @@ describe('SignalsBacktestsService', () => {
           feeRate: 0.001,
           slippageRate: 0.001,
         } as any),
-      ).resolves.toMatchObject({ id: 'run_1' });
+      ).resolves.toMatchObject({
+        id: 'run_1',
+        indicatorSetId: 'iset_1',
+        strategyType: 'smaCross',
+        params: { shortPeriod: 25, longPeriod: 75 },
+      });
+      expect(prisma.indicatorSet.findFirst).toHaveBeenCalledWith({
+        where: { id: 'iset_1', userId: 'u_1' },
+      });
+      expect(prisma.backtestRun.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            indicatorSetId: 'iset_1',
+            signalDefinitionId: null,
+            strategyType: 'SMA_CROSS',
+            paramsJson: { shortPeriod: 25, longPeriod: 75 },
+          }),
+        }),
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  it('optimizes SMA params without persisting', async () => {
-    pricesService.listBySymbolId.mockResolvedValue([
-      { date: '2026-01-01', open: 1, high: 1, low: 1, close: 1, volume: 1 },
-    ]);
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        results: [{ shortPeriod: 5, longPeriod: 20, summary: enrichedSummary }],
-      }),
-    }) as any;
-    try {
-      await expect(
-        service.optimizeBacktest('u_1', {
-          symbolId: 'sym_1',
-          from: '2026-01-01',
-          to: '2026-06-30',
-          initialCash: 100000,
-          feeRate: 0.001,
-          slippageRate: 0.001,
-        } as any),
-      ).resolves.toMatchObject({ results: [{ shortPeriod: 5, longPeriod: 20 }] });
-      expect(prisma.backtestRun.create).not.toHaveBeenCalled();
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-
-  it('rejects invalid optimize ranges and upstream errors', async () => {
+  it('rejects missing indicator set and unresolved signal rules', async () => {
+    prisma.indicatorSet.findFirst.mockResolvedValue(null);
     await expect(
-      service.optimizeBacktest('u_1', {
+      service.runBacktest('u_1', {
+        indicatorSetId: 'missing',
         symbolId: 'sym_1',
         from: '2026-01-01',
         to: '2026-06-30',
         initialCash: 100000,
-        feeRate: 0,
-        slippageRate: 0,
-        shortMin: 20,
-        shortMax: 5,
+        feeRate: 0.001,
+        slippageRate: 0.001,
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    prisma.indicatorSet.findFirst.mockResolvedValue({
+      ...indicatorSetRow,
+      indicatorIds: ['sma25'],
+    });
+    await expect(
+      service.runBacktest('u_1', {
+        indicatorSetId: 'iset_1',
+        symbolId: 'sym_1',
+        from: '2026-01-01',
+        to: '2026-06-30',
+        initialCash: 100000,
+        feeRate: 0.001,
+        slippageRate: 0.001,
       } as any),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
 
+  it('optimizes catalog SMA pairs without persisting', async () => {
+    pricesService.listBySymbolId.mockResolvedValue([
+      { date: '2026-01-01', open: 1, high: 1, low: 1, close: 1, volume: 1 },
+    ]);
+    const originalFetch = globalThis.fetch;
+    const fetchMock = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ summary: { ...enrichedSummary, totalReturnRate: 0.02 }, trades: [], equityPoints: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ summary: { ...enrichedSummary, totalReturnRate: 0.05 }, trades: [], equityPoints: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ summary: { ...enrichedSummary, totalReturnRate: 0.01 }, trades: [], equityPoints: [] }),
+      });
+    globalThis.fetch = fetchMock as any;
+    try {
+      const result = await service.optimizeBacktest('u_1', {
+        symbolId: 'sym_1',
+        from: '2026-01-01',
+        to: '2026-06-30',
+        initialCash: 100000,
+        feeRate: 0.001,
+        slippageRate: 0.001,
+      } as any);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(prisma.backtestRun.create).not.toHaveBeenCalled();
+      expect(result.results).toHaveLength(3);
+      expect(result.results.map((r) => [r.shortPeriod, r.longPeriod])).toEqual([
+        [25, 200],
+        [25, 75],
+        [75, 200],
+      ]);
+      expect(result.results[0]?.summary.totalReturnRate).toBe(0.05);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('rejects upstream errors during optimize', async () => {
     pricesService.listBySymbolId.mockResolvedValue([]);
     const originalFetch = globalThis.fetch;
     globalThis.fetch = jest.fn().mockRejectedValue(new Error('down')) as any;
@@ -402,7 +472,10 @@ describe('SignalsBacktestsService', () => {
     const sellMapped = anyService.toBacktestRunDto({
       id: 'run_sell',
       userId: 'u_1',
+      indicatorSetId: null,
       signalDefinitionId: 'sig_1',
+      strategyType: 'SMA_CROSS',
+      paramsJson: { shortPeriod: 25, longPeriod: 75 },
       symbolId: 'sym_1',
       fromDate: new Date('2026-01-01'),
       toDate: new Date('2026-01-02'),
@@ -440,5 +513,8 @@ describe('SignalsBacktestsService', () => {
       equityPoints: [],
     });
     expect(sellMapped.trades[0].side).toBe('sell');
+    expect(sellMapped.indicatorSetId).toBeNull();
+    expect(sellMapped.strategyType).toBe('smaCross');
+    expect(sellMapped.params).toEqual({ shortPeriod: 25, longPeriod: 75 });
   });
 });

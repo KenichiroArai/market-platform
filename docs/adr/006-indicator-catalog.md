@@ -50,6 +50,10 @@ UI の複数分類は維持したまま、スコア合成では `scoreGroup` で
 
 MACD / RSI の学習用二重分類をやめ、`categories` を `scoreGroup` に揃える（MACD=`trend`、RSI=`oscillator`）。CCI や一目など Issue 対象外の複数分類は当面残す。詳細は [ADR 007](007-trend-score.md)。
 
+## 追記（v0.3.0 / Phase 3）
+
+「シグナル / バックテストの戦略セットは変更しない」は撤回する。カタログ ID（および IndicatorSet）から売買ルールを導出し、自由パラメータのシグナル作成 UI を廃止した。詳細は [ADR 010](010-signal-from-indicator-set.md)。
+
 ## 関連
 
 - [開発ロードマップ](../roadmap/v0/v0.2/v0.2.0.md) Phase 3
@@ -57,3 +61,4 @@ MACD / RSI の学習用二重分類をやめ、`categories` を `scoreGroup` に
 - [ADR 005: チャート分析](005-chart-analysis.md)
 - [ADR 007: トレンドスコア](007-trend-score.md)
 - [ADR 008: テクニカル指標セット](008-indicator-sets.md)
+- [ADR 010: 指標セット起点のシグナル導出と画面分離](010-signal-from-indicator-set.md)

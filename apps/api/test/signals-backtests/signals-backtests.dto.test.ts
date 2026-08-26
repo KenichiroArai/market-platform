@@ -19,17 +19,18 @@ describe('signals-backtests DTOs', () => {
     expect(update.isActive).toBe(false);
 
     const run = new RunBacktestDto();
-    run.signalDefinitionId = 'sig';
+    run.indicatorSetId = 'iset';
     run.symbolId = 'sym';
     run.from = '2026-01-01';
     run.to = '2026-06-30';
     run.initialCash = 1000;
     run.feeRate = 0;
     run.slippageRate = 0;
+    expect(run.indicatorSetId).toBe('iset');
     expect(run.symbolId).toBe('sym');
 
     const transformed = plainToInstance(RunBacktestDto, {
-      signalDefinitionId: 'sig',
+      indicatorSetId: 'iset',
       symbolId: 'sym',
       from: '2026-01-01',
       to: '2026-06-30',
@@ -37,6 +38,7 @@ describe('signals-backtests DTOs', () => {
       feeRate: '0.001',
       slippageRate: '0.001',
     });
+    expect(transformed.indicatorSetId).toBe('iset');
     expect(typeof transformed.initialCash).toBe('number');
     expect(typeof transformed.feeRate).toBe('number');
     expect(typeof transformed.slippageRate).toBe('number');
@@ -48,12 +50,12 @@ describe('signals-backtests DTOs', () => {
       initialCash: '100000',
       feeRate: '0.001',
       slippageRate: '0.001',
-      shortMin: '5',
-      shortMax: '50',
-      longMin: '5',
-      longMax: '50',
     });
-    expect(optimize.shortMin).toBe(5);
-    expect(optimize.longMax).toBe(50);
+    expect(optimize.symbolId).toBe('sym');
+    expect(typeof optimize.initialCash).toBe('number');
+    expect(typeof optimize.feeRate).toBe('number');
+    expect(typeof optimize.slippageRate).toBe('number');
+    expect((optimize as unknown as Record<string, unknown>).shortMin).toBeUndefined();
+    expect((optimize as unknown as Record<string, unknown>).shortMax).toBeUndefined();
   });
 });

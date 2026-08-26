@@ -56,7 +56,7 @@ describe('IndicatorSetPicker', () => {
     render(<IndicatorSetPicker onApply={onApply} />);
     await waitFor(() => expect(screen.getByTestId('indicator-set-row-set_1')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('indicator-set-apply-set_1'));
-    expect(onApply).toHaveBeenCalledWith(['sma25', 'rsi']);
+    expect(onApply).toHaveBeenCalledWith(['sma25', 'rsi'], 'set_1');
   });
 
   it('filters by name and required indicators', async () => {

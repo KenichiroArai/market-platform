@@ -1,21 +1,26 @@
 /* istanbul ignore file */
 /**
- * シグナル定義とバックテスト実行画面。
- * 開始資金・結果カード・売買マーカー・エクイティ・取引履歴・SMA 最適化を提供する。
+ * バックテスト実行・結果画面（v0.3.0 Ph3）。
+ *
+ * 指標設定はチャート分析側。ここでは保存済み指標セットを選び実行する。
  * 未ログイン誘導は共通レイアウト側。
  */
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { FormEvent, Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type {
   BacktestRunDto,
   DailyPriceDto,
+  IndicatorSetDto,
   OptimizeBacktestResultItem,
-  SignalDefinitionDto,
-  SignalStrategyParams,
-  SignalStrategyType,
   SymbolDto,
+} from '@market/shared-types';
+import {
+  describeSignalRule,
+  isSignalCapableIndicatorIds,
+  listCatalogSmaPairs,
 } from '@market/shared-types';
 import { BacktestEquityChart } from '../../../components/backtest-equity-chart';
 import { BacktestSummaryCards } from '../../../components/backtest-summary-cards';
@@ -23,10 +28,8 @@ import { BacktestTradesTable } from '../../../components/backtest-trades-table';
 import { PriceChart } from '../../../components/price-chart';
 import {
   ApiClientError,
-  createSignalDefinition,
-  deleteSignalDefinition,
   fetchBacktestRuns,
-  fetchSignalDefinitions,
+  fetchIndicatorSets,
   fetchSymbolPrices,
   fetchSymbols,
   optimizeBacktest,
@@ -37,28 +40,26 @@ import { chartsHref, symbolsHref } from '../../../lib/app-routes';
 const DEFAULT_FEE = 0.001;
 const DEFAULT_SLIPPAGE = 0.001;
 
-function defaultParams(type: SignalStrategyType): SignalStrategyParams {
-  if (type === 'smaCross') {
-    return { shortPeriod: 5, longPeriod: 20 };
+/** URL の indicatorSetId が一覧にあればそれを、なければ先頭（または空）を返す。 */
+function resolveIndicatorSetId(
+  queryValue: string | null,
+  sets: IndicatorSetDto[],
+): string {
+  if (queryValue && sets.some((set) => set.id === queryValue)) {
+    return queryValue;
   }
-  if (type === 'rsiThreshold') {
-    return { period: 14, lower: 30, upper: 70 };
-  }
-  return { fast: 12, slow: 26, signal: 9 };
+  return sets[0]?.id ?? '';
 }
 
-export default function BacktestsPage() {
-  const [signals, setSignals] = useState<SignalDefinitionDto[]>([]);
+function BacktestsPageContent() {
+  const searchParams = useSearchParams();
+  const [indicatorSets, setIndicatorSets] = useState<IndicatorSetDto[]>([]);
   const [runs, setRuns] = useState<BacktestRunDto[]>([]);
   const [symbols, setSymbols] = useState<SymbolDto[]>([]);
   const [prices, setPrices] = useState<DailyPriceDto[]>([]);
   const [selectedRunId, setSelectedRunId] = useState('');
-  const [name, setName] = useState('SMA 5/20');
-  const [description, setDescription] = useState('');
-  const [strategyType, setStrategyType] = useState<SignalStrategyType>('smaCross');
-  const [params, setParams] = useState<SignalStrategyParams>(defaultParams('smaCross'));
   const [symbolId, setSymbolId] = useState('');
-  const [signalId, setSignalId] = useState('');
+  const [indicatorSetId, setIndicatorSetId] = useState('');
   const [from, setFrom] = useState('2026-01-01');
   const [to, setTo] = useState('2026-06-30');
   const [initialCash, setInitialCash] = useState(100000);
@@ -74,20 +75,37 @@ export default function BacktestsPage() {
     [runs, selectedRunId],
   );
 
+  const selectedSet = useMemo(
+    () => indicatorSets.find((set) => set.id === indicatorSetId) ?? null,
+    [indicatorSets, indicatorSetId],
+  );
+
+  const selectedRulePreview = useMemo(
+    () => (selectedSet ? describeSignalRule(selectedSet.indicatorIds) : null),
+    [selectedSet],
+  );
+
+  const canRunSelectedSet = useMemo(
+    () => (selectedSet ? isSignalCapableIndicatorIds(selectedSet.indicatorIds) : false),
+    [selectedSet],
+  );
+
+  const catalogSmaPairs = useMemo(() => listCatalogSmaPairs(), []);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const [signalRows, runRows, symbolRows] = await Promise.all([
-          fetchSignalDefinitions(),
+        const [setRows, runRows, symbolRows] = await Promise.all([
+          fetchIndicatorSets(),
           fetchBacktestRuns(),
           fetchSymbols(),
         ]);
         if (!cancelled) {
-          setSignals(signalRows);
+          setIndicatorSets(setRows);
           setRuns(runRows);
           setSymbols(symbolRows);
-          setSignalId(signalRows[0]?.id ?? '');
+          setIndicatorSetId(resolveIndicatorSetId(searchParams.get('indicatorSetId'), setRows));
           setSymbolId(symbolRows[0]?.id ?? '');
           setSelectedRunId(runRows[0]?.id ?? '');
         }
@@ -104,7 +122,7 @@ export default function BacktestsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!symbolId) {
@@ -140,61 +158,21 @@ export default function BacktestsPage() {
     };
   }, [symbolId, from, to]);
 
-  function onStrategyTypeChange(next: SignalStrategyType) {
-    setStrategyType(next);
-    setParams(defaultParams(next));
-  }
-
-  async function onCreateSignal(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setPending(true);
-    try {
-      const created = await createSignalDefinition({
-        name,
-        description: description.trim() || undefined,
-        strategyType,
-        params,
-      });
-      setSignals((prev) => [...prev, created]);
-      setSignalId(created.id);
-      setName('');
-      setDescription('');
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'シグナル作成に失敗しました');
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function onDeleteSignal(id: string) {
-    setError(null);
-    setPending(true);
-    try {
-      await deleteSignalDefinition(id);
-      setSignals((prev) => {
-        const next = prev.filter((signal) => signal.id !== id);
-        setSignalId(next[0]?.id ?? '');
-        return next;
-      });
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'シグナル削除に失敗しました');
-    } finally {
-      setPending(false);
-    }
-  }
-
   async function onRunBacktest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!signalId || !symbolId) {
-      setError('シグナルと銘柄を選択してください');
+    if (!indicatorSetId || !symbolId) {
+      setError('指標セットと銘柄を選択してください');
+      return;
+    }
+    if (!canRunSelectedSet) {
+      setError(selectedRulePreview ?? '選択した指標セットではシグナルを導出できません');
       return;
     }
     setError(null);
     setPending(true);
     try {
       const created = await runBacktest({
-        signalDefinitionId: signalId,
+        indicatorSetId,
         symbolId,
         from,
         to,
@@ -226,10 +204,6 @@ export default function BacktestsPage() {
         initialCash,
         feeRate: DEFAULT_FEE,
         slippageRate: DEFAULT_SLIPPAGE,
-        shortMin: 5,
-        shortMax: 50,
-        longMin: 5,
-        longMax: 50,
       });
       setOptimizeResults(response.results);
     } catch (err) {
@@ -239,31 +213,12 @@ export default function BacktestsPage() {
     }
   }
 
-  async function onApplyOptimize(item: OptimizeBacktestResultItem) {
-    setError(null);
-    setPending(true);
-    try {
-      const created = await createSignalDefinition({
-        name: `SMA ${item.shortPeriod}/${item.longPeriod}`,
-        strategyType: 'smaCross',
-        params: { shortPeriod: item.shortPeriod, longPeriod: item.longPeriod },
-      });
-      setSignals((prev) => [...prev, created]);
-      setSignalId(created.id);
-      setStrategyType('smaCross');
-      setParams({ shortPeriod: item.shortPeriod, longPeriod: item.longPeriod });
-      setName(`SMA ${item.shortPeriod}/${item.longPeriod}`);
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'シグナル作成に失敗しました');
-    } finally {
-      setPending(false);
-    }
-  }
-
   return (
     <main style={pageStyle}>
-      <h1 style={titleStyle}>シグナル / バックテスト</h1>
-      <p style={leadStyle}>売買シグナルを定義し、過去期間でバックテストして検証します。</p>
+      <h1 style={titleStyle}>バックテスト</h1>
+      <p style={leadStyle}>
+        チャート分析で保存した指標セットを選び、過去期間でバックテストします。指標の編集はチャート分析画面で行います。
+      </p>
 
       {loading ? <p style={{ opacity: 0.85 }}>読み込み中…</p> : null}
       {error ? <p style={errorStyle}>{error}</p> : null}
@@ -277,200 +232,38 @@ export default function BacktestsPage() {
       ) : null}
 
       <section style={sectionStyle}>
-        <h2 style={sectionTitleStyle}>シグナル定義</h2>
-        <ul style={listStyle}>
-          {signals.map((signal) => (
-            <li key={signal.id} style={itemRowStyle}>
-              <button type="button" style={buttonStyle} onClick={() => setSignalId(signal.id)}>
-                {signal.name} ({signal.strategyType})
-              </button>
-              <button
-                type="button"
-                style={buttonStyle}
-                disabled={pending}
-                onClick={() => void onDeleteSignal(signal.id)}
-              >
-                削除
-              </button>
-            </li>
-          ))}
-        </ul>
-        <form onSubmit={onCreateSignal} style={formColStyle}>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="シグナル名"
-            required
-            style={inputStyle}
-          />
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="説明（任意）"
-            style={inputStyle}
-          />
-          <select
-            value={strategyType}
-            onChange={(e) => onStrategyTypeChange(e.target.value as SignalStrategyType)}
-            style={inputStyle}
-          >
-            <option value="smaCross">SMA Cross</option>
-            <option value="rsiThreshold">RSI Threshold</option>
-            <option value="macdCross">MACD Cross</option>
-          </select>
-          {strategyType === 'smaCross' ? (
-            <div style={formRowStyle}>
-              <label style={labelStyle}>
-                短期
-                <input
-                  type="number"
-                  min={1}
-                  value={(params as { shortPeriod: number }).shortPeriod}
-                  onChange={(e) =>
-                    setParams({
-                      shortPeriod: Number(e.target.value),
-                      longPeriod: (params as { longPeriod: number }).longPeriod,
-                    })
-                  }
-                  style={inputStyle}
-                />
-              </label>
-              <label style={labelStyle}>
-                長期
-                <input
-                  type="number"
-                  min={2}
-                  value={(params as { longPeriod: number }).longPeriod}
-                  onChange={(e) =>
-                    setParams({
-                      shortPeriod: (params as { shortPeriod: number }).shortPeriod,
-                      longPeriod: Number(e.target.value),
-                    })
-                  }
-                  style={inputStyle}
-                />
-              </label>
-            </div>
-          ) : null}
-          {strategyType === 'rsiThreshold' ? (
-            <div style={formRowStyle}>
-              <label style={labelStyle}>
-                期間
-                <input
-                  type="number"
-                  min={1}
-                  value={(params as { period: number }).period}
-                  onChange={(e) =>
-                    setParams({
-                      period: Number(e.target.value),
-                      lower: (params as { lower: number }).lower,
-                      upper: (params as { upper: number }).upper,
-                    })
-                  }
-                  style={inputStyle}
-                />
-              </label>
-              <label style={labelStyle}>
-                下限
-                <input
-                  type="number"
-                  value={(params as { lower: number }).lower}
-                  onChange={(e) =>
-                    setParams({
-                      period: (params as { period: number }).period,
-                      lower: Number(e.target.value),
-                      upper: (params as { upper: number }).upper,
-                    })
-                  }
-                  style={inputStyle}
-                />
-              </label>
-              <label style={labelStyle}>
-                上限
-                <input
-                  type="number"
-                  value={(params as { upper: number }).upper}
-                  onChange={(e) =>
-                    setParams({
-                      period: (params as { period: number }).period,
-                      lower: (params as { lower: number }).lower,
-                      upper: Number(e.target.value),
-                    })
-                  }
-                  style={inputStyle}
-                />
-              </label>
-            </div>
-          ) : null}
-          {strategyType === 'macdCross' ? (
-            <div style={formRowStyle}>
-              <label style={labelStyle}>
-                Fast
-                <input
-                  type="number"
-                  min={1}
-                  value={(params as { fast: number }).fast}
-                  onChange={(e) =>
-                    setParams({
-                      fast: Number(e.target.value),
-                      slow: (params as { slow: number }).slow,
-                      signal: (params as { signal: number }).signal,
-                    })
-                  }
-                  style={inputStyle}
-                />
-              </label>
-              <label style={labelStyle}>
-                Slow
-                <input
-                  type="number"
-                  min={1}
-                  value={(params as { slow: number }).slow}
-                  onChange={(e) =>
-                    setParams({
-                      fast: (params as { fast: number }).fast,
-                      slow: Number(e.target.value),
-                      signal: (params as { signal: number }).signal,
-                    })
-                  }
-                  style={inputStyle}
-                />
-              </label>
-              <label style={labelStyle}>
-                Signal
-                <input
-                  type="number"
-                  min={1}
-                  value={(params as { signal: number }).signal}
-                  onChange={(e) =>
-                    setParams({
-                      fast: (params as { fast: number }).fast,
-                      slow: (params as { slow: number }).slow,
-                      signal: Number(e.target.value),
-                    })
-                  }
-                  style={inputStyle}
-                />
-              </label>
-            </div>
-          ) : null}
-          <button type="submit" disabled={pending} style={buttonStyle}>
-            作成
-          </button>
-        </form>
-      </section>
-
-      <section style={sectionStyle}>
         <h2 style={sectionTitleStyle}>バックテスト実行</h2>
+        <p style={{ margin: '0 0 0.75rem', opacity: 0.85 }}>
+          <Link href={chartsHref()} style={inlineLinkStyle}>
+            指標を編集
+          </Link>
+        </p>
         <form onSubmit={onRunBacktest} style={formColStyle}>
-          <select value={signalId} onChange={(e) => setSignalId(e.target.value)} style={inputStyle}>
-            <option value="">シグナル選択</option>
-            {signals.map((signal) => (
-              <option key={signal.id} value={signal.id}>
-                {signal.name}
-              </option>
-            ))}
-          </select>
+          <label style={labelStyle}>
+            指標セット
+            <select
+              value={indicatorSetId}
+              onChange={(e) => setIndicatorSetId(e.target.value)}
+              style={inputStyle}
+              data-testid="indicator-set-select"
+            >
+              <option value="">指標セット選択</option>
+              {indicatorSets.map((set) => {
+                const capable = isSignalCapableIndicatorIds(set.indicatorIds);
+                return (
+                  <option key={set.id} value={set.id}>
+                    {set.name}
+                    {capable ? '' : '（シグナル未対応）'}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+          {selectedRulePreview ? (
+            <p style={previewStyle} data-testid="selected-set-rule-preview">
+              {selectedRulePreview}
+            </p>
+          ) : null}
           <select value={symbolId} onChange={(e) => setSymbolId(e.target.value)} style={inputStyle}>
             <option value="">銘柄選択</option>
             {symbols.map((symbol) => (
@@ -492,7 +285,7 @@ export default function BacktestsPage() {
             />
           </label>
           <div style={formRowStyle}>
-            <button type="submit" disabled={pending} style={buttonStyle}>
+            <button type="submit" disabled={pending || !canRunSelectedSet} style={buttonStyle}>
               実行
             </button>
             <button type="button" disabled={pending} style={buttonStyle} onClick={() => void onOptimize()}>
@@ -522,6 +315,11 @@ export default function BacktestsPage() {
       {optimizeResults.length > 0 ? (
         <section style={sectionStyle}>
           <h2 style={sectionTitleStyle}>SMA 最適化結果</h2>
+          <p style={{ margin: '0.35rem 0 0.75rem', opacity: 0.85, fontSize: '0.9rem' }}>
+            カタログ SMA ペア（
+            {catalogSmaPairs.map((p) => `${p.shortPeriod}/${p.longPeriod}`).join('、')}
+            ）のみ評価します。適用する場合はチャート分析で該当 SMA を 2 本選んでセット保存してください。
+          </p>
           <div style={wrapStyle}>
             <table style={tableStyle}>
               <thead>
@@ -531,7 +329,6 @@ export default function BacktestsPage() {
                   <th style={thStyle}>リターン</th>
                   <th style={thStyle}>Sharpe</th>
                   <th style={thStyle}>取引数</th>
-                  <th style={thStyle} />
                 </tr>
               </thead>
               <tbody>
@@ -542,16 +339,6 @@ export default function BacktestsPage() {
                     <td style={tdStyle}>{(item.summary.totalReturnRate * 100).toFixed(2)}%</td>
                     <td style={tdStyle}>{item.summary.sharpeRatio.toFixed(3)}</td>
                     <td style={tdStyle}>{item.summary.totalTrades}</td>
-                    <td style={tdStyle}>
-                      <button
-                        type="button"
-                        style={buttonStyle}
-                        disabled={pending}
-                        onClick={() => void onApplyOptimize(item)}
-                      >
-                        適用
-                      </button>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -604,6 +391,14 @@ export default function BacktestsPage() {
   );
 }
 
+export default function BacktestsPage() {
+  return (
+    <Suspense fallback={<main style={pageStyle}>読み込み中…</main>}>
+      <BacktestsPageContent />
+    </Suspense>
+  );
+}
+
 const pageStyle: CSSProperties = {
   padding: '2rem 1.5rem',
 };
@@ -625,7 +420,6 @@ const listStyle: CSSProperties = {
   display: 'grid',
   gap: '0.5rem',
 };
-const itemRowStyle: CSSProperties = { display: 'flex', gap: '0.75rem', alignItems: 'center' };
 const formRowStyle: CSSProperties = { display: 'flex', gap: '0.75rem', flexWrap: 'wrap' };
 const formColStyle: CSSProperties = {
   display: 'flex',
@@ -658,6 +452,12 @@ const inlineLinkStyle: CSSProperties = {
   color: '#e8eef5',
   textDecoration: 'underline',
   fontSize: '0.95rem',
+};
+const previewStyle: CSSProperties = {
+  margin: 0,
+  fontSize: '0.9rem',
+  opacity: 0.9,
+  lineHeight: 1.5,
 };
 const errorStyle: CSSProperties = { color: '#ffb4a8' };
 const wrapStyle: CSSProperties = { overflowX: 'auto', marginTop: '0.75rem' };

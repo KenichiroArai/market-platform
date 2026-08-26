@@ -245,7 +245,7 @@ packages:
 
 ### Web 画面構成（v0.3.0 / Ph1）
 
-ログイン後の各画面はヘッダーナビに加え、画面上部に役割説明（リード文）を置く。ナビの「シグナル / バックテスト」は `/backtests`。
+ログイン後の各画面はヘッダーナビに加え、画面上部に役割説明（リード文）を置く。ナビの「バックテスト」は `/backtests`。指標設定は `/charts`。
 
 | パス | 役割 |
 | ---- | ---- |
@@ -253,21 +253,30 @@ packages:
 | `/symbols` | 銘柄マスタの追加・一覧 |
 | `/watchlists` | 注目銘柄リストの管理 |
 | `/portfolios` | 保有の登録・集計 |
-| `/backtests` | シグナル定義とバックテスト |
-| `/charts` | チャート分析（指標・スコア） |
+| `/backtests` | 指標セット選択とバックテスト実行・結果 |
+| `/charts` | チャート分析（指標設定・スコア）。シグナル導出の設定場所 |
 | `/me` | ログイン中アカウントの確認 |
 
 画面間連携はクエリで行う（`apps/web/lib/app-routes.ts`）:
 
 - `/charts?symbolId=&watchlistId=&from=&to=` — 銘柄・WL・期間を初期選択
+- `/backtests?indicatorSetId=` — チャートで保存した指標セットを初期選択
 - 銘柄ゼロ時は各画面から `/symbols` へ「銘柄を追加」導線
 
 ### シグナル / バックテスト検証 UX（v0.3.0 / Ph2）
 
-- **Web** `/backtests`: 開始資金、戦略種別・パラメータ付きシグナル作成、結果選択、サマリーカード、売買マーカー付き価格チャート、エクイティ（戦略 + Buy&Hold）、取引履歴、SMA 総当たり最適化
-- **Analysis**: 拡張サマリー（Sharpe / Profit Factor / Buy&Hold）、`POST /backtests/optimize`
-- **Nest**: 拡張列の永続化、`POST /backtests/optimize`（非永続）
+- **Web** `/backtests`: 開始資金、結果選択、サマリーカード、売買マーカー付き価格チャート、エクイティ（戦略 + Buy&Hold）、取引履歴
+- **Analysis**: 拡張サマリー（Sharpe / Profit Factor / Buy&Hold）
+- **Nest**: 拡張列の永続化
 - 詳細は [ADR 009](../adr/009-backtest-enrichment.md)
+
+### 指標セット起点のシグナルと画面分離（v0.3.0 / Ph3）
+
+- **Web** `/charts`: 指標 ON/OFF・セット保存／呼び出し・シグナル導出プレビュー・バックテスト導線
+- **Web** `/backtests`: 指標セット選択・実行・結果・カタログ SMA ペア最適化（戦略作成フォームなし）
+- **shared-types**: `resolveSignalRule`（SMA 2 本 / MACD / RSI）
+- **Nest**: `POST /backtests/run` は `indicatorSetId` 起点。実行時に戦略スナップショットを永続化
+- 詳細は [ADR 010](../adr/010-signal-from-indicator-set.md)
 
 ### 後続で追加予定
 
@@ -289,3 +298,4 @@ ESLint 本体は必要になったタイミングで最小構成で入れる。
 - [ADR 007: トレンドスコア](../adr/007-trend-score.md)
 - [ADR 008: テクニカル指標セット](../adr/008-indicator-sets.md)
 - [ADR 009: バックテスト結果の拡張と SMA 最適化](../adr/009-backtest-enrichment.md)
+- [ADR 010: 指標セット起点のシグナル導出と画面分離](../adr/010-signal-from-indicator-set.md)

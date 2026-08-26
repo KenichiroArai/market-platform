@@ -14,12 +14,17 @@ import {
 } from '@nestjs/common';
 import {
   API_ERROR_CODES,
+  describeSignalRule,
+  isIndicatorCatalogId,
+  listCatalogSmaPairs,
+  resolveSignalRule,
   type BacktestRunDto,
   type ComputeBacktestResponse,
   type ComputeSignalRequest,
   type CreateSignalDefinitionRequest,
+  type IndicatorCatalogId,
   type OptimizeBacktestResponse,
-  type RunBacktestRequest,
+  type ResolvedSignalRule,
   type SignalStrategyParams,
   type SignalDefinitionDto,
   type SignalStrategyType,
@@ -151,22 +156,43 @@ export class SignalsBacktestsService {
   }
 
   async runBacktest(userId: string, dto: RunBacktestDto): Promise<BacktestRunDto> {
-    const signal = await this.getSignalDefinition(userId, dto.signalDefinitionId);
-    const runRequest: RunBacktestRequest = {
-      signalDefinitionId: dto.signalDefinitionId,
+    const indicatorSet = await this.prismaService.prisma.indicatorSet.findFirst({
+      where: { id: dto.indicatorSetId, userId },
+    });
+    if (!indicatorSet) {
+      throw new NotFoundException({
+        code: API_ERROR_CODES.INDICATOR_SET_NOT_FOUND,
+        message: 'Indicator set not found',
+      });
+    }
+
+    const catalogIds = indicatorSet.indicatorIds.filter((id): id is IndicatorCatalogId =>
+      isIndicatorCatalogId(id),
+    );
+    const rule = resolveSignalRule(catalogIds);
+    if (!rule) {
+      throw new BadRequestException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: describeSignalRule(catalogIds),
+      });
+    }
+
+    const analysisRequest = await this.buildComputeBacktestRequestFromRule(rule, {
       symbolId: dto.symbolId,
       from: dto.from,
       to: dto.to,
       initialCash: dto.initialCash,
       feeRate: dto.feeRate,
       slippageRate: dto.slippageRate,
-    };
-    const analysisRequest = await this.buildComputeBacktestRequest(signal, runRequest);
+    });
     const result = await this.callAnalysisBacktest(analysisRequest);
     const created = await this.prismaService.prisma.backtestRun.create({
       data: {
         userId,
-        signalDefinitionId: signal.id,
+        indicatorSetId: indicatorSet.id,
+        signalDefinitionId: null,
+        strategyType: this.toPrismaStrategyType(rule.strategyType),
+        paramsJson: rule.params as object,
         symbolId: dto.symbolId,
         fromDate: new Date(dto.from),
         toDate: new Date(dto.to),
@@ -213,85 +239,73 @@ export class SignalsBacktestsService {
   }
 
   /**
-   * SMA Cross の short/long を総当たり最適化する。結果は永続化しない。
+   * カタログ SMA ペア（25/75, 25/200, 75/200）のみを評価する。結果は永続化しない。
    * userId は JWT 認証済みであることの確認用（所有データは触らない）。
    */
   async optimizeBacktest(
     _userId: string,
     dto: OptimizeBacktestDto,
   ): Promise<OptimizeBacktestResponse> {
-    const shortMin = dto.shortMin ?? 5;
-    const shortMax = dto.shortMax ?? 50;
-    const longMin = dto.longMin ?? 5;
-    const longMax = dto.longMax ?? 50;
-    if (shortMin > shortMax || longMin > longMax) {
-      throw new BadRequestException({
-        code: API_ERROR_CODES.VALIDATION_FAILED,
-        message: 'Invalid SMA period range',
-      });
-    }
     const prices = await this.pricesService.listBySymbolId(dto.symbolId, {
       from: dto.from,
       to: dto.to,
     });
-    const analysisUrl = process.env.ANALYSIS_URL ?? 'http://localhost:8000';
-    let response: Response;
-    try {
-      response = await fetch(`${analysisUrl}/backtests/optimize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          symbolId: dto.symbolId,
-          bars: prices.map((price) => ({
-            date: price.date,
-            open: price.open,
-            high: price.high,
-            low: price.low,
-            close: price.close,
-            volume: price.volume,
-          })),
-          initialCash: dto.initialCash,
-          feeRate: dto.feeRate,
-          slippageRate: dto.slippageRate,
-          strategyType: 'smaCross',
-          shortMin,
-          shortMax,
-          longMin,
-          longMax,
-        }),
+    const bars = prices.map((price) => ({
+      date: price.date,
+      open: price.open,
+      high: price.high,
+      low: price.low,
+      close: price.close,
+      volume: price.volume,
+    }));
+
+    const results: OptimizeBacktestResponse['results'] = [];
+    for (const pair of listCatalogSmaPairs()) {
+      const result = await this.callAnalysisBacktest({
+        strategyType: 'smaCross',
+        params: { shortPeriod: pair.shortPeriod, longPeriod: pair.longPeriod },
+        bars,
+        symbolId: dto.symbolId,
+        initialCash: dto.initialCash,
+        feeRate: dto.feeRate,
+        slippageRate: dto.slippageRate,
       });
-    } catch (error) {
-      throw new BadGatewayException({
-        code: API_ERROR_CODES.ANALYSIS_UPSTREAM_ERROR,
-        message: 'Failed to reach analysis service',
-        details: { error: error instanceof Error ? error.message : 'unknown' },
+      results.push({
+        shortPeriod: pair.shortPeriod,
+        longPeriod: pair.longPeriod,
+        summary: result.summary,
       });
     }
-    if (!response.ok) {
-      throw new BadGatewayException({
-        code: API_ERROR_CODES.ANALYSIS_UPSTREAM_ERROR,
-        message: 'Analysis service returned an error',
-      });
-    }
-    return (await response.json()) as OptimizeBacktestResponse;
+
+    results.sort((a, b) => b.summary.totalReturnRate - a.summary.totalReturnRate);
+    return { results };
   }
 
-  private async buildComputeBacktestRequest(
-    signal: SignalDefinitionDto,
-    run: RunBacktestRequest,
-  ): Promise<ComputeSignalRequest & {
-    initialCash: number;
-    feeRate: number;
-    slippageRate: number;
-    symbolId: string;
-  }> {
+  private async buildComputeBacktestRequestFromRule(
+    rule: ResolvedSignalRule,
+    run: {
+      symbolId: string;
+      from: string;
+      to: string;
+      initialCash: number;
+      feeRate: number;
+      slippageRate: number;
+    },
+  ): Promise<
+    ComputeSignalRequest & {
+      initialCash: number;
+      feeRate: number;
+      slippageRate: number;
+      symbolId: string;
+    }
+  > {
     const prices = await this.pricesService.listBySymbolId(run.symbolId, {
       from: run.from,
       to: run.to,
     });
     return {
-      strategyType: signal.strategyType,
-      params: signal.params,
+      strategyType: rule.strategyType,
+      params: rule.params,
       bars: prices.map((price) => ({
         date: price.date,
         open: price.open,
@@ -365,7 +379,10 @@ export class SignalsBacktestsService {
     row: {
       id: string;
       userId: string;
-      signalDefinitionId: string;
+      indicatorSetId: string | null;
+      signalDefinitionId: string | null;
+      strategyType: SignalDefinitionRow['strategyType'];
+      paramsJson: unknown;
       symbolId: string;
       fromDate: Date;
       toDate: Date;
@@ -412,7 +429,10 @@ export class SignalsBacktestsService {
     return {
       id: row.id,
       userId: row.userId,
+      indicatorSetId: row.indicatorSetId,
       signalDefinitionId: row.signalDefinitionId,
+      strategyType: this.fromPrismaStrategyType(row.strategyType),
+      params: row.paramsJson as SignalStrategyParams,
       symbolId: row.symbolId,
       fromDate: row.fromDate.toISOString().slice(0, 10),
       toDate: row.toDate.toISOString().slice(0, 10),

@@ -81,7 +81,13 @@ export interface BacktestSummaryDto {
 export interface BacktestRunDto {
   id: string;
   userId: string;
-  signalDefinitionId: string;
+  /** 新規実行は指標セット起点。過去ラン互換のため null 可。 */
+  indicatorSetId: string | null;
+  /** 過去ラン互換。新規は null（戦略は strategyType/params スナップショットを参照）。 */
+  signalDefinitionId: string | null;
+  /** 実行時に resolveSignalRule した結果のスナップショット */
+  strategyType: SignalStrategyType;
+  params: SignalStrategyParams;
   symbolId: string;
   fromDate: string;
   toDate: string;
@@ -111,7 +117,8 @@ export interface UpdateSignalDefinitionRequest {
 }
 
 export interface RunBacktestRequest {
-  signalDefinitionId: string;
+  /** チャートで保存した指標セット。シグナルはカタログから導出する。 */
+  indicatorSetId: string;
   symbolId: string;
   from: string;
   to: string;
@@ -155,7 +162,7 @@ export interface ComputeBacktestResponse {
   equityPoints: Array<Omit<BacktestEquityPointDto, 'id' | 'backtestRunId'>>;
 }
 
-/** Nest → Analysis および Web → Nest の SMA 最適化リクエスト */
+/** カタログ SMA ペア（25/75, 25/200, 75/200）のみを評価する。期間レンジ指定は廃止。 */
 export interface OptimizeBacktestRequest {
   symbolId: string;
   from: string;
@@ -163,10 +170,6 @@ export interface OptimizeBacktestRequest {
   initialCash: number;
   feeRate: number;
   slippageRate: number;
-  shortMin?: number;
-  shortMax?: number;
-  longMin?: number;
-  longMax?: number;
 }
 
 export interface OptimizeBacktestResultItem {
@@ -243,10 +246,16 @@ export function isBacktestRunDto(value: unknown): value is BacktestRunDto {
     return false;
   }
   const record = value as Record<string, unknown>;
+  const indicatorSetOk =
+    record.indicatorSetId === null || typeof record.indicatorSetId === 'string';
+  const signalDefinitionOk =
+    record.signalDefinitionId === null || typeof record.signalDefinitionId === 'string';
   return (
     typeof record.id === 'string' &&
     typeof record.userId === 'string' &&
-    typeof record.signalDefinitionId === 'string' &&
+    indicatorSetOk &&
+    signalDefinitionOk &&
+    isSignalStrategyType(record.strategyType) &&
     typeof record.symbolId === 'string' &&
     typeof record.fromDate === 'string' &&
     typeof record.toDate === 'string' &&

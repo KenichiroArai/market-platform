@@ -2,13 +2,12 @@
  * @jest-environment jsdom
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useSearchParams } from 'next/navigation';
 import BacktestsPage from '../../../../app/(app)/backtests/page';
 import {
   ApiClientError,
-  createSignalDefinition,
-  deleteSignalDefinition,
   fetchBacktestRuns,
-  fetchSignalDefinitions,
+  fetchIndicatorSets,
   fetchSymbolPrices,
   fetchSymbols,
   optimizeBacktest,
@@ -16,12 +15,10 @@ import {
 } from '../../../../lib/api-client';
 
 jest.mock('../../../../lib/api-client', () => ({
-  fetchSignalDefinitions: jest.fn(),
+  fetchIndicatorSets: jest.fn(),
   fetchBacktestRuns: jest.fn(),
   fetchSymbols: jest.fn(),
   fetchSymbolPrices: jest.fn(),
-  createSignalDefinition: jest.fn(),
-  deleteSignalDefinition: jest.fn(),
   runBacktest: jest.fn(),
   optimizeBacktest: jest.fn(),
   ApiClientError: class ApiClientError extends Error {
@@ -66,20 +63,29 @@ describe('BacktestsPage', () => {
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
-  const signal = {
-    id: 'sig_1',
+  const capableSet = {
+    id: 'set_1',
     userId: 'u_1',
-    name: 'SMA 5/20',
-    strategyType: 'smaCross' as const,
-    params: { shortPeriod: 5, longPeriod: 20 },
-    isActive: true,
+    name: 'SMAクロス',
+    indicatorIds: ['sma25', 'sma75'] as const,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+  const incapableSet = {
+    id: 'set_2',
+    userId: 'u_1',
+    name: '表示のみ',
+    indicatorIds: ['bb', 'volume'] as const,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
   const run = {
     id: 'run_1',
     userId: 'u_1',
-    signalDefinitionId: 'sig_1',
+    indicatorSetId: 'set_1',
+    signalDefinitionId: null,
+    strategyType: 'smaCross' as const,
+    params: { shortPeriod: 25, longPeriod: 75 },
     symbolId: 'sym_1',
     fromDate: '2026-01-01',
     toDate: '2026-06-30',
@@ -105,32 +111,20 @@ describe('BacktestsPage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (useSearchParams as jest.Mock).mockReturnValue(new URLSearchParams());
     (fetchSymbolPrices as jest.Mock).mockResolvedValue([]);
   });
 
-  it('loads data and supports create/run/delete/optimize', async () => {
-    (fetchSignalDefinitions as jest.Mock).mockResolvedValue([signal]);
+  it('loads indicator sets and supports run/optimize', async () => {
+    (fetchIndicatorSets as jest.Mock).mockResolvedValue([capableSet, incapableSet]);
     (fetchBacktestRuns as jest.Mock).mockResolvedValue([run]);
     (fetchSymbols as jest.Mock).mockResolvedValue([symbol]);
-    (createSignalDefinition as jest.Mock)
-      .mockResolvedValueOnce({
-        ...signal,
-        id: 'sig_2',
-        name: 'New',
-      })
-      .mockResolvedValueOnce({
-        ...signal,
-        id: 'sig_opt',
-        name: 'SMA 5/20',
-        params: { shortPeriod: 5, longPeriod: 20 },
-      });
     (runBacktest as jest.Mock).mockResolvedValue({ ...run, id: 'run_2' });
-    (deleteSignalDefinition as jest.Mock).mockResolvedValue(null);
     (optimizeBacktest as jest.Mock).mockResolvedValue({
       results: [
         {
-          shortPeriod: 5,
-          longPeriod: 20,
+          shortPeriod: 25,
+          longPeriod: 75,
           summary: run.summary,
         },
       ],
@@ -138,9 +132,11 @@ describe('BacktestsPage', () => {
 
     render(<BacktestsPage />);
     await waitFor(() => {
-      expect(screen.getByText('SMA 5/20 (smaCross)')).toBeInTheDocument();
+      expect(screen.getByTestId('indicator-set-select')).toHaveValue('set_1');
     });
-    expect(screen.getByRole('heading', { name: 'シグナル / バックテスト' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'バックテスト' })).toBeInTheDocument();
+    expect(screen.getByTestId('selected-set-rule-preview')).toHaveTextContent('バックテスト用');
+    expect(screen.getByRole('link', { name: '指標を編集' })).toHaveAttribute('href', '/charts');
     expect(screen.getByText(/リターン=1.00%/)).toBeInTheDocument();
     expect(screen.getByTestId('summary-cards-stub')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '詳細チャート' })).toHaveAttribute(
@@ -148,49 +144,58 @@ describe('BacktestsPage', () => {
       '/charts?symbolId=sym_1&from=2026-01-01&to=2026-06-30',
     );
 
-    fireEvent.change(screen.getByPlaceholderText('シグナル名'), { target: { value: 'New' } });
-    fireEvent.submit(screen.getByPlaceholderText('シグナル名').closest('form')!);
-    await waitFor(() => expect(createSignalDefinition).toHaveBeenCalledTimes(1));
-
     fireEvent.change(screen.getByLabelText('開始資金'), { target: { value: '200000' } });
     fireEvent.submit(screen.getByRole('button', { name: '実行' }).closest('form')!);
     await waitFor(() =>
       expect(runBacktest).toHaveBeenCalledWith(
-        expect.objectContaining({ initialCash: 200000 }),
+        expect.objectContaining({
+          indicatorSetId: 'set_1',
+          initialCash: 200000,
+        }),
       ),
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'SMA 最適化' }));
     await waitFor(() => expect(optimizeBacktest).toHaveBeenCalled());
+    expect(optimizeBacktest).toHaveBeenCalledWith(
+      expect.not.objectContaining({ shortMin: expect.anything() }),
+    );
     await waitFor(() => expect(screen.getByText('SMA 最適化結果')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: '適用' }));
-    await waitFor(() => expect(createSignalDefinition).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole('button', { name: '適用' })).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getAllByRole('button', { name: '削除' })[0]);
-    await waitFor(() => expect(deleteSignalDefinition).toHaveBeenCalled());
+  it('preselects indicatorSetId from search params', async () => {
+    (useSearchParams as jest.Mock).mockReturnValue(
+      new URLSearchParams('indicatorSetId=set_2'),
+    );
+    (fetchIndicatorSets as jest.Mock).mockResolvedValue([capableSet, incapableSet]);
+    (fetchBacktestRuns as jest.Mock).mockResolvedValue([]);
+    (fetchSymbols as jest.Mock).mockResolvedValue([symbol]);
+
+    render(<BacktestsPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('indicator-set-select')).toHaveValue('set_2');
+    });
+    expect(screen.getByRole('button', { name: '実行' })).toBeDisabled();
+    expect(screen.getByTestId('selected-set-rule-preview')).toHaveTextContent('未確定');
   });
 
   it('shows ApiClientError on load failure', async () => {
-    (fetchSignalDefinitions as jest.Mock).mockRejectedValue(new ApiClientError(500, 'X', 'boom'));
+    (fetchIndicatorSets as jest.Mock).mockRejectedValue(new ApiClientError(500, 'X', 'boom'));
     (fetchBacktestRuns as jest.Mock).mockResolvedValue([]);
     (fetchSymbols as jest.Mock).mockResolvedValue([]);
     render(<BacktestsPage />);
     await waitFor(() => expect(screen.getByText('boom')).toBeInTheDocument());
   });
 
-  it('shows fallback create error', async () => {
-    (fetchSignalDefinitions as jest.Mock).mockResolvedValue([]);
+  it('shows empty state when no symbols or runs', async () => {
+    (fetchIndicatorSets as jest.Mock).mockResolvedValue([]);
     (fetchBacktestRuns as jest.Mock).mockResolvedValue([]);
     (fetchSymbols as jest.Mock).mockResolvedValue([]);
-    (createSignalDefinition as jest.Mock).mockRejectedValue(new Error('x'));
     render(<BacktestsPage />);
     await waitFor(() =>
       expect(screen.getByRole('link', { name: '銘柄を追加' })).toHaveAttribute('href', '/symbols'),
     );
     expect(screen.getByText('まだ結果がありません')).toBeInTheDocument();
-
-    fireEvent.change(screen.getByPlaceholderText('シグナル名'), { target: { value: 'A' } });
-    fireEvent.submit(screen.getByPlaceholderText('シグナル名').closest('form')!);
-    await waitFor(() => expect(screen.getByText('シグナル作成に失敗しました')).toBeInTheDocument());
   });
 });

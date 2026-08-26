@@ -15,7 +15,7 @@ export const APP_NAV_ITEMS = [
   { href: '/symbols', label: '銘柄' },
   { href: '/watchlists', label: 'ウォッチリスト' },
   { href: '/portfolios', label: 'ポートフォリオ' },
-  { href: '/backtests', label: 'シグナル / バックテスト' },
+  { href: '/backtests', label: 'バックテスト' },
   { href: '/charts', label: 'チャート分析' },
   { href: '/me', label: 'プロフィール' },
 ] as const;
