@@ -278,6 +278,11 @@ packages:
 - **Nest**: `POST /backtests/run` は `indicatorSetId` 起点。実行時に戦略スナップショットを永続化
 - 詳細は [ADR 010](../adr/010-signal-from-indicator-set.md)
 
+### バックテスト画面構成（v0.3.0 / Ph4）
+
+- **Web** `/backtests`: 常時表示の概要帯（銘柄・主要指標）+ タブ（実行 / チャート / 実行結果 / 結果サマリー / エクイティ / 取引履歴）
+- 銘柄セレクト横に名称を表示。実行成功後は結果サマリータブへ自動切替
+
 ### 後続で追加予定
 
 - ESLint flat config（shared-config への集約）
