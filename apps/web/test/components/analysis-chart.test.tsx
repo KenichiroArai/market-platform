@@ -7,20 +7,24 @@ import {
   isOverlayEnabled,
   latestScoredPoint,
   resolveOwnerWindow,
+  resolveChartWidth,
   resolveMarkerDate,
   resolveScoredPoint,
   toCandlestickData,
   toLineData,
   toMacdHistogramData,
   toSignedHistogramData,
+  toTradeMarkers,
   toVolumeData,
   volumeProfileLayout,
 } from '../../components/analysis-chart';
 import {
   createChart,
+  createSeriesMarkers,
   __mocks as lwcMocks,
 } from '../mocks/lightweight-charts';
 import type { Time } from 'lightweight-charts';
+import type { BacktestTradeDto } from '@market/shared-types';
 
 const price: DailyPriceDto = {
   id: 'price_1',
@@ -85,6 +89,7 @@ function chartApi(createPriceLine = jest.fn()) {
     ]),
     timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
     applyOptions: lwcMocks.mockApplyOptions,
+    resize: lwcMocks.mockResize,
     remove: lwcMocks.mockRemove,
     subscribeClick: lwcMocks.mockSubscribeClick,
     unsubscribeClick: lwcMocks.mockUnsubscribeClick,
@@ -114,6 +119,44 @@ describe('analysis-chart helpers', () => {
       { time: '2026-01-03', value: -0.3, color: 'rgba(239, 83, 80, 0.55)' },
     ]);
     expect(toSignedHistogramData(points, 'missing')).toEqual([]);
+  });
+
+  it('maps backtest trades to series markers sorted by time', () => {
+    const trades: BacktestTradeDto[] = [
+      {
+        id: 't2',
+        backtestRunId: 'r1',
+        symbolId: 'sym_1',
+        entryDate: '2026-01-10',
+        exitDate: '2026-01-20',
+        entryPrice: 100,
+        exitPrice: 110,
+        quantity: 1,
+        side: 'buy',
+        grossPnl: 10,
+      },
+      {
+        id: 't1',
+        backtestRunId: 'r1',
+        symbolId: 'sym_1',
+        entryDate: '2026-01-02',
+        exitDate: '2026-01-05',
+        entryPrice: 90,
+        exitPrice: 95,
+        quantity: 1,
+        side: 'buy',
+        grossPnl: 5,
+      },
+    ];
+    const markers = toTradeMarkers(trades);
+    expect(markers.map((m) => m.time)).toEqual([
+      '2026-01-02',
+      '2026-01-05',
+      '2026-01-10',
+      '2026-01-20',
+    ]);
+    expect(markers[0]).toMatchObject({ shape: 'arrowUp', text: 'Buy' });
+    expect(markers[1]).toMatchObject({ shape: 'arrowDown', text: 'Sell' });
   });
 
   it('layouts volume profile and ichimoku cloud', () => {
@@ -146,6 +189,16 @@ describe('analysis-chart helpers', () => {
     expect(isOverlayEnabled(new Set(['elliott']), 'elliott')).toBe(false);
     expect(resolveOwnerWindow({ ownerDocument: { defaultView: window } })).toBe(window);
     expect(resolveOwnerWindow({ ownerDocument: { defaultView: null } })).toBe(window);
+    expect(resolveChartWidth({ clientWidth: 640, ownerDocument: { defaultView: window } })).toBe(640);
+    expect(
+      resolveChartWidth({ clientWidth: 0, ownerDocument: { defaultView: window } }),
+    ).toBe(window.innerWidth || 0);
+    expect(
+      resolveChartWidth({
+        clientWidth: 0,
+        ownerDocument: { defaultView: { innerWidth: 0 } as Window },
+      }),
+    ).toBe(0);
     expect(latestScoredPoint([])).toBeNull();
     expect(
       latestScoredPoint([
@@ -295,6 +348,34 @@ describe('AnalysisChart', () => {
     expect(lwcMocks.mockSubscribeClick).toHaveBeenCalled();
   });
 
+  it('attaches trade markers via createSeriesMarkers', () => {
+    const api = chartApi();
+    (createChart as jest.Mock).mockReturnValue(api);
+    const trade: BacktestTradeDto = {
+      id: 't1',
+      backtestRunId: 'r1',
+      symbolId: 'sym_1',
+      entryDate: '2026-01-02',
+      exitDate: '2026-01-03',
+      entryPrice: 100,
+      exitPrice: 103,
+      quantity: 1,
+      side: 'buy',
+      grossPnl: 3,
+    };
+    render(
+      <AnalysisChart prices={[price, downPrice]} indicatorPoints={points} trades={[trade]} />,
+    );
+    expect(createSeriesMarkers).toHaveBeenCalled();
+    expect(lwcMocks.mockCreateSeriesMarkers).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining([
+        expect.objectContaining({ time: '2026-01-02', shape: 'arrowUp' }),
+        expect.objectContaining({ time: '2026-01-03', shape: 'arrowDown' }),
+      ]),
+    );
+  });
+
   it('uses baseDate for the score label and notifies onBarClick', () => {
     const onBarClick = jest.fn();
     const api = chartApi();
@@ -383,6 +464,7 @@ describe('AnalysisChart', () => {
       panes: jest.fn(() => [{ setHeight: lwcMocks.mockSetHeight }]),
       timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
       applyOptions: lwcMocks.mockApplyOptions,
+      resize: lwcMocks.mockResize,
       remove: lwcMocks.mockRemove,
       subscribeClick: lwcMocks.mockSubscribeClick,
       unsubscribeClick: lwcMocks.mockUnsubscribeClick,
@@ -413,6 +495,7 @@ describe('AnalysisChart', () => {
       panes: jest.fn(() => [{ setHeight: lwcMocks.mockSetHeight }]),
       timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
       applyOptions: lwcMocks.mockApplyOptions,
+      resize: lwcMocks.mockResize,
       remove: lwcMocks.mockRemove,
       subscribeClick: lwcMocks.mockSubscribeClick,
       unsubscribeClick: lwcMocks.mockUnsubscribeClick,
@@ -451,6 +534,7 @@ describe('AnalysisChart', () => {
       panes: jest.fn(() => [{ setHeight: lwcMocks.mockSetHeight }]),
       timeScale: jest.fn(() => ({ fitContent: lwcMocks.mockFitContent })),
       applyOptions: lwcMocks.mockApplyOptions,
+      resize: lwcMocks.mockResize,
       remove: lwcMocks.mockRemove,
       subscribeClick: lwcMocks.mockSubscribeClick,
       unsubscribeClick: lwcMocks.mockUnsubscribeClick,
@@ -547,7 +631,7 @@ describe('AnalysisChart', () => {
     act(() => {
       window.dispatchEvent(new Event('resize'));
     });
-    expect(lwcMocks.mockApplyOptions).toHaveBeenCalledWith({ width: 800 });
+    expect(lwcMocks.mockResize).toHaveBeenCalled();
     unmount();
     expect(lwcMocks.mockUnsubscribeClick).toHaveBeenCalled();
     expect(lwcMocks.mockRemove).toHaveBeenCalled();

@@ -17,7 +17,7 @@ describe('BacktestOverviewStrip', () => {
     buyHoldFinalEquity: 102000,
   };
 
-  it('shows symbol label and empty message when no run', () => {
+  it('shows selected-run title and empty message when no run', () => {
     render(
       <BacktestOverviewStrip
         ticker="AAPL"
@@ -27,9 +27,10 @@ describe('BacktestOverviewStrip', () => {
         summary={null}
       />,
     );
+    expect(screen.getByTestId('backtest-overview-title')).toHaveTextContent('選択中の実行結果');
     expect(screen.getByTestId('backtest-overview-symbol')).toHaveTextContent('AAPL — Apple');
     expect(screen.getByTestId('backtest-overview-empty')).toHaveTextContent(
-      '実行結果がありません',
+      'まだ実行結果がありません',
     );
   });
 

@@ -42,7 +42,10 @@ export function nextIndicatorUiMode(
   return nextOpenToggle(current, requested);
 }
 
-/** 拡大ウィンドウでは画面高さと指標ペイン必要高さの大きい方を使う。 */
-export function enlargedChartHeight(minHeight: number, viewportHeight: number): number {
-  return Math.max(minHeight, viewportHeight);
+/**
+ * 拡大ウィンドウのチャート高さ（互換用）。
+ * Ph5 以降は本画面と同じ computeAnalysisChartHeight を使うため、minHeight を返す。
+ */
+export function enlargedChartHeight(minHeight: number, _viewportHeight?: number, _chromePx?: number): number {
+  return minHeight;
 }

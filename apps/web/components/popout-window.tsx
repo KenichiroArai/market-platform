@@ -84,11 +84,13 @@ export function applyPopupDocumentStyle(
   doc.title = title;
   const html = doc.documentElement;
   html.style.height = '100%';
+  html.style.width = '100%';
   html.style.background = POPUP_BG;
   const body = doc.body;
   body.style.margin = '0';
   body.style.minHeight = '100vh';
   body.style.height = '100%';
+  body.style.width = '100%';
   body.style.background = POPUP_BG;
   body.style.color = '#e8eef5';
   const openerBody = openerDoc?.body;
@@ -181,6 +183,7 @@ export function PopoutWindow({
     root.setAttribute('data-testid', 'popout-root');
     root.style.minHeight = '100%';
     root.style.height = '100%';
+    root.style.width = '100%';
     root.style.boxSizing = 'border-box';
     root.style.padding = padded ? '0.75rem' : '0';
     win.document.body.appendChild(root);

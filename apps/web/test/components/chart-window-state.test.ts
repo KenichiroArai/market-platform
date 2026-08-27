@@ -25,7 +25,9 @@ describe('chart-window-state', () => {
   });
 
   it('picks the larger height for the enlarged chart', () => {
-    expect(enlargedChartHeight(400, 900)).toBe(900);
+    expect(enlargedChartHeight(400, 900)).toBe(400);
     expect(enlargedChartHeight(800, 500)).toBe(800);
+    expect(enlargedChartHeight(400, 900, 0)).toBe(400);
+
   });
 });

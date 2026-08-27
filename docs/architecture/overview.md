@@ -265,7 +265,7 @@ packages:
 
 ### シグナル / バックテスト検証 UX（v0.3.0 / Ph2）
 
-- **Web** `/backtests`: 開始資金、結果選択、サマリーカード、売買マーカー付き価格チャート、エクイティ（戦略 + Buy&Hold）、取引履歴
+- **Web** `/backtests`: 開始資金、結果選択、サマリーカード、AnalysisChart（売買マーカー）、エクイティ（戦略 + Buy&Hold）、取引履歴
 - **Analysis**: 拡張サマリー（Sharpe / Profit Factor / Buy&Hold）
 - **Nest**: 拡張列の永続化
 - 詳細は [ADR 009](../adr/009-backtest-enrichment.md)
@@ -278,10 +278,11 @@ packages:
 - **Nest**: `POST /backtests/run` は `indicatorSetId` 起点。実行時に戦略スナップショットを永続化
 - 詳細は [ADR 010](../adr/010-signal-from-indicator-set.md)
 
-### バックテスト画面構成（v0.3.0 / Ph4）
+### バックテスト画面構成（v0.3.0 / Ph5）
 
-- **Web** `/backtests`: 常時表示の概要帯（銘柄・主要指標）+ タブ（実行 / チャート / 実行結果 / 結果サマリー / エクイティ / 取引履歴）
-- 銘柄セレクト横に名称を表示。実行成功後は結果サマリータブへ自動切替
+- **Web** `/backtests`: タブ「設定と実行 / 結果」。結果は実行履歴セレクト + 選択中 run ヘッダ + サマリー / エクイティ / AnalysisChart / 取引履歴
+- 価格チャートはチャート分析と同じ `AnalysisChart`（指標セットのオーバーレイ + 売買マーカー）
+- 銘柄セレクト横に名称を表示。実行成功後は結果タブへ自動切替
 
 ### 後続で追加予定
 

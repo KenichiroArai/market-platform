@@ -8,29 +8,34 @@ import {
 } from '../../components/backtest-workspace-tabs';
 
 describe('BacktestWorkspaceTabs', () => {
-  it('renders tabs and switches active panel on click', () => {
+  it('renders setup/results tabs and switches active panel on click', () => {
     const onChange = jest.fn();
-    let activeTab: BacktestWorkspaceTabId = 'run';
+    let activeTab: BacktestWorkspaceTabId = 'setup';
 
     const { rerender } = render(
       <BacktestWorkspaceTabs activeTab={activeTab} onChange={onChange}>
-        <div>実行パネル</div>
+        <div>設定パネル</div>
       </BacktestWorkspaceTabs>,
     );
 
-    expect(screen.getByRole('tab', { name: '実行' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByTestId('backtest-panel-run')).toHaveTextContent('実行パネル');
+    expect(screen.getByRole('tab', { name: '設定と実行' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByTestId('backtest-panel-setup')).toHaveTextContent('設定パネル');
+    expect(screen.getByRole('tab', { name: '結果' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: '実行' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'チャート' }));
-    expect(onChange).toHaveBeenCalledWith('chart');
+    fireEvent.click(screen.getByRole('tab', { name: '結果' }));
+    expect(onChange).toHaveBeenCalledWith('results');
 
-    activeTab = 'chart';
+    activeTab = 'results';
     rerender(
       <BacktestWorkspaceTabs activeTab={activeTab} onChange={onChange}>
-        <div>チャートパネル</div>
+        <div>結果パネル</div>
       </BacktestWorkspaceTabs>,
     );
-    expect(screen.getByRole('tab', { name: 'チャート' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByTestId('backtest-panel-chart')).toHaveTextContent('チャートパネル');
+    expect(screen.getByRole('tab', { name: '結果' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('backtest-panel-results')).toHaveTextContent('結果パネル');
   });
 });

@@ -36,7 +36,6 @@ import { IndicatorSetPicker } from '../../../components/indicator-set-picker';
 import { IndicatorSetSaveForm } from '../../../components/indicator-set-save-form';
 import { ModelessWindow } from '../../../components/modeless-window';
 import {
-  enlargedChartHeight,
   nextOpenToggle,
   type WindowDisplayMode,
   type WindowUiState,
@@ -44,7 +43,6 @@ import {
 import {
   PopoutWindow,
   primePopoutWindow,
-  useHostWindowSize,
 } from '../../../components/popout-window';
 import { TrendScoreBreakdown } from '../../../components/trend-score-breakdown';
 import { WindowDisplayModeSwitch } from '../../../components/window-display-mode-switch';
@@ -747,9 +745,9 @@ function SignalRulePanel({
   );
 }
 
-/** 別ウィンドウ側の高さに合わせてチャートを引き伸ばす。 */
+/** 別ウィンドウでも本画面と同じチャート高さで表示する。幅は popup レイアウトに任せる。 */
 function EnlargedAnalysisChart({
-  win,
+  win: _win,
   enabledIds,
   ...rest
 }: {
@@ -763,14 +761,19 @@ function EnlargedAnalysisChart({
   onBarClick?: (date: string) => void;
   loading: boolean;
 }) {
-  const size = useHostWindowSize(win);
-  const minHeight = computeAnalysisChartHeight(enabledIds);
+  const height = computeAnalysisChartHeight(enabledIds);
   return (
-    <AnalysisChart
-      {...rest}
-      enabledIds={enabledIds}
-      height={enlargedChartHeight(minHeight, size.height)}
-    />
+    <div
+      data-testid="enlarged-analysis-chart"
+      style={{
+        boxSizing: 'border-box',
+        width: '100%',
+        maxWidth: '100%',
+        padding: '0.75rem',
+      }}
+    >
+      <AnalysisChart {...rest} enabledIds={enabledIds} height={height} />
+    </div>
   );
 }
 

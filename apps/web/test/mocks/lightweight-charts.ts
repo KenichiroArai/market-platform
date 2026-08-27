@@ -10,11 +10,15 @@ export const HistogramSeries = 'HistogramSeries';
 const mockSetData = jest.fn();
 const mockRemove = jest.fn();
 const mockApplyOptions = jest.fn();
+const mockResize = jest.fn();
 const mockFitContent = jest.fn();
 const mockSetHeight = jest.fn();
 const mockAttachPrimitive = jest.fn();
 const mockSubscribeClick = jest.fn();
 const mockUnsubscribeClick = jest.fn();
+const mockCreateSeriesMarkers = jest.fn();
+
+export const createSeriesMarkers = mockCreateSeriesMarkers;
 
 export const createChart = jest.fn(() => ({
   addSeries: jest.fn(() => ({ setData: mockSetData, attachPrimitive: mockAttachPrimitive })),
@@ -25,6 +29,7 @@ export const createChart = jest.fn(() => ({
   ]),
   timeScale: jest.fn(() => ({ fitContent: mockFitContent })),
   applyOptions: mockApplyOptions,
+  resize: mockResize,
   remove: mockRemove,
   subscribeClick: mockSubscribeClick,
   unsubscribeClick: mockUnsubscribeClick,
@@ -35,9 +40,11 @@ export const __mocks = {
   mockSetData,
   mockRemove,
   mockApplyOptions,
+  mockResize,
   mockFitContent,
   mockSetHeight,
   mockAttachPrimitive,
   mockSubscribeClick,
   mockUnsubscribeClick,
+  mockCreateSeriesMarkers,
 };

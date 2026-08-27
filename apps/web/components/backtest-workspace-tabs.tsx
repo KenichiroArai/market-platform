@@ -1,20 +1,14 @@
 /**
- * バックテスト画面のタブ切替（v0.3.0 Ph4）。
+ * バックテスト画面のタブ切替（v0.3.0 Ph5）。
  *
- * 実行・チャート・結果詳細を縦直列にせず、パネル切替で縦スクロールを抑える。
+ * 設定と実行 / 結果の2タブ。結果詳細は結果タブ内で縦にまとめる。
  */
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
 
 /** バックテスト作業領域のタブ ID。 */
-export type BacktestWorkspaceTabId =
-  | 'run'
-  | 'chart'
-  | 'runs'
-  | 'summary'
-  | 'equity'
-  | 'trades';
+export type BacktestWorkspaceTabId = 'setup' | 'results';
 
 export type BacktestWorkspaceTab = {
   id: BacktestWorkspaceTabId;
@@ -22,12 +16,8 @@ export type BacktestWorkspaceTab = {
 };
 
 export const BACKTEST_WORKSPACE_TABS: readonly BacktestWorkspaceTab[] = [
-  { id: 'run', label: '実行' },
-  { id: 'chart', label: 'チャート' },
-  { id: 'runs', label: '実行結果' },
-  { id: 'summary', label: '結果サマリー' },
-  { id: 'equity', label: 'エクイティカーブ' },
-  { id: 'trades', label: '取引履歴' },
+  { id: 'setup', label: '設定と実行' },
+  { id: 'results', label: '結果' },
 ] as const;
 
 export type BacktestWorkspaceTabsProps = {

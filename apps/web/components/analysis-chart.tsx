@@ -5,6 +5,8 @@
  * Volume Profile は価格ペイン上の HTML オーバーレイ。
  * 一目の雲とトレンドスコアは series primitive で価格ペインに描く（ADR 007）。
  * バークリックで基準日を通知し、スコアラベルは基準日の点を表示する（Ph6）。
+ * バックテストの売買は createSeriesMarkers で重ねる（v0.3.0 Ph5）。
+ * コンテナ幅 0 のときは create を延期し、ResizeObserver で幅を同期する（拡大時クロスヘア対策）。
  */
 'use client';
 
@@ -14,6 +16,7 @@ import {
   INDICATOR_CATALOG,
   INDICATOR_CATALOG_BY_ID,
   trendScoreState,
+  type BacktestTradeDto,
   type DailyPriceDto,
   type IndicatorCatalogId,
   type IndicatorDrawings,
@@ -25,11 +28,13 @@ import {
   CandlestickSeries,
   ColorType,
   createChart,
+  createSeriesMarkers,
   HistogramSeries,
   LineSeries,
   type IChartApi,
   type ISeriesApi,
   type MouseEventParams,
+  type SeriesMarker,
   type Time,
 } from 'lightweight-charts';
 import { BaseDateMarkerPrimitive } from './base-date-marker-primitive';
@@ -46,9 +51,14 @@ export type AnalysisChartProps = {
   baseDate?: string | null;
   /** チャート上のバーをクリックしたときの日付（YYYY-MM-DD）。 */
   onBarClick?: (date: string) => void;
+  /** バックテスト売買マーカー。未指定時は出さない。 */
+  trades?: BacktestTradeDto[];
   loading?: boolean;
   height?: number;
 };
+
+/** 空の trades。毎レンダーで new すると effect が再走するためモジュール定数にする。 */
+const EMPTY_TRADES: BacktestTradeDto[] = [];
 
 const UP_COLOR = '#26a69a';
 const DOWN_COLOR = '#ef5350';
@@ -218,6 +228,28 @@ export function chartTimeToDateString(time: Time): string | null {
   return null;
 }
 
+/** バックテスト売買を LWC SeriesMarker に変換する（時刻昇順）。 */
+export function toTradeMarkers(trades: BacktestTradeDto[]): SeriesMarker<Time>[] {
+  const markers: SeriesMarker<Time>[] = [];
+  for (const trade of trades) {
+    markers.push({
+      time: trade.entryDate as Time,
+      position: 'belowBar',
+      color: '#3dd68c',
+      shape: 'arrowUp',
+      text: 'Buy',
+    });
+    markers.push({
+      time: trade.exitDate as Time,
+      position: 'aboveBar',
+      color: '#ff8a80',
+      shape: 'arrowDown',
+      text: 'Sell',
+    });
+  }
+  return markers.sort((a, b) => String(a.time).localeCompare(String(b.time)));
+}
+
 /** 価格・指標をまとめた分析チャート。空／読込中はメッセージのみ返す。 */
 export function AnalysisChart({
   prices,
@@ -227,6 +259,7 @@ export function AnalysisChart({
   trendScorePoints = [],
   baseDate = null,
   onBarClick,
+  trades = EMPTY_TRADES,
   loading = false,
   height,
 }: AnalysisChartProps) {
@@ -250,136 +283,9 @@ export function AnalysisChart({
     }
 
     const container = containerRef.current;
-    const chart: IChartApi = createChart(container, {
-      width: container.clientWidth,
-      height: chartHeight,
-      layout: {
-        background: { type: ColorType.Solid, color: '#12263a' },
-        textColor: '#e8eef5',
-      },
-      grid: {
-        vertLines: { color: 'rgba(232, 238, 245, 0.08)' },
-        horzLines: { color: 'rgba(232, 238, 245, 0.08)' },
-      },
-      rightPriceScale: { borderVisible: false },
-      timeScale: { borderVisible: false },
-    });
+    let chart: IChartApi | null = null;
+    let disposed = false;
 
-    const candles = chart.addSeries(
-      CandlestickSeries,
-      {
-        upColor: UP_COLOR,
-        downColor: DOWN_COLOR,
-        borderVisible: false,
-        wickUpColor: UP_COLOR,
-        wickDownColor: DOWN_COLOR,
-      },
-      0,
-    ) as ISeriesApi<'Candlestick'> & {
-      createPriceLine?: (opts: { price: number; color: string; title: string }) => void;
-      attachPrimitive?: (
-        primitive: TrendBackgroundPrimitive | IchimokuCloudPrimitive | BaseDateMarkerPrimitive,
-      ) => void;
-    };
-    candles.setData(toCandlestickData(prices));
-
-    if (typeof candles.attachPrimitive === 'function') {
-      if (trendScorePoints.length > 0) {
-        candles.attachPrimitive(new TrendBackgroundPrimitive(trendScorePoints));
-      }
-      if (enabledIds.has('ichimoku')) {
-        candles.attachPrimitive(new IchimokuCloudPrimitive(indicatorPoints));
-      }
-      // 基準日マーカーは常に載せ、日付は別 effect で更新する
-      const marker = new BaseDateMarkerPrimitive(markerDate);
-      candles.attachPrimitive(marker);
-      baseDateMarkerRef.current = marker;
-    }
-
-    if (enabledIds.has('fibonacci') && drawings?.fibonacci) {
-      for (const level of drawings.fibonacci.levels) {
-        candles.createPriceLine?.({
-          price: level.price,
-          color: 'rgba(232, 238, 245, 0.45)',
-          title: `${(level.ratio * 100).toFixed(1)}%`,
-        });
-      }
-    }
-
-    for (const def of INDICATOR_CATALOG) {
-      if (!enabledIds.has(def.id) || def.pane !== 'overlay') {
-        continue;
-      }
-      for (const series of def.series) {
-        const line = chart.addSeries(
-          LineSeries,
-          {
-            color: series.color,
-            lineWidth: (series.style === 'dots' ? 1 : 2) as 1 | 2,
-            title: series.label,
-            priceLineVisible: false,
-          },
-          0,
-        );
-        line.setData(toLineData(indicatorPoints, series.key));
-      }
-    }
-
-    let nextPane = 1;
-    if (volumeOn) {
-      const volume = chart.addSeries(
-        HistogramSeries,
-        {
-          priceFormat: { type: 'volume' },
-          priceScaleId: 'volume',
-          title: 'Volume',
-        },
-        nextPane,
-      ) as ISeriesApi<'Histogram'>;
-      volume.setData(toVolumeData(prices));
-      nextPane += 1;
-    }
-
-    for (const def of INDICATOR_CATALOG) {
-      if (!enabledIds.has(def.id) || def.pane !== 'oscillator') {
-        continue;
-      }
-      for (const series of def.series) {
-        if (series.style === 'histogram') {
-          const hist = chart.addSeries(
-            HistogramSeries,
-            { title: series.label, priceLineVisible: false },
-            nextPane,
-          );
-          hist.setData(toSignedHistogramData(indicatorPoints, series.key));
-        } else {
-          const line = chart.addSeries(
-            LineSeries,
-            {
-              color: series.color,
-              lineWidth: 2,
-              title: series.label,
-              priceLineVisible: false,
-            },
-            nextPane,
-          );
-          line.setData(toLineData(indicatorPoints, series.key));
-        }
-      }
-      nextPane += 1;
-    }
-
-    const panes = chart.panes();
-    if (panes.length > 1) {
-      panes[0]?.setHeight(PRICE_PANE_PX);
-      for (let i = 1; i < panes.length; i += 1) {
-        panes[i]?.setHeight(SUB_PANE_PX);
-      }
-    }
-
-    chart.timeScale().fitContent();
-
-    // クリックで基準日を親へ通知（Ph6）
     const handleClick = (param: MouseEventParams) => {
       if (param.time === undefined) {
         return;
@@ -389,24 +295,218 @@ export function AnalysisChart({
         onBarClickRef.current?.(date);
       }
     };
-    chart.subscribeClick(handleClick);
 
-    // 別ウィンドウへ portal したときは popup 側の resize を見る
-    const view = resolveOwnerWindow(container);
-    const handleResize = () => {
-      chart.applyOptions({ width: container.clientWidth });
+    const buildChart = (width: number) => {
+      if (disposed || chart || width < MIN_CHART_WIDTH) {
+        return;
+      }
+
+      chart = createChart(container, {
+        width,
+        height: chartHeight,
+        layout: {
+          background: { type: ColorType.Solid, color: '#12263a' },
+          textColor: '#e8eef5',
+        },
+        grid: {
+          vertLines: { color: 'rgba(232, 238, 245, 0.08)' },
+          horzLines: { color: 'rgba(232, 238, 245, 0.08)' },
+        },
+        rightPriceScale: { borderVisible: false },
+        timeScale: { borderVisible: false },
+      });
+
+      const candles = chart.addSeries(
+        CandlestickSeries,
+        {
+          upColor: UP_COLOR,
+          downColor: DOWN_COLOR,
+          borderVisible: false,
+          wickUpColor: UP_COLOR,
+          wickDownColor: DOWN_COLOR,
+        },
+        0,
+      ) as ISeriesApi<'Candlestick'> & {
+        createPriceLine?: (opts: { price: number; color: string; title: string }) => void;
+        attachPrimitive?: (
+          primitive: TrendBackgroundPrimitive | IchimokuCloudPrimitive | BaseDateMarkerPrimitive,
+        ) => void;
+      };
+      candles.setData(toCandlestickData(prices));
+
+      if (typeof candles.attachPrimitive === 'function') {
+        if (trendScorePoints.length > 0) {
+          candles.attachPrimitive(new TrendBackgroundPrimitive(trendScorePoints));
+        }
+        if (enabledIds.has('ichimoku')) {
+          candles.attachPrimitive(new IchimokuCloudPrimitive(indicatorPoints));
+        }
+        // 基準日マーカーは常に載せ、日付は別 effect で更新する
+        const marker = new BaseDateMarkerPrimitive(markerDate);
+        candles.attachPrimitive(marker);
+        baseDateMarkerRef.current = marker;
+      }
+
+      const tradeMarkers = toTradeMarkers(trades);
+      if (tradeMarkers.length > 0) {
+        createSeriesMarkers(candles, tradeMarkers);
+      }
+
+      if (enabledIds.has('fibonacci') && drawings?.fibonacci) {
+        for (const level of drawings.fibonacci.levels) {
+          candles.createPriceLine?.({
+            price: level.price,
+            color: 'rgba(232, 238, 245, 0.45)',
+            title: `${(level.ratio * 100).toFixed(1)}%`,
+          });
+        }
+      }
+
+      for (const def of INDICATOR_CATALOG) {
+        if (!enabledIds.has(def.id) || def.pane !== 'overlay') {
+          continue;
+        }
+        for (const series of def.series) {
+          const line = chart.addSeries(
+            LineSeries,
+            {
+              color: series.color,
+              lineWidth: (series.style === 'dots' ? 1 : 2) as 1 | 2,
+              title: series.label,
+              priceLineVisible: false,
+            },
+            0,
+          );
+          line.setData(toLineData(indicatorPoints, series.key));
+        }
+      }
+
+      let nextPane = 1;
+      if (volumeOn) {
+        const volume = chart.addSeries(
+          HistogramSeries,
+          {
+            priceFormat: { type: 'volume' },
+            priceScaleId: 'volume',
+            title: 'Volume',
+          },
+          nextPane,
+        ) as ISeriesApi<'Histogram'>;
+        volume.setData(toVolumeData(prices));
+        nextPane += 1;
+      }
+
+      for (const def of INDICATOR_CATALOG) {
+        if (!enabledIds.has(def.id) || def.pane !== 'oscillator') {
+          continue;
+        }
+        for (const series of def.series) {
+          if (series.style === 'histogram') {
+            const hist = chart.addSeries(
+              HistogramSeries,
+              { title: series.label, priceLineVisible: false },
+              nextPane,
+            );
+            hist.setData(toSignedHistogramData(indicatorPoints, series.key));
+          } else {
+            const line = chart.addSeries(
+              LineSeries,
+              {
+                color: series.color,
+                lineWidth: 2,
+                title: series.label,
+                priceLineVisible: false,
+              },
+              nextPane,
+            );
+            line.setData(toLineData(indicatorPoints, series.key));
+          }
+        }
+        nextPane += 1;
+      }
+
+      const panes = chart.panes();
+      if (panes.length > 1) {
+        panes[0]?.setHeight(PRICE_PANE_PX);
+        for (let i = 1; i < panes.length; i += 1) {
+          panes[i]?.setHeight(SUB_PANE_PX);
+        }
+      }
+
+      chart.timeScale().fitContent();
+      chart.subscribeClick(handleClick);
+      // ポップアウト直後の canvas クリアを拾うため強制再描画
+      chart.resize(width, chartHeight, true);
     };
-    view.addEventListener('resize', handleResize);
+
+    const syncSize = () => {
+      if (disposed) {
+        return;
+      }
+      const width = resolveChartWidth(container);
+      if (!chart) {
+        buildChart(width);
+        return;
+      }
+      if (width >= MIN_CHART_WIDTH) {
+        chart.resize(width, chartHeight, true);
+      }
+    };
+
+    // 別ウィンドウへ portal したときは popup 側の ResizeObserver / resize を見る
+    const view = resolveOwnerWindow(container);
+    const hostWindow = view as Window & {
+      ResizeObserver?: typeof ResizeObserver;
+      requestAnimationFrame: typeof requestAnimationFrame;
+    };
+    const HostResizeObserver =
+      typeof hostWindow.ResizeObserver === 'function'
+        ? hostWindow.ResizeObserver
+        : typeof ResizeObserver !== 'undefined'
+          ? ResizeObserver
+          : null;
+    const resizeObserver = HostResizeObserver ? new HostResizeObserver(syncSize) : null;
+    resizeObserver?.observe(container);
+    view.addEventListener('resize', syncSize);
+
+    // 初回: 幅がまだ無いときは RO / resize 待ち。Jest 等で幅が取れないときは仮幅で作成する。
+    const initialWidth = resolveChartWidth(container);
+    if (initialWidth >= MIN_CHART_WIDTH) {
+      buildChart(initialWidth);
+    } else if (!HostResizeObserver) {
+      buildChart(800);
+    } else {
+      // レイアウト確定後に再試行（fullscreen popup の innerWidth=0 対策）
+      hostWindow.requestAnimationFrame(() => {
+        if (!disposed) {
+          syncSize();
+        }
+      });
+    }
 
     return () => {
-      chart.unsubscribeClick(handleClick);
-      view.removeEventListener('resize', handleResize);
+      disposed = true;
+      resizeObserver?.disconnect();
+      view.removeEventListener('resize', syncSize);
+      if (chart) {
+        chart.unsubscribeClick(handleClick);
+        chart.remove();
+      }
       baseDateMarkerRef.current = null;
-      chart.remove();
     };
     // markerDate は初回 attach 用。以降の変更は下の effect で setBaseDate する
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 基準日クリックでチャートを作り直さない
-  }, [prices, indicatorPoints, enabledIds, drawings, trendScorePoints, loading, chartHeight, volumeOn]);
+  }, [
+    prices,
+    indicatorPoints,
+    enabledIds,
+    drawings,
+    trendScorePoints,
+    trades,
+    loading,
+    chartHeight,
+    volumeOn,
+  ]);
 
   // 基準日だけ差し替え（ズーム位置を保つ）
   useEffect(() => {
@@ -484,3 +584,25 @@ export function resolveOwnerWindow(node: {
 }): Window {
   return node.ownerDocument.defaultView ?? window;
 }
+
+/**
+ * LWC に渡す幅。
+ * 未レイアウト時は 0 を返す（1 を渡すと LWC 内部で偶数化され 0 になり canvas が空白になる）。
+ * ホスト window の innerWidth はフォールバックに使う。
+ */
+export function resolveChartWidth(container: {
+  clientWidth: number;
+  ownerDocument: { defaultView: Window | null };
+}): number {
+  if (container.clientWidth > 0) {
+    return container.clientWidth;
+  }
+  const view = resolveOwnerWindow(container);
+  if (view.innerWidth > 0) {
+    return view.innerWidth;
+  }
+  return 0;
+}
+
+/** LWC の suggestChartSize が 0 に潰さない最小幅。 */
+export const MIN_CHART_WIDTH = 2;

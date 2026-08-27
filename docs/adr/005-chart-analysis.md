@@ -15,7 +15,8 @@ Phase 6 では銘柄指定の分析画面を充実させ、ローソク足・出
 **専用分析画面 `/charts` で TradingView Lightweight Charts によりローソク・出来高・指標を表示し、週足は Nest が日足から集約する。**
 
 - Web チャートライブラリ: **`lightweight-charts` v5**（ローソク・サブパネル・ズーム/パンが標準）
-- 既存 `recharts` の折れ線 `PriceChart` はバックテスト画面用として残す
+- 価格チャート表示は `/charts` と `/backtests` の両方で **`AnalysisChart`** を共用する（バックテストの売買は `createSeriesMarkers`）
+- 既存 `recharts` の折れ線 `PriceChart` はレガシー。エクイティ曲線など別用途に限り recharts を使う
 - データ取得: 一括 API は作らず、既存の  
   `GET /symbols/:id/prices` と `GET /symbols/:id/indicators` を並列呼び出し
 - クエリ `interval=1d|1w`（省略時 `1d`）を両エンドポイントに追加

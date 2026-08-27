@@ -1,7 +1,7 @@
 /**
- * バックテスト画面上部の概要帯（v0.3.0 Ph4）。
+ * バックテスト結果タブ内の「選択中の実行結果」ヘッダ（v0.3.0 Ph5）。
  *
- * タブを切り替えても、選択銘柄と主要指標が一目で分かるように常時表示する。
+ * 選択中 run の銘柄・期間・主要指標のみを表示する（フォーム条件とは混ぜない）。
  */
 'use client';
 
@@ -9,9 +9,9 @@ import type { CSSProperties } from 'react';
 import type { BacktestSummaryDto } from '@market/shared-types';
 
 export type BacktestOverviewStripProps = {
-  /** 選択銘柄のティッカー。未選択時は null。 */
+  /** 選択中 run の銘柄ティッカー。未選択時は null。 */
   ticker: string | null;
-  /** 選択銘柄の名称（日本語名など）。空なら非表示。 */
+  /** 選択中 run の銘柄名称。空なら非表示。 */
   name: string | null;
   /** 選択中 run の期間。run 未選択時は null。 */
   fromDate: string | null;
@@ -24,7 +24,7 @@ function pct(rate: number): string {
   return `${(rate * 100).toFixed(2)}%`;
 }
 
-/** 銘柄と主要指標のコンパクト概要を描画する。 */
+/** 選択中 run の銘柄と主要指標を描画する。 */
 export function BacktestOverviewStrip({
   ticker,
   name,
@@ -41,9 +41,12 @@ export function BacktestOverviewStrip({
   return (
     <section
       data-testid="backtest-overview-strip"
-      aria-label="バックテスト概要"
+      aria-label="選択中の実行結果"
       style={stripStyle}
     >
+      <p style={titleStyle} data-testid="backtest-overview-title">
+        選択中の実行結果
+      </p>
       <div style={symbolStyle} data-testid="backtest-overview-symbol">
         {symbolLabel}
       </div>
@@ -59,7 +62,7 @@ export function BacktestOverviewStrip({
         </div>
       ) : (
         <p style={emptyStyle} data-testid="backtest-overview-empty">
-          実行結果がありません
+          まだ実行結果がありません
         </p>
       )}
     </section>
@@ -67,11 +70,19 @@ export function BacktestOverviewStrip({
 }
 
 const stripStyle: CSSProperties = {
-  marginTop: '1.25rem',
+  marginTop: 0,
   maxWidth: '56rem',
   padding: '0.85rem 1rem',
   border: '1px solid rgba(232, 238, 245, 0.25)',
   background: 'rgba(0, 0, 0, 0.2)',
+};
+
+const titleStyle: CSSProperties = {
+  margin: '0 0 0.35rem',
+  fontSize: '0.8rem',
+  fontWeight: 600,
+  letterSpacing: '0.02em',
+  opacity: 0.75,
 };
 
 const symbolStyle: CSSProperties = {

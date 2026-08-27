@@ -8,6 +8,7 @@ import {
   ApiClientError,
   fetchBacktestRuns,
   fetchIndicatorSets,
+  fetchSymbolIndicators,
   fetchSymbolPrices,
   fetchSymbols,
   optimizeBacktest,
@@ -19,6 +20,7 @@ jest.mock('../../../../lib/api-client', () => ({
   fetchBacktestRuns: jest.fn(),
   fetchSymbols: jest.fn(),
   fetchSymbolPrices: jest.fn(),
+  fetchSymbolIndicators: jest.fn(),
   runBacktest: jest.fn(),
   optimizeBacktest: jest.fn(),
   ApiClientError: class ApiClientError extends Error {
@@ -33,10 +35,11 @@ jest.mock('../../../../lib/api-client', () => ({
   },
 }));
 
-jest.mock('../../../../components/price-chart', () => ({
-  PriceChart: ({ loading }: { loading?: boolean }) => (
-    <div data-testid="price-chart-stub">{loading ? 'loading' : 'ready'}</div>
+jest.mock('../../../../components/analysis-chart', () => ({
+  AnalysisChart: ({ loading }: { loading?: boolean }) => (
+    <div data-testid="analysis-chart-stub">{loading ? 'loading' : 'ready'}</div>
   ),
+  computeAnalysisChartHeight: () => 320,
 }));
 
 jest.mock('../../../../components/backtest-summary-cards', () => ({
@@ -49,6 +52,12 @@ jest.mock('../../../../components/backtest-equity-chart', () => ({
 
 jest.mock('../../../../components/backtest-trades-table', () => ({
   BacktestTradesTable: () => <div data-testid="trades-table-stub" />,
+}));
+
+jest.mock('../../../../components/popout-window', () => ({
+  PopoutWindow: () => null,
+  primePopoutWindow: jest.fn(),
+  useHostWindowSize: () => ({ width: 800, height: 600 }),
 }));
 
 describe('BacktestsPage', () => {
@@ -113,6 +122,7 @@ describe('BacktestsPage', () => {
     jest.clearAllMocks();
     (useSearchParams as jest.Mock).mockReturnValue(new URLSearchParams());
     (fetchSymbolPrices as jest.Mock).mockResolvedValue([]);
+    (fetchSymbolIndicators as jest.Mock).mockResolvedValue({ points: [], drawings: undefined });
   });
 
   it('loads indicator sets and supports run/optimize with tabs', async () => {
@@ -135,17 +145,23 @@ describe('BacktestsPage', () => {
       expect(screen.getByTestId('indicator-set-select')).toHaveValue('set_1');
     });
     expect(screen.getByRole('heading', { name: 'バックテスト' })).toBeInTheDocument();
+    expect(screen.getByTestId('backtest-setup-steps')).toBeInTheDocument();
     expect(screen.getByTestId('selected-set-rule-preview')).toHaveTextContent('バックテスト用');
     expect(screen.getByRole('link', { name: '指標を編集' })).toHaveAttribute('href', '/charts');
     expect(screen.getByTestId('selected-symbol-name')).toHaveTextContent('Apple');
     expect(screen.getByTestId('symbol-select')).toHaveTextContent('AAPL (US) — Apple');
+
+    fireEvent.click(screen.getByTestId('backtest-tab-results'));
+    expect(screen.getByTestId('backtest-overview-title')).toHaveTextContent('選択中の実行結果');
     expect(screen.getByTestId('backtest-overview-symbol')).toHaveTextContent('AAPL — Apple');
     expect(screen.getByTestId('backtest-overview-metrics')).toHaveTextContent('リターン 1.00%');
+    expect(screen.getByTestId('backtest-run-select')).toBeInTheDocument();
+    expect(screen.getByTestId('summary-cards-stub')).toBeInTheDocument();
+    expect(screen.getByTestId('equity-chart-stub')).toBeInTheDocument();
+    expect(screen.getByTestId('analysis-chart-stub')).toBeInTheDocument();
+    expect(screen.getByTestId('trades-table-stub')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('backtest-tab-runs'));
-    expect(screen.getByText(/リターン=1.00%/)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId('backtest-tab-run'));
+    fireEvent.click(screen.getByTestId('backtest-tab-setup'));
     expect(screen.getByRole('link', { name: '詳細チャート' })).toHaveAttribute(
       'href',
       '/charts?symbolId=sym_1&from=2026-01-01&to=2026-06-30',
@@ -162,9 +178,10 @@ describe('BacktestsPage', () => {
       ),
     );
     await waitFor(() => expect(screen.getByTestId('summary-cards-stub')).toBeInTheDocument());
+    expect(screen.getByTestId('backtest-tab-results')).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.click(screen.getByTestId('backtest-tab-run'));
-    fireEvent.click(screen.getByRole('button', { name: 'SMA 最適化' }));
+    fireEvent.click(screen.getByTestId('backtest-tab-setup'));
+    fireEvent.click(screen.getByTestId('sma-optimize-button'));
     await waitFor(() => expect(optimizeBacktest).toHaveBeenCalled());
     expect(optimizeBacktest).toHaveBeenCalledWith(
       expect.not.objectContaining({ shortMin: expect.anything() }),
@@ -173,24 +190,17 @@ describe('BacktestsPage', () => {
     expect(screen.queryByRole('button', { name: '適用' })).not.toBeInTheDocument();
   });
 
-  it('switches detail tabs for chart, equity, and trades', async () => {
+  it('shows SMA optimize tooltip on hover', async () => {
     (fetchIndicatorSets as jest.Mock).mockResolvedValue([capableSet]);
-    (fetchBacktestRuns as jest.Mock).mockResolvedValue([run]);
+    (fetchBacktestRuns as jest.Mock).mockResolvedValue([]);
     (fetchSymbols as jest.Mock).mockResolvedValue([symbol]);
 
     render(<BacktestsPage />);
     await waitFor(() => {
-      expect(screen.getByTestId('indicator-set-select')).toHaveValue('set_1');
+      expect(screen.getByTestId('sma-optimize-button')).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByTestId('backtest-tab-chart'));
-    expect(screen.getByTestId('price-chart-stub')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId('backtest-tab-equity'));
-    expect(screen.getByTestId('equity-chart-stub')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId('backtest-tab-trades'));
-    expect(screen.getByTestId('trades-table-stub')).toBeInTheDocument();
+    fireEvent.mouseEnter(screen.getByTestId('sma-optimize-help'));
+    expect(screen.getByTestId('sma-optimize-tooltip')).toHaveTextContent('カタログの SMA ペア');
   });
 
   it('preselects indicatorSetId from search params', async () => {
@@ -207,8 +217,9 @@ describe('BacktestsPage', () => {
     });
     expect(screen.getByRole('button', { name: '実行' })).toBeDisabled();
     expect(screen.getByTestId('selected-set-rule-preview')).toHaveTextContent('未確定');
+    fireEvent.click(screen.getByTestId('backtest-tab-results'));
     expect(screen.getByTestId('backtest-overview-empty')).toHaveTextContent(
-      '実行結果がありません',
+      'まだ実行結果がありません',
     );
   });
 
@@ -228,10 +239,10 @@ describe('BacktestsPage', () => {
     await waitFor(() =>
       expect(screen.getByRole('link', { name: '銘柄を追加' })).toHaveAttribute('href', '/symbols'),
     );
+    fireEvent.click(screen.getByTestId('backtest-tab-results'));
     expect(screen.getByTestId('backtest-overview-empty')).toHaveTextContent(
-      '実行結果がありません',
+      'まだ実行結果がありません',
     );
-    fireEvent.click(screen.getByTestId('backtest-tab-runs'));
-    expect(screen.getByText('まだ結果がありません')).toBeInTheDocument();
+    expect(screen.getByText('実行結果を選ぶと詳細を表示します')).toBeInTheDocument();
   });
 });
