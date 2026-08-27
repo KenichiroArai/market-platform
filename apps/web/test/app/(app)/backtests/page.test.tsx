@@ -172,8 +172,11 @@ describe('BacktestsPage', () => {
     await waitFor(() =>
       expect(runBacktest).toHaveBeenCalledWith(
         expect.objectContaining({
+          signalMode: 'trendScore',
           indicatorSetId: 'set_1',
           initialCash: 200000,
+          buyThreshold: 37.5,
+          sellThreshold: -42.5,
         }),
       ),
     );
@@ -215,6 +218,7 @@ describe('BacktestsPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('indicator-set-select')).toHaveValue('set_2');
     });
+    fireEvent.click(screen.getByTestId('signal-mode-indicator-set'));
     expect(screen.getByRole('button', { name: '実行' })).toBeDisabled();
     expect(screen.getByTestId('selected-set-rule-preview')).toHaveTextContent('未確定');
     fireEvent.click(screen.getByTestId('backtest-tab-results'));

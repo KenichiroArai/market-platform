@@ -11,6 +11,8 @@ from app.main import (
     app,
     compute_indicators,
     _buy_hold_metrics,
+    _entry_reason_code,
+    _exit_reason_code,
     _profit_factor,
     _sharpe_ratio,
 )
@@ -280,6 +282,137 @@ def test_signal_spec_validation_for_thresholds() -> None:
         SignalSpec(strategyType="macdCross", fast=26, slow=12, signal=9)
 
 
+def test_trade_reason_codes() -> None:
+    """戦略種別ごとの買い／売り理由コード。"""
+    assert _entry_reason_code("smaCross") == "sma_golden_cross"
+    assert _entry_reason_code("macdCross") == "macd_golden_cross"
+    assert _entry_reason_code("rsiThreshold") == "rsi_oversold"
+    assert _entry_reason_code("trendScoreThreshold") == "score_cross_up"
+    assert _exit_reason_code("smaCross") == "sma_dead_cross"
+    assert _exit_reason_code("macdCross") == "macd_dead_cross"
+    assert _exit_reason_code("rsiThreshold") == "rsi_overbought"
+    assert _exit_reason_code("trendScoreThreshold") == "score_cross_down"
+    assert _exit_reason_code("smaCross", force_close=True) == "force_close_end"
+
+
+def test_decision_scores_rsi_only() -> None:
+    """判断スコアは RSI のみ値を持ち、クロス戦略は None（トレンドスコアは別経路）。"""
+    from app.main import _decision_scores
+
+    dates = [f"2026-01-{i:02d}" for i in range(1, 6)]
+    closes = [100.0, 101.0, 102.0, 103.0, 104.0]
+    none_scores = _decision_scores(
+        dates, closes, SignalSpec(strategyType="smaCross", shortPeriod=2, longPeriod=3)
+    )
+    assert none_scores == [None] * 5
+
+    rsi_scores = _decision_scores(
+        dates,
+        closes,
+        SignalSpec(strategyType="rsiThreshold", period=2, lower=30, upper=70),
+    )
+    assert len(rsi_scores) == 5
+    assert any(value is not None for value in rsi_scores)
+
+
+def test_score_threshold_signal_points() -> None:
+    """スコア閾値クロスの buy/sell。"""
+    from app.main import _score_threshold_signal_points
+
+    dates = ["d1", "d2", "d3", "d4"]
+    scores = [10.0, 40.0, 0.0, -50.0]
+    points = _score_threshold_signal_points(
+        dates, scores, buy_threshold=37.5, sell_threshold=-42.5
+    )
+    assert [p.buy for p in points] == [False, True, False, False]
+    assert [p.sell for p in points] == [False, False, False, True]
+
+
+def test_signal_spec_trend_score_validation() -> None:
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="trendScoreThreshold")
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="trendScoreThreshold", buyThreshold=10, sellThreshold=20)
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="trendScoreThreshold", buyThreshold=150, sellThreshold=-10)
+    with pytest.raises(ValidationError):
+        SignalSpec(strategyType="trendScoreThreshold", buyThreshold=10, sellThreshold=-150)
+    spec = SignalSpec(
+        strategyType="trendScoreThreshold", buyThreshold=37.5, sellThreshold=-42.5
+    )
+    assert spec.buyThreshold == 37.5
+
+
+def test_post_backtests_run_trend_score_with_range_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    """トレンドスコア戦略と rangeStartIndex でウォームアップをスキップする。"""
+    from app.schemas import TrendScorePoint
+
+    def fake_compute_trend_score(bars, range_start_index=0):  # noqa: ANN001
+        # スコアを明示してクロスを起こす（lookback 1 本 + 表示 3 本）
+        values = [0.0, 10.0, 50.0, -50.0]
+        return [
+            TrendScorePoint(date=bar.date, score=values[i], groups={}, indicators={})
+            for i, bar in enumerate(bars)
+        ]
+
+    monkeypatch.setattr("app.main.compute_trend_score", fake_compute_trend_score)
+
+    client = TestClient(app)
+    payload = {
+        "symbolId": "sym_1",
+        "bars": _bars([1.0, 1.0, 2.0, 1.5]),
+        "signal": {
+            "strategyType": "trendScoreThreshold",
+            "buyThreshold": 37.5,
+            "sellThreshold": -42.5,
+        },
+        "initialCash": 10000,
+        "feeRate": 0.0,
+        "slippageRate": 0.0,
+        "rangeStartIndex": 1,
+    }
+    response = client.post("/backtests/run", json=payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["equityPoints"]) == 3
+    assert body["trades"]
+    trade = body["trades"][0]
+    assert trade["entryReason"] == "score_cross_up"
+    assert trade["entryScore"] == 50.0
+    assert trade["exitReason"] in ("score_cross_down", "force_close_end")
+
+
+
+def test_post_signals_trend_score(monkeypatch: pytest.MonkeyPatch) -> None:
+    """POST /signals/compute がトレンドスコア戦略を扱う。"""
+    from app.schemas import TrendScorePoint
+
+    def fake_compute_trend_score(bars, range_start_index=0):  # noqa: ANN001
+        values = [0.0, 50.0, -50.0]
+        return [
+            TrendScorePoint(date=bar.date, score=values[i], groups={}, indicators={})
+            for i, bar in enumerate(bars)
+        ]
+
+    monkeypatch.setattr("app.main.compute_trend_score", fake_compute_trend_score)
+    client = TestClient(app)
+    response = client.post(
+        "/signals/compute",
+        json={
+            "bars": _bars([1.0, 2.0, 1.5]),
+            "signal": {
+                "strategyType": "trendScoreThreshold",
+                "buyThreshold": 37.5,
+                "sellThreshold": -42.5,
+            },
+        },
+    )
+    assert response.status_code == 200
+    points = response.json()["points"]
+    assert points[1]["buy"] is True
+    assert points[2]["sell"] is True
+
+
 def test_post_backtests_run_with_trade() -> None:
     """エントリー/エグジットが発生するケース。"""
     client = TestClient(app)
@@ -304,6 +437,9 @@ def test_post_backtests_run_with_trade() -> None:
     # Buy & Hold: 1.0 → 1.0 なのでリターン 0
     assert summary["buyHoldFinalEquity"] == 10000.0
     assert summary["buyHoldReturnRate"] == 0.0
+    trade = body["trades"][0]
+    assert trade["entryReason"] == "sma_golden_cross"
+    assert trade["exitReason"] in ("sma_dead_cross", "force_close_end")
 
 
 def test_post_backtests_run_without_trade() -> None:
@@ -346,6 +482,33 @@ def test_post_backtests_run_force_close_at_end() -> None:
     # Buy & Hold: 1 → 4 で 4 倍
     assert body["summary"]["buyHoldFinalEquity"] == 40000.0
     assert body["summary"]["buyHoldReturnRate"] == 3.0
+    assert any(t["exitReason"] == "force_close_end" for t in body["trades"])
+    assert all(t["entryReason"] == "sma_golden_cross" for t in body["trades"])
+    assert all(t.get("entryScore") is None for t in body["trades"])
+    assert all(t.get("exitScore") is None for t in body["trades"])
+
+
+def test_post_backtests_run_rsi_includes_decision_scores() -> None:
+    """RSI 戦略は買い判断にスコアを載せ、期間末決済の売りスコアは無し。"""
+    client = TestClient(app)
+    closes = [float(100 - i) for i in range(25)]
+    payload = {
+        "symbolId": "sym_1",
+        "bars": _bars(closes),
+        "signal": {"strategyType": "rsiThreshold", "period": 5, "lower": 40, "upper": 95},
+        "initialCash": 10000,
+        "feeRate": 0.0,
+        "slippageRate": 0.0,
+    }
+    response = client.post("/backtests/run", json=payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["totalTrades"] >= 1
+    trade = body["trades"][0]
+    assert trade["entryReason"] == "rsi_oversold"
+    assert trade["entryScore"] is not None
+    assert trade["exitReason"] == "force_close_end"
+    assert trade["exitScore"] is None
 
 
 def test_post_backtests_run_buy_hold_metrics() -> None:

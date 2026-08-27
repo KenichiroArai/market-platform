@@ -14,10 +14,14 @@ import {
 } from '@nestjs/common';
 import {
   API_ERROR_CODES,
+  computeIndicatorLookback,
   describeSignalRule,
   isIndicatorCatalogId,
   listCatalogSmaPairs,
   resolveSignalRule,
+  resolveTrendScoreSignalRule,
+  scoringCatalogIds,
+  specsFromCatalogIds,
   type BacktestRunDto,
   type ComputeBacktestResponse,
   type ComputeSignalRequest,
@@ -29,6 +33,7 @@ import {
   type SignalDefinitionDto,
   type SignalStrategyType,
   type TradeSide,
+  type TrendScoreThresholdParams,
 } from '@market/shared-types';
 import { PricesService } from '../prices/prices.service';
 import { PrismaService } from '../prisma.service';
@@ -41,12 +46,18 @@ import type {
 
 type DecimalLike = number | string | { toString(): string };
 
+type PrismaStrategyType =
+  | 'SMA_CROSS'
+  | 'RSI_THRESHOLD'
+  | 'MACD_CROSS'
+  | 'TREND_SCORE_THRESHOLD';
+
 type SignalDefinitionRow = {
   id: string;
   userId: string;
   name: string;
   description: string | null;
-  strategyType: 'SMA_CROSS' | 'RSI_THRESHOLD' | 'MACD_CROSS';
+  strategyType: PrismaStrategyType;
   paramsJson: unknown;
   isActive: boolean;
   createdAt: Date;
@@ -156,6 +167,19 @@ export class SignalsBacktestsService {
   }
 
   async runBacktest(userId: string, dto: RunBacktestDto): Promise<BacktestRunDto> {
+    const signalMode = dto.signalMode ?? 'indicatorSet';
+
+    if (signalMode === 'trendScore') {
+      return this.runTrendScoreBacktest(userId, dto);
+    }
+
+    if (!dto.indicatorSetId) {
+      throw new BadRequestException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: 'indicatorSetId is required when signalMode is indicatorSet',
+      });
+    }
+
     const indicatorSet = await this.prismaService.prisma.indicatorSet.findFirst({
       where: { id: dto.indicatorSetId, userId },
     });
@@ -186,10 +210,83 @@ export class SignalsBacktestsService {
       slippageRate: dto.slippageRate,
     });
     const result = await this.callAnalysisBacktest(analysisRequest);
+    return this.persistBacktestRun(userId, {
+      indicatorSetId: indicatorSet.id,
+      rule,
+      dto,
+      result,
+    });
+  }
+
+  /**
+   * チャート分析と同系のトレンドスコアで売買するバックテスト。
+   * 指標セットは結果チャートのオーバーレイ用に任意（売買ルールには使わない）。
+   */
+  private async runTrendScoreBacktest(
+    userId: string,
+    dto: RunBacktestDto,
+  ): Promise<BacktestRunDto> {
+    if (
+      dto.buyThreshold != null &&
+      dto.sellThreshold != null &&
+      dto.buyThreshold <= dto.sellThreshold
+    ) {
+      throw new BadRequestException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: 'buyThreshold must be greater than sellThreshold',
+      });
+    }
+
+    const rule = resolveTrendScoreSignalRule({
+      buyThreshold: dto.buyThreshold,
+      sellThreshold: dto.sellThreshold,
+    });
+
+    let indicatorSetId: string | null = null;
+    if (dto.indicatorSetId) {
+      const indicatorSet = await this.prismaService.prisma.indicatorSet.findFirst({
+        where: { id: dto.indicatorSetId, userId },
+      });
+      if (!indicatorSet) {
+        throw new NotFoundException({
+          code: API_ERROR_CODES.INDICATOR_SET_NOT_FOUND,
+          message: 'Indicator set not found',
+        });
+      }
+      indicatorSetId = indicatorSet.id;
+    }
+
+    const analysisRequest = await this.buildComputeBacktestRequestTrendScore(rule, {
+      symbolId: dto.symbolId,
+      from: dto.from,
+      to: dto.to,
+      initialCash: dto.initialCash,
+      feeRate: dto.feeRate,
+      slippageRate: dto.slippageRate,
+    });
+    const result = await this.callAnalysisBacktest(analysisRequest);
+    return this.persistBacktestRun(userId, {
+      indicatorSetId,
+      rule,
+      dto,
+      result,
+    });
+  }
+
+  private async persistBacktestRun(
+    userId: string,
+    args: {
+      indicatorSetId: string | null;
+      rule: ResolvedSignalRule;
+      dto: RunBacktestDto;
+      result: ComputeBacktestResponse;
+    },
+  ): Promise<BacktestRunDto> {
+    const { indicatorSetId, rule, dto, result } = args;
     const created = await this.prismaService.prisma.backtestRun.create({
       data: {
         userId,
-        indicatorSetId: indicatorSet.id,
+        indicatorSetId,
         signalDefinitionId: null,
         strategyType: this.toPrismaStrategyType(rule.strategyType),
         paramsJson: rule.params as object,
@@ -221,6 +318,10 @@ export class SignalsBacktestsService {
             feeAmount: trade.feeAmount,
             slippageAmount: trade.slippageAmount,
             netPnl: trade.netPnl,
+            entryReason: trade.entryReason ?? null,
+            exitReason: trade.exitReason ?? null,
+            entryScore: trade.entryScore ?? null,
+            exitScore: trade.exitScore ?? null,
           })),
         },
         equityPoints: {
@@ -297,6 +398,7 @@ export class SignalsBacktestsService {
       feeRate: number;
       slippageRate: number;
       symbolId: string;
+      rangeStartIndex?: number;
     }
   > {
     const prices = await this.pricesService.listBySymbolId(run.symbolId, {
@@ -321,12 +423,61 @@ export class SignalsBacktestsService {
     };
   }
 
+  /**
+   * トレンドスコア戦略用。チャートと同様 lookback 付き日足を渡し、表示期間から売買を開始する。
+   */
+  private async buildComputeBacktestRequestTrendScore(
+    rule: ResolvedSignalRule,
+    run: {
+      symbolId: string;
+      from: string;
+      to: string;
+      initialCash: number;
+      feeRate: number;
+      slippageRate: number;
+    },
+  ): Promise<
+    ComputeSignalRequest & {
+      initialCash: number;
+      feeRate: number;
+      slippageRate: number;
+      symbolId: string;
+      rangeStartIndex?: number;
+    }
+  > {
+    const specs = specsFromCatalogIds(scoringCatalogIds());
+    const lookback = computeIndicatorLookback(specs);
+    const { bars, rangeStartIndex } = await this.pricesService.listWithLookback(run.symbolId, {
+      from: run.from,
+      to: run.to,
+      lookback,
+    });
+    return {
+      strategyType: rule.strategyType,
+      params: rule.params,
+      bars: bars.map((price) => ({
+        date: price.date,
+        open: price.open,
+        high: price.high,
+        low: price.low,
+        close: price.close,
+        volume: price.volume,
+      })),
+      symbolId: run.symbolId,
+      initialCash: run.initialCash,
+      feeRate: run.feeRate,
+      slippageRate: run.slippageRate,
+      rangeStartIndex,
+    };
+  }
+
   private async callAnalysisBacktest(
     body: ComputeSignalRequest & {
       initialCash: number;
       feeRate: number;
       slippageRate: number;
       symbolId: string;
+      rangeStartIndex?: number;
     },
   ): Promise<ComputeBacktestResponse> {
     const analysisUrl = process.env.ANALYSIS_URL ?? 'http://localhost:8000';
@@ -343,6 +494,7 @@ export class SignalsBacktestsService {
           initialCash: body.initialCash,
           feeRate: body.feeRate,
           slippageRate: body.slippageRate,
+          rangeStartIndex: body.rangeStartIndex ?? 0,
         }),
       });
     } catch (error) {
@@ -414,6 +566,10 @@ export class SignalsBacktestsService {
         feeAmount: DecimalLike;
         slippageAmount: DecimalLike;
         netPnl: DecimalLike;
+        entryReason?: string | null;
+        exitReason?: string | null;
+        entryScore?: number | null | DecimalLike;
+        exitScore?: number | null | DecimalLike;
       }>;
       equityPoints: Array<{
         id: string;
@@ -464,6 +620,11 @@ export class SignalsBacktestsService {
         feeAmount: this.toNumber(trade.feeAmount),
         slippageAmount: this.toNumber(trade.slippageAmount),
         netPnl: this.toNumber(trade.netPnl),
+        entryReason: trade.entryReason ?? null,
+        exitReason: trade.exitReason ?? null,
+        entryScore:
+          trade.entryScore == null ? null : this.toNumber(trade.entryScore),
+        exitScore: trade.exitScore == null ? null : this.toNumber(trade.exitScore),
       })),
       equityPoints: row.equityPoints.map((point) => ({
         id: point.id,
@@ -490,15 +651,21 @@ export class SignalsBacktestsService {
     if (value === 'RSI_THRESHOLD') {
       return 'rsiThreshold';
     }
+    if (value === 'TREND_SCORE_THRESHOLD') {
+      return 'trendScoreThreshold';
+    }
     return 'macdCross';
   }
 
-  private toPrismaStrategyType(value: SignalStrategyType): SignalDefinitionRow['strategyType'] {
+  private toPrismaStrategyType(value: SignalStrategyType): PrismaStrategyType {
     if (value === 'smaCross') {
       return 'SMA_CROSS';
     }
     if (value === 'rsiThreshold') {
       return 'RSI_THRESHOLD';
+    }
+    if (value === 'trendScoreThreshold') {
+      return 'TREND_SCORE_THRESHOLD';
     }
     return 'MACD_CROSS';
   }
@@ -538,6 +705,14 @@ export class SignalsBacktestsService {
         period: rsiParams.period,
         lower: rsiParams.lower,
         upper: rsiParams.upper,
+      };
+    }
+    if (strategyType === 'trendScoreThreshold') {
+      const scoreParams = params as TrendScoreThresholdParams;
+      return {
+        strategyType,
+        buyThreshold: scoreParams.buyThreshold,
+        sellThreshold: scoreParams.sellThreshold,
       };
     }
     const macdParams = params as Extract<SignalStrategyParams, { fast: number }>;

@@ -113,7 +113,7 @@ def compute_signals(body: ComputeSignalsRequest) -> ComputeSignalsResponse:
     """OHLC と戦略定義から日次シグナル（buy/sell）を返す。"""
     closes = [bar.close for bar in body.bars]
     dates = [bar.date for bar in body.bars]
-    points = _build_signal_points(dates, closes, body.signal)
+    points = _build_signal_points(dates, closes, body.signal, bars=body.bars)
     return ComputeSignalsResponse(points=points)
 
 
@@ -126,19 +126,24 @@ def run_backtest(body: RunBacktestRequest) -> RunBacktestResponse:
     """ロング限定バックテストを実行する。エントリー/エグジットは終値ベース。"""
     closes = [bar.close for bar in body.bars]
     dates = [bar.date for bar in body.bars]
-    points = _build_signal_points(dates, closes, body.signal)
+    trade_start = min(max(0, body.rangeStartIndex), len(dates))
+    points, decision_scores = _signals_and_scores(dates, closes, body.signal, bars=body.bars)
     trades, equity_points = _simulate_long_only(
         symbol_id=body.symbolId,
         dates=dates,
         closes=closes,
         signals=points,
+        decision_scores=decision_scores,
+        strategy_type=body.signal.strategyType,
         initial_cash=body.initialCash,
         fee_rate=body.feeRate,
         slippage_rate=body.slippageRate,
+        trade_start_index=trade_start,
     )
+    summary_closes = closes[trade_start:] if trade_start < len(closes) else closes
     summary = _build_backtest_summary(
         initial_cash=body.initialCash,
-        closes=closes,
+        closes=summary_closes,
         trades=trades,
         equity_points=equity_points,
     )
@@ -160,12 +165,14 @@ def optimize_backtest(body: OptimizeBacktestRequest) -> OptimizeBacktestResponse
             if short >= long:
                 continue
             spec = SignalSpec(strategyType="smaCross", shortPeriod=short, longPeriod=long)
-            points = _build_signal_points(dates, closes, spec)
+            points, decision_scores = _signals_and_scores(dates, closes, spec, bars=body.bars)
             trades, equity_points = _simulate_long_only(
                 symbol_id=body.symbolId,
                 dates=dates,
                 closes=closes,
                 signals=points,
+                decision_scores=decision_scores,
+                strategy_type=spec.strategyType,
                 initial_cash=body.initialCash,
                 fee_rate=body.feeRate,
                 slippage_rate=body.slippageRate,
@@ -183,7 +190,36 @@ def optimize_backtest(body: OptimizeBacktestRequest) -> OptimizeBacktestResponse
     return OptimizeBacktestResponse(results=results)
 
 
-def _build_signal_points(dates: list[str], closes: list[float], spec: SignalSpec) -> list[SignalPoint]:
+def _signals_and_scores(
+    dates: list[str],
+    closes: list[float],
+    spec: SignalSpec,
+    *,
+    bars: list,
+) -> tuple[list[SignalPoint], list[float | None]]:
+    """シグナルと判断スコアを一度に組み立てる（トレンドスコアの二重計算を避ける）。"""
+    if spec.strategyType == "trendScoreThreshold":
+        assert spec.buyThreshold is not None and spec.sellThreshold is not None
+        score_series = [point.score for point in compute_trend_score(bars, range_start_index=0)]
+        points = _score_threshold_signal_points(
+            dates,
+            score_series,
+            buy_threshold=spec.buyThreshold,
+            sell_threshold=spec.sellThreshold,
+        )
+        return points, score_series
+
+    points = _build_signal_points(dates, closes, spec, bars=bars)
+    return points, _decision_scores(dates, closes, spec)
+
+
+def _build_signal_points(
+    dates: list[str],
+    closes: list[float],
+    spec: SignalSpec,
+    *,
+    bars: list | None = None,
+) -> list[SignalPoint]:
     """戦略種別ごとの売買シグナルを統一形式に変換する。"""
     if spec.strategyType == "smaCross":
         assert spec.shortPeriod is not None and spec.longPeriod is not None
@@ -202,6 +238,17 @@ def _build_signal_points(dates: list[str], closes: list[float], spec: SignalSpec
                 out.append(SignalPoint(date=d, buy=value <= spec.lower, sell=value >= spec.upper))
         return out
 
+    if spec.strategyType == "trendScoreThreshold":
+        assert bars is not None
+        assert spec.buyThreshold is not None and spec.sellThreshold is not None
+        score_series = [point.score for point in compute_trend_score(bars, range_start_index=0)]
+        return _score_threshold_signal_points(
+            dates,
+            score_series,
+            buy_threshold=spec.buyThreshold,
+            sell_threshold=spec.sellThreshold,
+        )
+
     assert spec.fast is not None and spec.slow is not None and spec.signal is not None
     macd_line, signal_line, _ = macd_calc(
         closes,
@@ -210,6 +257,27 @@ def _build_signal_points(dates: list[str], closes: list[float], spec: SignalSpec
         signal=spec.signal,
     )
     return _cross_signal_points(dates, macd_line, signal_line, direction="golden_dead")
+
+
+def _score_threshold_signal_points(
+    dates: list[str],
+    scores: list[float | None],
+    *,
+    buy_threshold: float,
+    sell_threshold: float,
+) -> list[SignalPoint]:
+    """総合スコアが買い／売り閾値をまたいだ日にシグナルを立てる。"""
+    out: list[SignalPoint] = []
+    prev: float | None = None
+    for date, score in zip(dates, scores, strict=True):
+        buy = False
+        sell = False
+        if prev is not None and score is not None:
+            buy = prev < buy_threshold and score >= buy_threshold
+            sell = prev > sell_threshold and score <= sell_threshold
+        out.append(SignalPoint(date=date, buy=buy, sell=sell))
+        prev = score
+    return out
 
 
 def _cross_signal_points(
@@ -241,28 +309,73 @@ def _cross_signal_points(
     return out
 
 
+def _entry_reason_code(strategy_type: str) -> str:
+    """買いシグナル発火時の理由コード。"""
+    if strategy_type == "smaCross":
+        return "sma_golden_cross"
+    if strategy_type == "macdCross":
+        return "macd_golden_cross"
+    if strategy_type == "trendScoreThreshold":
+        return "score_cross_up"
+    return "rsi_oversold"
+
+
+def _exit_reason_code(strategy_type: str, *, force_close: bool = False) -> str:
+    """売りシグナル／期間末強制決済の理由コード。"""
+    if force_close:
+        return "force_close_end"
+    if strategy_type == "smaCross":
+        return "sma_dead_cross"
+    if strategy_type == "macdCross":
+        return "macd_dead_cross"
+    if strategy_type == "trendScoreThreshold":
+        return "score_cross_down"
+    return "rsi_overbought"
+
+
+def _decision_scores(dates: list[str], closes: list[float], spec: SignalSpec) -> list[float | None]:
+    """判断に使ったスコア系列。RSI / トレンドスコア以外は常に None。"""
+    if spec.strategyType == "rsiThreshold":
+        assert spec.period is not None
+        return list(rsi_calc(closes, spec.period))
+    return [None] * len(dates)
+
+
 def _simulate_long_only(
     *,
     symbol_id: str,
     dates: list[str],
     closes: list[float],
     signals: list[SignalPoint],
+    decision_scores: list[float | None],
+    strategy_type: str,
     initial_cash: float,
     fee_rate: float,
     slippage_rate: float,
+    trade_start_index: int = 0,
 ) -> tuple[list[BacktestTrade], list[BacktestEquityPoint]]:
-    """ロング限定の単純売買シミュレーション（全額投資・同時保有1ポジション）。"""
+    """ロング限定の単純売買シミュレーション（全額投資・同時保有1ポジション）。
+
+    trade_start_index より前はウォームアップ専用（売買・エクイティ点を出さない）。
+    """
     cash = initial_cash
     quantity = 0.0
     entry_price = 0.0
     entry_date = ""
+    entry_reason = ""
+    entry_score: float | None = None
     entry_fee = 0.0
     entry_slippage = 0.0
     peak_equity = initial_cash
     trades: list[BacktestTrade] = []
     equity_points: list[BacktestEquityPoint] = []
 
-    for date, close, signal in zip(dates, closes, signals, strict=True):
+    for index, (date, close, signal, score) in enumerate(
+        zip(dates, closes, signals, decision_scores, strict=True)
+    ):
+        if index < trade_start_index:
+            continue
+
         if quantity == 0.0 and signal.buy:
             fill_price = close * (1.0 + slippage_rate)
             quantity = cash / fill_price if fill_price > 0 else 0.0
@@ -271,6 +384,8 @@ def _simulate_long_only(
             cash -= quantity * fill_price + entry_fee
             entry_price = fill_price
             entry_date = date
+            entry_reason = _entry_reason_code(strategy_type)
+            entry_score = score
         elif quantity > 0.0 and signal.sell:
             fill_price = close * (1.0 - slippage_rate)
             exit_fee = quantity * fill_price * fee_rate
@@ -294,11 +409,17 @@ def _simulate_long_only(
                     feeAmount=fee_amount,
                     slippageAmount=slippage_amount,
                     netPnl=net_pnl,
+                    entryReason=entry_reason,
+                    exitReason=_exit_reason_code(strategy_type),
+                    entryScore=entry_score,
+                    exitScore=score,
                 )
             )
             quantity = 0.0
             entry_price = 0.0
             entry_date = ""
+            entry_reason = ""
+            entry_score = None
 
         position_value = quantity * close
         equity = cash + position_value
@@ -339,6 +460,11 @@ def _simulate_long_only(
                 feeAmount=fee_amount,
                 slippageAmount=slippage_amount,
                 netPnl=net_pnl,
+                entryReason=entry_reason,
+                exitReason=_exit_reason_code(strategy_type, force_close=True),
+                entryScore=entry_score,
+                # 期間末強制決済はスコア判断ではない
+                exitScore=None,
             )
         )
         quantity = 0.0

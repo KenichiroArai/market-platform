@@ -47,6 +47,10 @@ const trade: BacktestTradeDto = {
   feeAmount: 0,
   slippageAmount: 0,
   netPnl: 3,
+  entryReason: null,
+  exitReason: null,
+  entryScore: null,
+  exitScore: null,
 };
 
 describe('PriceChart', () => {

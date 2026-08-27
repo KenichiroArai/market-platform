@@ -459,12 +459,7 @@ export function AnalysisChart({
       ResizeObserver?: typeof ResizeObserver;
       requestAnimationFrame: typeof requestAnimationFrame;
     };
-    const HostResizeObserver =
-      typeof hostWindow.ResizeObserver === 'function'
-        ? hostWindow.ResizeObserver
-        : typeof ResizeObserver !== 'undefined'
-          ? ResizeObserver
-          : null;
+    const HostResizeObserver = resolveResizeObserver(hostWindow);
     const resizeObserver = HostResizeObserver ? new HostResizeObserver(syncSize) : null;
     resizeObserver?.observe(container);
     view.addEventListener('resize', syncSize);
@@ -583,6 +578,22 @@ export function resolveOwnerWindow(node: {
   ownerDocument: { defaultView: Window | null };
 }): Window {
   return node.ownerDocument.defaultView ?? window;
+}
+
+/**
+ * ホスト window の ResizeObserver を優先し、無ければグローバルを使う。
+ * popup でホストに RO が無い環境向け。
+ */
+export function resolveResizeObserver(
+  hostWindow: Window & { ResizeObserver?: typeof ResizeObserver },
+): typeof ResizeObserver | null {
+  if (typeof hostWindow.ResizeObserver === 'function') {
+    return hostWindow.ResizeObserver;
+  }
+  if (typeof ResizeObserver !== 'undefined') {
+    return ResizeObserver;
+  }
+  return null;
 }
 
 /**

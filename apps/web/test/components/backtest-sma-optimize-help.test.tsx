@@ -20,4 +20,16 @@ describe('BacktestSmaOptimizeHelp', () => {
     fireEvent.mouseLeave(screen.getByTestId('sma-optimize-help'));
     expect(screen.queryByTestId('sma-optimize-tooltip')).not.toBeInTheDocument();
   });
+
+  it('shows tooltip on focus and hides on blur', () => {
+    render(
+      <BacktestSmaOptimizeHelp>
+        <button type="button">SMA 最適化</button>
+      </BacktestSmaOptimizeHelp>,
+    );
+    fireEvent.focus(screen.getByRole('button'));
+    expect(screen.getByTestId('sma-optimize-tooltip')).toBeInTheDocument();
+    fireEvent.blur(screen.getByRole('button'));
+    expect(screen.queryByTestId('sma-optimize-tooltip')).not.toBeInTheDocument();
+  });
 });

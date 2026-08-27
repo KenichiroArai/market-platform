@@ -14,7 +14,7 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
 | [architecture/overview.md](architecture/overview.md)               | ディレクトリ構成、責務、通信、Turborepo、pnpm、Docker Compose、設定ファイル一覧 |
 | [roadmap/](roadmap/README.md)                                      | バージョン別ロードマップの索引                                                  |
-| [roadmap/v0/v0.3/v0.3.0.md](roadmap/v0/v0.3/v0.3.0.md)             | 現行ロードマップ（Ph1〜Ph5。Ph5 はバックテスト画面再配置） |
+| [roadmap/v0/v0.3/v0.3.0.md](roadmap/v0/v0.3/v0.3.0.md)             | 現行ロードマップ（Ph1〜Ph6 + トレンドスコア売買） |
 | [adr/001-authentication-jwt.md](adr/001-authentication-jwt.md)     | 認証方針（JWT + メール/パスワード）                                             |
 | [adr/002-market-data-provider.md](adr/002-market-data-provider.md) | 市場データ取得（Provider 抽象 + Yahoo / Stub）                                  |
 | [adr/003-watchlist-portfolio.md](adr/003-watchlist-portfolio.md)   | ウォッチリスト / ポートフォリオ（複数・日足終値集計）                           |
@@ -25,6 +25,8 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 | [adr/008-indicator-sets.md](adr/008-indicator-sets.md)             | テクニカル指標セット（名前付きトグルの保存と呼び出し）                           |
 | [adr/009-backtest-enrichment.md](adr/009-backtest-enrichment.md)   | バックテスト拡張サマリー・Buy&Hold・SMA 最適化                                  |
 | [adr/010-signal-from-indicator-set.md](adr/010-signal-from-indicator-set.md) | 指標セット起点のシグナル導出と charts / backtests 画面分離              |
+| [adr/011-backtest-result-clarity.md](adr/011-backtest-result-clarity.md) | バックテスト結果の条件表示・約定理由・チャート表示モード              |
+| [adr/012-trend-score-backtest.md](adr/012-trend-score-backtest.md) | トレンドスコア閾値によるバックテスト売買                              |
 
 ## ドキュメント方針
 

@@ -15,12 +15,22 @@ import type {
   SignalStrategyParams,
   SignalStrategyType,
   SmaCrossParams,
+  TrendScoreThresholdParams,
 } from './signals';
 
 /** カタログに無い RSI 売買閾値。パラメータ自由編集 UI は設けない。 */
 export const DEFAULT_RSI_SIGNAL_THRESHOLDS = {
   lower: 30,
   upper: 70,
+} as const;
+
+/**
+ * トレンドスコア売買の既定閾値（ADR 007 状態ラベル境界）。
+ * 買い: 「上昇トレンド」以上へクロス、売り: 「レンジだがやや下向き」以下へクロス。
+ */
+export const DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS = {
+  buyThreshold: 37.5,
+  sellThreshold: -42.5,
 } as const;
 
 /** SMA クロスの候補となるカタログ ID（短い period 順）。 */
@@ -112,6 +122,28 @@ export function isSignalCapableIndicatorIds(
   ids: readonly IndicatorCatalogId[] | ReadonlySet<IndicatorCatalogId>,
 ): boolean {
   return resolveSignalRule(ids) !== null;
+}
+
+/**
+ * チャート同系のトレンドスコア閾値クロス規則を返す。
+ * 閾値省略時は DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS。
+ */
+export function resolveTrendScoreSignalRule(
+  thresholds: {
+    buyThreshold?: number;
+    sellThreshold?: number;
+  } = {},
+): ResolvedSignalRule {
+  const buyThreshold =
+    thresholds.buyThreshold ?? DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS.buyThreshold;
+  const sellThreshold =
+    thresholds.sellThreshold ?? DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS.sellThreshold;
+  const params: TrendScoreThresholdParams = { buyThreshold, sellThreshold };
+  return {
+    strategyType: 'trendScoreThreshold',
+    params,
+    label: `トレンドスコア（≥${buyThreshold} / ≤${sellThreshold}）`,
+  };
 }
 
 /**

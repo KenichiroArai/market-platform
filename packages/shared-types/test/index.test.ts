@@ -38,14 +38,21 @@ import {
   isPriceSyncJobResult,
   isSymbolDto,
   describeSignalRule,
+  formatStrategyLabel,
+  formatTradeReason,
+  formatDecisionScore,
   isBacktestRunDto,
   isBacktestSummaryDto,
+  isBacktestTradeReasonCode,
   isOptimizeBacktestResponse,
   isSignalCapableIndicatorIds,
   isSignalDefinitionDto,
   isSignalStrategyType,
+  isBacktestSignalMode,
   listCatalogSmaPairs,
   resolveSignalRule,
+  resolveTrendScoreSignalRule,
+  DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS,
   isWatchlistDto,
   isWatchlistItemDto,
   isIndicatorSetDto,
@@ -230,7 +237,11 @@ describe('shared-types signals', () => {
     expect(isSignalStrategyType('smaCross')).toBe(true);
     expect(isSignalStrategyType('rsiThreshold')).toBe(true);
     expect(isSignalStrategyType('macdCross')).toBe(true);
+    expect(isSignalStrategyType('trendScoreThreshold')).toBe(true);
     expect(isSignalStrategyType('other')).toBe(false);
+    expect(isBacktestSignalMode('trendScore')).toBe(true);
+    expect(isBacktestSignalMode('indicatorSet')).toBe(true);
+    expect(isBacktestSignalMode('other')).toBe(false);
   });
 
   it('validates SignalDefinitionDto and BacktestRunDto', () => {
@@ -307,6 +318,57 @@ describe('shared-types signal-from-catalog', () => {
     INDICATOR_CATALOG_BY_ID.macd.params.fast = Number.NaN;
     expect(() => resolveSignalRule(['macd'])).toThrow(/missing numeric param/);
     INDICATOR_CATALOG_BY_ID.macd.params.fast = originalFast;
+  });
+});
+
+describe('shared-types backtest-display', () => {
+  it('formats strategy labels from snapshots', () => {
+    expect(formatStrategyLabel('smaCross', { shortPeriod: 25, longPeriod: 75 })).toBe(
+      'SMAクロス 25/75',
+    );
+    expect(formatStrategyLabel('macdCross', { fast: 12, slow: 26, signal: 9 })).toBe(
+      'MACDクロス 12/26/9',
+    );
+    expect(formatStrategyLabel('rsiThreshold', { period: 14, lower: 30, upper: 70 })).toBe(
+      'RSI閾値 14（≤30 / ≥70）',
+    );
+    expect(
+      formatStrategyLabel('trendScoreThreshold', { buyThreshold: 37.5, sellThreshold: -42.5 }),
+    ).toBe('トレンドスコア（≥37.5 / ≤-42.5）');
+  });
+
+  it('formats trade reason codes and rejects unknown', () => {
+    expect(formatTradeReason('sma_golden_cross')).toBe('SMAゴールデンクロス');
+    expect(formatTradeReason('force_close_end')).toBe('期間末強制決済');
+    expect(formatTradeReason(null)).toBe('');
+    expect(formatTradeReason(undefined)).toBe('');
+    expect(formatTradeReason('')).toBe('');
+    expect(formatTradeReason('unknown_code')).toBe('');
+    expect(formatTradeReason('rsi_oversold', 28.45)).toBe('RSI売られすぎ（28.5）');
+    expect(formatTradeReason('rsi_overbought', 70)).toBe('RSI買われすぎ（70）');
+    expect(formatTradeReason('rsi_oversold', null)).toBe('RSI売られすぎ');
+    expect(formatTradeReason('score_cross_up', 42.3)).toBe('スコア上昇クロス（42.3）');
+    expect(formatTradeReason('score_cross_down', -50)).toBe('スコア下降クロス（-50）');
+    expect(formatDecisionScore(28.45)).toBe('28.5');
+    expect(formatDecisionScore(70)).toBe('70');
+    expect(isBacktestTradeReasonCode('rsi_oversold')).toBe(true);
+    expect(isBacktestTradeReasonCode('score_cross_up')).toBe(true);
+    expect(isBacktestTradeReasonCode('nope')).toBe(false);
+    expect(isBacktestTradeReasonCode(1)).toBe(false);
+  });
+});
+
+describe('shared-types trend-score signal rule', () => {
+  it('resolves defaults aligned to chart state boundaries', () => {
+    expect(resolveTrendScoreSignalRule()).toEqual({
+      strategyType: 'trendScoreThreshold',
+      params: { ...DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS },
+      label: 'トレンドスコア（≥37.5 / ≤-42.5）',
+    });
+    expect(resolveTrendScoreSignalRule({ buyThreshold: 50, sellThreshold: -50 }).params).toEqual({
+      buyThreshold: 50,
+      sellThreshold: -50,
+    });
   });
 });
 

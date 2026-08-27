@@ -19,6 +19,7 @@ describe('signals-backtests DTOs', () => {
     expect(update.isActive).toBe(false);
 
     const run = new RunBacktestDto();
+    run.signalMode = 'trendScore';
     run.indicatorSetId = 'iset';
     run.symbolId = 'sym';
     run.from = '2026-01-01';
@@ -26,10 +27,14 @@ describe('signals-backtests DTOs', () => {
     run.initialCash = 1000;
     run.feeRate = 0;
     run.slippageRate = 0;
+    run.buyThreshold = 37.5;
+    run.sellThreshold = -42.5;
     expect(run.indicatorSetId).toBe('iset');
+    expect(run.signalMode).toBe('trendScore');
     expect(run.symbolId).toBe('sym');
 
     const transformed = plainToInstance(RunBacktestDto, {
+      signalMode: 'trendScore',
       indicatorSetId: 'iset',
       symbolId: 'sym',
       from: '2026-01-01',
@@ -37,7 +42,12 @@ describe('signals-backtests DTOs', () => {
       initialCash: '1000',
       feeRate: '0.001',
       slippageRate: '0.001',
+      buyThreshold: '37.5',
+      sellThreshold: '-42.5',
     });
+    expect(transformed.initialCash).toBe(1000);
+    expect(transformed.buyThreshold).toBe(37.5);
+    expect(transformed.sellThreshold).toBe(-42.5);
     expect(transformed.indicatorSetId).toBe('iset');
     expect(typeof transformed.initialCash).toBe('number');
     expect(typeof transformed.feeRate).toBe('number');

@@ -284,6 +284,19 @@ packages:
 - 価格チャートはチャート分析と同じ `AnalysisChart`（指標セットのオーバーレイ + 売買マーカー）
 - 銘柄セレクト横に名称を表示。実行成功後は結果タブへ自動切替
 
+### バックテスト結果の分かりやすさ（v0.3.0 / Ph6）
+
+- **Web** 結果タブ: 実行条件パネル、取引履歴の買い／売り判断列、チャート表示モード切替（既定: ローソク＋Buy/Sell）
+- **Analysis / Nest**: 約定に `entryReason` / `exitReason`（nullable。既存 Run は空欄可）
+- 詳細は [ADR 011](../adr/011-backtest-result-clarity.md)
+
+### トレンドスコアによるバックテスト売買
+
+- **Web** `/backtests`: 売買判断を「トレンドスコア」または「指標セットからシグナル」で選択（既定はトレンドスコア）
+- **Analysis**: `trendScoreThreshold`（総合スコアの閾値クロス）。lookback / `rangeStartIndex` はチャートのトレンドスコアと同様
+- **shared-types**: `resolveTrendScoreSignalRule`、理由コード `score_cross_up` / `score_cross_down`
+- 詳細は [ADR 012](../adr/012-trend-score-backtest.md)
+
 ### 後続で追加予定
 
 - ESLint flat config（shared-config への集約）
@@ -305,3 +318,5 @@ ESLint 本体は必要になったタイミングで最小構成で入れる。
 - [ADR 008: テクニカル指標セット](../adr/008-indicator-sets.md)
 - [ADR 009: バックテスト結果の拡張と SMA 最適化](../adr/009-backtest-enrichment.md)
 - [ADR 010: 指標セット起点のシグナル導出と画面分離](../adr/010-signal-from-indicator-set.md)
+- [ADR 011: バックテスト結果の分かりやすさ](../adr/011-backtest-result-clarity.md)
+- [ADR 012: トレンドスコアによるバックテスト売買](../adr/012-trend-score-backtest.md)

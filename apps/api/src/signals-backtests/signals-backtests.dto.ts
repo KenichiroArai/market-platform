@@ -9,9 +9,12 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-import type { SignalStrategyType } from '@market/shared-types';
+import type { BacktestSignalMode, SignalStrategyType } from '@market/shared-types';
 
+/** シグナル定義 CRUD 用（トレンドスコア戦略はバックテスト実行専用のため含めない）。 */
 const strategyTypes: SignalStrategyType[] = ['smaCross', 'rsiThreshold', 'macdCross'];
+
+const signalModes: BacktestSignalMode[] = ['indicatorSet', 'trendScore'];
 
 export class CreateSignalDefinitionDto {
   @ApiProperty({ example: 'SMA 5/20' })
@@ -60,9 +63,23 @@ export class UpdateSignalDefinitionDto {
 }
 
 export class RunBacktestDto {
-  @ApiProperty({ description: 'チャートで保存した指標セット ID' })
+  @ApiPropertyOptional({
+    enum: signalModes,
+    default: 'indicatorSet',
+    description:
+      'indicatorSet=指標セットから SMA/MACD/RSI を導出。trendScore=チャート同系トレンドスコア。',
+  })
+  @IsOptional()
+  @IsIn(signalModes)
+  signalMode?: BacktestSignalMode;
+
+  @ApiPropertyOptional({
+    description:
+      '指標セット ID。signalMode=indicatorSet では必須。trendScore では結果チャート用に任意。',
+  })
+  @IsOptional()
   @IsString()
-  indicatorSetId!: string;
+  indicatorSetId?: string;
 
   @ApiProperty()
   @IsString()
@@ -93,6 +110,24 @@ export class RunBacktestDto {
   @IsNumber()
   @Min(0)
   slippageRate!: number;
+
+  @ApiPropertyOptional({
+    example: 37.5,
+    description: 'trendScore 時の買い閾値。省略時は 37.5（上昇トレンド境界）。',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  buyThreshold?: number;
+
+  @ApiPropertyOptional({
+    example: -42.5,
+    description: 'trendScore 時の売り閾値。省略時は -42.5（やや下向き境界）。',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  sellThreshold?: number;
 }
 
 /** カタログ SMA ペア（25/75, 25/200, 75/200）のみを評価する。結果は永続化しない。 */

@@ -9,6 +9,7 @@ import {
   resolveOwnerWindow,
   resolveChartWidth,
   resolveMarkerDate,
+  resolveResizeObserver,
   resolveScoredPoint,
   toCandlestickData,
   toLineData,
@@ -134,6 +135,13 @@ describe('analysis-chart helpers', () => {
         quantity: 1,
         side: 'buy',
         grossPnl: 10,
+        feeAmount: 0,
+        slippageAmount: 0,
+        netPnl: 10,
+        entryReason: 'sma_golden_cross',
+        exitReason: 'sma_dead_cross',
+        entryScore: null,
+        exitScore: null,
       },
       {
         id: 't1',
@@ -146,6 +154,13 @@ describe('analysis-chart helpers', () => {
         quantity: 1,
         side: 'buy',
         grossPnl: 5,
+        feeAmount: 0,
+        slippageAmount: 0,
+        netPnl: 5,
+        entryReason: null,
+        exitReason: null,
+        entryScore: null,
+        exitScore: null,
       },
     ];
     const markers = toTradeMarkers(trades);
@@ -189,6 +204,30 @@ describe('analysis-chart helpers', () => {
     expect(isOverlayEnabled(new Set(['elliott']), 'elliott')).toBe(false);
     expect(resolveOwnerWindow({ ownerDocument: { defaultView: window } })).toBe(window);
     expect(resolveOwnerWindow({ ownerDocument: { defaultView: null } })).toBe(window);
+    {
+      class MockRO {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+        constructor(_cb: ResizeObserverCallback) {}
+      }
+      const previousRo = window.ResizeObserver;
+      window.ResizeObserver = MockRO as typeof ResizeObserver;
+      expect(resolveResizeObserver(window)).toBe(MockRO);
+      expect(
+        resolveResizeObserver({ ResizeObserver: undefined } as Window & {
+          ResizeObserver?: typeof ResizeObserver;
+        }),
+      ).toBe(MockRO);
+      // @ts-expect-error グローバル RO が無いケース
+      delete window.ResizeObserver;
+      expect(
+        resolveResizeObserver({ ResizeObserver: undefined } as Window & {
+          ResizeObserver?: typeof ResizeObserver;
+        }),
+      ).toBeNull();
+      window.ResizeObserver = previousRo ?? (MockRO as typeof ResizeObserver);
+    }
     expect(resolveChartWidth({ clientWidth: 640, ownerDocument: { defaultView: window } })).toBe(640);
     expect(
       resolveChartWidth({ clientWidth: 0, ownerDocument: { defaultView: window } }),
@@ -281,6 +320,14 @@ describe('AnalysisChart', () => {
       configurable: true,
       value: 800,
     });
+    if (typeof window.ResizeObserver !== 'function') {
+      window.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+        constructor(_cb: ResizeObserverCallback) {}
+      } as typeof ResizeObserver;
+    }
   });
 
   it('shows loading message', () => {
@@ -362,6 +409,13 @@ describe('AnalysisChart', () => {
       quantity: 1,
       side: 'buy',
       grossPnl: 3,
+      feeAmount: 0,
+      slippageAmount: 0,
+      netPnl: 3,
+      entryReason: 'sma_golden_cross',
+      exitReason: 'sma_dead_cross',
+      entryScore: null,
+      exitScore: null,
     };
     render(
       <AnalysisChart prices={[price, downPrice]} indicatorPoints={points} trades={[trade]} />,
@@ -635,5 +689,123 @@ describe('AnalysisChart', () => {
     unmount();
     expect(lwcMocks.mockUnsubscribeClick).toHaveBeenCalled();
     expect(lwcMocks.mockRemove).toHaveBeenCalled();
+  });
+
+  it('defers chart creation until width is available via resize', () => {
+    let width = 0;
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      get: () => width,
+    });
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 0,
+    });
+    const OriginalRO = window.ResizeObserver;
+    window.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      constructor(_cb: ResizeObserverCallback) {}
+    } as typeof ResizeObserver;
+
+    const rafCallbacks: FrameRequestCallback[] = [];
+    const rafSpy = jest
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((cb: FrameRequestCallback) => {
+        rafCallbacks.push(cb);
+        return rafCallbacks.length;
+      });
+
+    render(
+      <AnalysisChart prices={[price]} indicatorPoints={points} enabledIds={new Set()} />,
+    );
+    expect(createChart).not.toHaveBeenCalled();
+    expect(rafSpy).toHaveBeenCalled();
+
+    // rAF 時点でも幅 0 → buildChart は MIN 未満で no-op
+    act(() => {
+      rafCallbacks.forEach((cb) => cb(0));
+    });
+    expect(createChart).not.toHaveBeenCalled();
+
+    width = 1;
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(createChart).not.toHaveBeenCalled();
+
+    width = 800;
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(createChart).toHaveBeenCalled();
+    rafSpy.mockRestore();
+    window.ResizeObserver = OriginalRO;
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 1024,
+    });
+  });
+
+  it('ignores resize callbacks after dispose', () => {
+    const callbacks: Array<() => void> = [];
+    const OriginalRO = window.ResizeObserver;
+    window.ResizeObserver = class {
+      constructor(cb: ResizeObserverCallback) {
+        callbacks.push(() => {
+          cb([] as unknown as ResizeObserverEntry[], this as unknown as ResizeObserver);
+        });
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as typeof ResizeObserver;
+
+    const { unmount } = render(
+      <AnalysisChart prices={[price]} indicatorPoints={points} enabledIds={new Set()} />,
+    );
+    const createCount = (createChart as jest.Mock).mock.calls.length;
+    unmount();
+    act(() => {
+      callbacks.forEach((cb) => cb());
+    });
+    expect((createChart as jest.Mock).mock.calls.length).toBe(createCount);
+    window.ResizeObserver = OriginalRO;
+  });
+
+  it('falls back to a provisional width when ResizeObserver is unavailable', () => {
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      value: 0,
+    });
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 0,
+    });
+    const OriginalRO = window.ResizeObserver;
+    // @ts-expect-error 環境に RO が無いケースを模擬する
+    delete window.ResizeObserver;
+
+    render(
+      <AnalysisChart prices={[price]} indicatorPoints={points} enabledIds={new Set()} />,
+    );
+    expect(createChart).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ width: 800 }),
+    );
+
+    window.ResizeObserver =
+      OriginalRO ??
+      (class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+        constructor(_cb: ResizeObserverCallback) {}
+      } as typeof ResizeObserver);
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 1024,
+    });
   });
 });

@@ -58,7 +58,10 @@ describe('SignalsBacktestsService', () => {
     },
   };
   const prismaService = { prisma } as any;
-  const pricesService = { listBySymbolId: jest.fn() } as any;
+  const pricesService = {
+    listBySymbolId: jest.fn(),
+    listWithLookback: jest.fn(),
+  } as any;
   let service: SignalsBacktestsService;
 
   const signalRow = {
@@ -147,6 +150,10 @@ describe('SignalsBacktestsService', () => {
           feeAmount: 0,
           slippageAmount: 0,
           netPnl: 1,
+          entryReason: 'sma_golden_cross',
+          exitReason: 'sma_dead_cross',
+          entryScore: 28.5,
+          exitScore: 71.2,
         },
       ],
       equityPoints: [
@@ -171,6 +178,12 @@ describe('SignalsBacktestsService', () => {
       signalDefinitionId: null,
       strategyType: 'smaCross',
       params: { shortPeriod: 25, longPeriod: 75 },
+    });
+    expect(listed[0]!.trades[0]).toMatchObject({
+      entryReason: 'sma_golden_cross',
+      exitReason: 'sma_dead_cross',
+      entryScore: 28.5,
+      exitScore: 71.2,
     });
     await expect(service.getBacktestRun('u_1', 'run_1')).resolves.toMatchObject({ id: 'run_1' });
     prisma.backtestRun.findFirst.mockResolvedValueOnce(null);
@@ -264,6 +277,16 @@ describe('SignalsBacktestsService', () => {
             signalDefinitionId: null,
             strategyType: 'SMA_CROSS',
             paramsJson: { shortPeriod: 25, longPeriod: 75 },
+            trades: expect.objectContaining({
+              create: expect.arrayContaining([
+                expect.objectContaining({
+                  entryReason: null,
+                  exitReason: null,
+                  entryScore: null,
+                  exitScore: null,
+                }),
+              ]),
+            }),
           }),
         }),
       );
@@ -301,6 +324,163 @@ describe('SignalsBacktestsService', () => {
         slippageRate: 0.001,
       } as any),
     ).rejects.toBeInstanceOf(BadRequestException);
+
+    await expect(
+      service.runBacktest('u_1', {
+        signalMode: 'indicatorSet',
+        symbolId: 'sym_1',
+        from: '2026-01-01',
+        to: '2026-06-30',
+        initialCash: 100000,
+        feeRate: 0.001,
+        slippageRate: 0.001,
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('runs trend-score backtest with lookback and optional indicator set', async () => {
+    pricesService.listWithLookback.mockResolvedValue({
+      bars: [
+        { date: '2025-12-01', open: 1, high: 1, low: 1, close: 1, volume: 1 },
+        { date: '2026-01-01', open: 1, high: 1, low: 1, close: 1, volume: 1 },
+      ],
+      rangeStartIndex: 1,
+    });
+    prisma.indicatorSet.findFirst.mockResolvedValue(indicatorSetRow);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        summary: enrichedSummary,
+        trades: [
+          {
+            symbolId: 'sym_1',
+            entryDate: '2026-01-01',
+            exitDate: '2026-01-02',
+            entryPrice: 1,
+            exitPrice: 2,
+            quantity: 1,
+            side: 'buy',
+            grossPnl: 1,
+            feeAmount: 0,
+            slippageAmount: 0,
+            netPnl: 1,
+            entryReason: 'score_cross_up',
+            exitReason: 'score_cross_down',
+            entryScore: 40,
+            exitScore: -50,
+          },
+        ],
+        equityPoints: [],
+      }),
+    }) as any;
+    prisma.backtestRun.create.mockResolvedValue({
+      ...backtestRunBase,
+      strategyType: 'TREND_SCORE_THRESHOLD',
+      paramsJson: { buyThreshold: 37.5, sellThreshold: -42.5 },
+      trades: [],
+      equityPoints: [],
+    });
+    try {
+      await expect(
+        service.runBacktest('u_1', {
+          signalMode: 'trendScore',
+          indicatorSetId: 'iset_1',
+          symbolId: 'sym_1',
+          from: '2026-01-01',
+          to: '2026-06-30',
+          initialCash: 100000,
+          feeRate: 0.001,
+          slippageRate: 0.001,
+        } as any),
+      ).resolves.toMatchObject({
+        strategyType: 'trendScoreThreshold',
+        params: { buyThreshold: 37.5, sellThreshold: -42.5 },
+      });
+      expect(pricesService.listWithLookback).toHaveBeenCalled();
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/backtests/run'),
+        expect.objectContaining({
+          body: expect.stringContaining('"rangeStartIndex":1'),
+        }),
+      );
+      expect(prisma.backtestRun.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            strategyType: 'TREND_SCORE_THRESHOLD',
+            paramsJson: { buyThreshold: 37.5, sellThreshold: -42.5 },
+          }),
+        }),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    // 指標セットなしでも実行できる
+    pricesService.listWithLookback.mockResolvedValue({
+      bars: [{ date: '2026-01-01', open: 1, high: 1, low: 1, close: 1, volume: 1 }],
+      rangeStartIndex: 0,
+    });
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ summary: enrichedSummary, trades: [], equityPoints: [] }),
+    }) as any;
+    prisma.backtestRun.create.mockResolvedValue({
+      ...backtestRunBase,
+      indicatorSetId: null,
+      strategyType: 'TREND_SCORE_THRESHOLD',
+      paramsJson: { buyThreshold: 50, sellThreshold: -50 },
+      trades: [],
+      equityPoints: [],
+    });
+    try {
+      await expect(
+        service.runBacktest('u_1', {
+          signalMode: 'trendScore',
+          buyThreshold: 50,
+          sellThreshold: -50,
+          symbolId: 'sym_1',
+          from: '2026-01-01',
+          to: '2026-06-30',
+          initialCash: 100000,
+          feeRate: 0.001,
+          slippageRate: 0.001,
+        } as any),
+      ).resolves.toMatchObject({
+        indicatorSetId: null,
+        strategyType: 'trendScoreThreshold',
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    await expect(
+      service.runBacktest('u_1', {
+        signalMode: 'trendScore',
+        buyThreshold: 10,
+        sellThreshold: 20,
+        symbolId: 'sym_1',
+        from: '2026-01-01',
+        to: '2026-06-30',
+        initialCash: 100000,
+        feeRate: 0.001,
+        slippageRate: 0.001,
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    prisma.indicatorSet.findFirst.mockResolvedValue(null);
+    await expect(
+      service.runBacktest('u_1', {
+        signalMode: 'trendScore',
+        indicatorSetId: 'missing',
+        symbolId: 'sym_1',
+        from: '2026-01-01',
+        to: '2026-06-30',
+        initialCash: 100000,
+        feeRate: 0.001,
+        slippageRate: 0.001,
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('optimizes catalog SMA pairs without persisting', async () => {
@@ -402,9 +582,11 @@ describe('SignalsBacktestsService', () => {
     expect(anyService.fromPrismaStrategyType('SMA_CROSS')).toBe('smaCross');
     expect(anyService.fromPrismaStrategyType('RSI_THRESHOLD')).toBe('rsiThreshold');
     expect(anyService.fromPrismaStrategyType('MACD_CROSS')).toBe('macdCross');
+    expect(anyService.fromPrismaStrategyType('TREND_SCORE_THRESHOLD')).toBe('trendScoreThreshold');
     expect(anyService.toPrismaStrategyType('smaCross')).toBe('SMA_CROSS');
     expect(anyService.toPrismaStrategyType('rsiThreshold')).toBe('RSI_THRESHOLD');
     expect(anyService.toPrismaStrategyType('macdCross')).toBe('MACD_CROSS');
+    expect(anyService.toPrismaStrategyType('trendScoreThreshold')).toBe('TREND_SCORE_THRESHOLD');
     expect(anyService.toPrismaTradeSide('buy')).toBe('BUY');
     expect(anyService.toPrismaTradeSide('sell')).toBe('SELL');
     expect(anyService.toAnalysisSignalSpec('smaCross', { shortPeriod: 1, longPeriod: 2 })).toMatchObject({
@@ -415,6 +597,13 @@ describe('SignalsBacktestsService', () => {
     });
     expect(anyService.toAnalysisSignalSpec('macdCross', { fast: 1, slow: 2, signal: 1 })).toMatchObject({
       strategyType: 'macdCross',
+    });
+    expect(
+      anyService.toAnalysisSignalSpec('trendScoreThreshold', { buyThreshold: 37.5, sellThreshold: -42.5 }),
+    ).toMatchObject({
+      strategyType: 'trendScoreThreshold',
+      buyThreshold: 37.5,
+      sellThreshold: -42.5,
     });
 
     const originalFetch = globalThis.fetch;
@@ -508,6 +697,10 @@ describe('SignalsBacktestsService', () => {
           feeAmount: 0,
           slippageAmount: 0,
           netPnl: 0,
+          entryReason: null,
+          exitReason: null,
+          entryScore: null,
+          exitScore: null,
         },
       ],
       equityPoints: [],

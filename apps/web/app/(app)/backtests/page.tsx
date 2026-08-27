@@ -1,10 +1,10 @@
 /* istanbul ignore file */
 /**
- * バックテスト実行・結果画面（v0.3.0 Ph5）。
+ * バックテスト実行・結果画面（v0.3.0）。
  *
- * 指標設定はチャート分析側。ここでは保存済み指標セットを選び実行する。
- * 「設定と実行」「結果」の2タブ。結果は縦にまとめ、価格チャートは AnalysisChart を共用する。
- * 未ログイン誘導は共通レイアウト側。
+ * 売買判断は (1) 指標セットから導出する SMA/MACD/RSI か (2) チャート同系のトレンドスコア。
+ * 指標トグルの編集はチャート分析側。ここではセット選択・実行・結果を扱う。
+ * 「設定と実行」「結果」の2タブ。結果チャートは表示モード切替（既定: ローソク＋Buy/Sell）。
  */
 'use client';
 
@@ -13,6 +13,7 @@ import { useSearchParams } from 'next/navigation';
 import { FormEvent, Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type {
   BacktestRunDto,
+  BacktestSignalMode,
   DailyPriceDto,
   IndicatorCatalogId,
   IndicatorDrawings,
@@ -22,16 +23,23 @@ import type {
   SymbolDto,
 } from '@market/shared-types';
 import {
+  DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS,
   describeSignalRule,
   isSignalCapableIndicatorIds,
   listCatalogSmaPairs,
+  resolveTrendScoreSignalRule,
 } from '@market/shared-types';
 import {
   AnalysisChart,
   computeAnalysisChartHeight,
 } from '../../../components/analysis-chart';
+import {
+  BacktestChartDisplayModeSwitch,
+  type BacktestChartDisplayMode,
+} from '../../../components/backtest-chart-display-mode';
 import { BacktestEquityChart } from '../../../components/backtest-equity-chart';
 import { BacktestOverviewStrip } from '../../../components/backtest-overview-strip';
+import { BacktestRunConditions } from '../../../components/backtest-run-conditions';
 import { BacktestSmaOptimizeHelp } from '../../../components/backtest-sma-optimize-help';
 import { BacktestSummaryCards } from '../../../components/backtest-summary-cards';
 import { BacktestTradesTable } from '../../../components/backtest-trades-table';
@@ -80,6 +88,8 @@ function BacktestsPageContent() {
   const [selectedRunId, setSelectedRunId] = useState('');
   const [symbolId, setSymbolId] = useState('');
   const [indicatorSetId, setIndicatorSetId] = useState('');
+  /** 既定はチャートと同系のトレンドスコア。指標セット起点も選択可。 */
+  const [signalMode, setSignalMode] = useState<BacktestSignalMode>('trendScore');
   const [from, setFrom] = useState('2026-01-01');
   const [to, setTo] = useState('2026-06-30');
   const [initialCash, setInitialCash] = useState(100000);
@@ -91,6 +101,9 @@ function BacktestsPageContent() {
   const [optimizeResults, setOptimizeResults] = useState<OptimizeBacktestResultItem[]>([]);
   const [activeTab, setActiveTab] = useState<BacktestWorkspaceTabId>('setup');
   const [chartPopout, setChartPopout] = useState(false);
+  /** 結果チャート表示。既定はローソク＋Buy/Sell のみ。 */
+  const [chartDisplayMode, setChartDisplayMode] =
+    useState<BacktestChartDisplayMode>('base');
 
   const selectedRun = useMemo(
     () => runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null,
@@ -128,22 +141,45 @@ function BacktestsPageContent() {
     return new Set<IndicatorCatalogId>(ids);
   }, [runIndicatorSet]);
 
-  const selectedRulePreview = useMemo(
-    () => (selectedSet ? describeSignalRule(selectedSet.indicatorIds) : null),
-    [selectedSet],
-  );
+  /** チャートに渡す enabledIds。基本モードでは空（ローソク＋売買のみ）。 */
+  const chartEnabledIds = useMemo(() => {
+    if (chartDisplayMode === 'base') {
+      return new Set<IndicatorCatalogId>();
+    }
+    return runEnabledIds;
+  }, [chartDisplayMode, runEnabledIds]);
+
+  const selectedRulePreview = useMemo(() => {
+    if (signalMode === 'trendScore') {
+      return `バックテスト用: ${resolveTrendScoreSignalRule().label}（チャート分析と同系の固定採点）`;
+    }
+    return selectedSet ? describeSignalRule(selectedSet.indicatorIds) : null;
+  }, [selectedSet, signalMode]);
 
   const canRunSelectedSet = useMemo(
     () => (selectedSet ? isSignalCapableIndicatorIds(selectedSet.indicatorIds) : false),
     [selectedSet],
   );
 
+  const canRun = useMemo(() => {
+    if (!symbolId) {
+      return false;
+    }
+    if (signalMode === 'trendScore') {
+      return true;
+    }
+    return Boolean(indicatorSetId) && canRunSelectedSet;
+  }, [symbolId, signalMode, indicatorSetId, canRunSelectedSet]);
+
   const catalogSmaPairs = useMemo(() => listCatalogSmaPairs(), []);
 
-  const indicatorsQuery = useMemo(
-    () => Array.from(runEnabledIds).join(','),
-    [runEnabledIds],
-  );
+  /** 指標モード時のみ指標 API を呼ぶ。 */
+  const indicatorsQuery = useMemo(() => {
+    if (chartDisplayMode !== 'indicators') {
+      return '';
+    }
+    return Array.from(runEnabledIds).join(',');
+  }, [chartDisplayMode, runEnabledIds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -245,25 +281,38 @@ function BacktestsPageContent() {
 
   async function onRunBacktest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!indicatorSetId || !symbolId) {
-      setError('指標セットと銘柄を選択してください');
+    if (!symbolId) {
+      setError('銘柄を選択してください');
       return;
     }
-    if (!canRunSelectedSet) {
-      setError(selectedRulePreview ?? '選択した指標セットではシグナルを導出できません');
-      return;
+    if (signalMode === 'indicatorSet') {
+      if (!indicatorSetId) {
+        setError('指標セットを選択してください');
+        return;
+      }
+      if (!canRunSelectedSet) {
+        setError(selectedRulePreview ?? '選択した指標セットではシグナルを導出できません');
+        return;
+      }
     }
     setError(null);
     setPending(true);
     try {
       const created = await runBacktest({
-        indicatorSetId,
+        signalMode,
+        indicatorSetId: indicatorSetId || undefined,
         symbolId,
         from,
         to,
         initialCash,
         feeRate: DEFAULT_FEE,
         slippageRate: DEFAULT_SLIPPAGE,
+        ...(signalMode === 'trendScore'
+          ? {
+              buyThreshold: DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS.buyThreshold,
+              sellThreshold: DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS.sellThreshold,
+            }
+          : {}),
       });
       setRuns((prev) => [created, ...prev]);
       setSelectedRunId(created.id);
@@ -304,7 +353,7 @@ function BacktestsPageContent() {
     <main style={pageStyle}>
       <h1 style={titleStyle}>バックテスト</h1>
       <p style={leadStyle}>
-        チャート分析で保存した指標セットを選び、過去期間でバックテストします。指標の編集はチャート分析画面で行います。
+        チャート分析と同系のトレンドスコア、または保存済み指標セット（SMA/MACD/RSI）で過去期間を検証します。指標トグルの編集はチャート分析画面で行います。
       </p>
 
       {loading ? <p style={{ opacity: 0.85 }}>読み込み中…</p> : null}
@@ -323,7 +372,8 @@ function BacktestsPageContent() {
           {activeTab === 'setup' ? (
             <div>
               <p style={stepsStyle} data-testid="backtest-setup-steps">
-                1. 指標セットを選ぶ → 2. 銘柄・期間・資金を指定 → 3. 実行。指標の編集は
+                1. 売買判断（トレンドスコア / 指標セット）を選ぶ → 2. 銘柄・期間・資金を指定 → 3.
+                実行。指標トグルの編集は
                 <Link href={chartsHref()} style={inlineLinkStyle}>
                   チャート分析
                 </Link>
@@ -335,21 +385,49 @@ function BacktestsPageContent() {
                 </Link>
               </p>
               <form onSubmit={onRunBacktest} style={formWrapStyle}>
+                <fieldset style={fieldsetStyle} data-testid="signal-mode-fieldset">
+                  <legend style={legendStyle}>売買判断</legend>
+                  <label style={radioLabelStyle}>
+                    <input
+                      type="radio"
+                      name="signalMode"
+                      value="trendScore"
+                      checked={signalMode === 'trendScore'}
+                      onChange={() => setSignalMode('trendScore')}
+                      data-testid="signal-mode-trend-score"
+                    />
+                    トレンドスコア（チャート分析と同系）
+                  </label>
+                  <label style={radioLabelStyle}>
+                    <input
+                      type="radio"
+                      name="signalMode"
+                      value="indicatorSet"
+                      checked={signalMode === 'indicatorSet'}
+                      onChange={() => setSignalMode('indicatorSet')}
+                      data-testid="signal-mode-indicator-set"
+                    />
+                    指標セットからシグナル（SMA / MACD / RSI）
+                  </label>
+                </fieldset>
                 <label style={labelStyle}>
                   指標セット
+                  {signalMode === 'trendScore' ? '（結果チャート用・任意）' : ''}
                   <select
                     value={indicatorSetId}
                     onChange={(e) => setIndicatorSetId(e.target.value)}
                     style={inputStyle}
                     data-testid="indicator-set-select"
                   >
-                    <option value="">指標セット選択</option>
+                    <option value="">
+                      {signalMode === 'trendScore' ? 'なし（オーバーレイ無し）' : '指標セット選択'}
+                    </option>
                     {indicatorSets.map((set) => {
                       const capable = isSignalCapableIndicatorIds(set.indicatorIds);
                       return (
                         <option key={set.id} value={set.id}>
                           {set.name}
-                          {capable ? '' : '（シグナル未対応）'}
+                          {signalMode === 'indicatorSet' && !capable ? '（シグナル未対応）' : ''}
                         </option>
                       );
                     })}
@@ -414,7 +492,7 @@ function BacktestsPageContent() {
                   </label>
                 </div>
                 <div style={formRowStyle}>
-                  <button type="submit" disabled={pending || !canRunSelectedSet} style={buttonStyle}>
+                  <button type="submit" disabled={pending || !canRun} style={buttonStyle}>
                     実行
                   </button>
                   <BacktestSmaOptimizeHelp>
@@ -512,6 +590,17 @@ function BacktestsPageContent() {
 
               {selectedRun ? (
                 <>
+                  <BacktestRunConditions
+                    strategyType={selectedRun.strategyType}
+                    params={selectedRun.params}
+                    indicatorSetName={runIndicatorSet?.name ?? null}
+                    fromDate={selectedRun.fromDate}
+                    toDate={selectedRun.toDate}
+                    initialCash={selectedRun.initialCash}
+                    feeRate={selectedRun.feeRate}
+                    slippageRate={selectedRun.slippageRate}
+                  />
+
                   <section>
                     <h2 style={sectionTitleStyle}>結果サマリー</h2>
                     <BacktestSummaryCards summary={selectedRun.summary} />
@@ -529,27 +618,37 @@ function BacktestsPageContent() {
                   <section data-testid="backtest-result-chart">
                     <div style={chartToolbarStyle}>
                       <h2 style={sectionTitleStyle}>チャート</h2>
-                      <button
-                        type="button"
-                        style={buttonStyle}
-                        data-testid="enlarge-backtest-chart"
-                        aria-pressed={chartPopout}
-                        onClick={() => {
-                          if (!chartPopout) {
-                            primePopoutWindow('backtest-chart-fullscreen', { fullscreen: true });
-                          }
-                          setChartPopout((open) => !open);
-                        }}
-                      >
-                        {chartPopout ? '拡大ウィンドウを閉じる' : '拡大'}
-                      </button>
+                      <div style={chartToolbarActionsStyle}>
+                        <BacktestChartDisplayModeSwitch
+                          mode={chartDisplayMode}
+                          onChange={setChartDisplayMode}
+                        />
+                        <button
+                          type="button"
+                          style={buttonStyle}
+                          data-testid="enlarge-backtest-chart"
+                          aria-pressed={chartPopout}
+                          onClick={() => {
+                            if (!chartPopout) {
+                              primePopoutWindow('backtest-chart-fullscreen', {
+                                fullscreen: true,
+                              });
+                            }
+                            setChartPopout((open) => !open);
+                          }}
+                        >
+                          {chartPopout ? '拡大ウィンドウを閉じる' : '拡大'}
+                        </button>
+                      </div>
                     </div>
                     {chartError ? <p style={errorStyle}>{chartError}</p> : null}
                     <AnalysisChart
                       prices={prices}
-                      indicatorPoints={indicatorPoints}
-                      enabledIds={runEnabledIds}
-                      drawings={drawings}
+                      indicatorPoints={
+                        chartDisplayMode === 'indicators' ? indicatorPoints : []
+                      }
+                      enabledIds={chartEnabledIds}
+                      drawings={chartDisplayMode === 'indicators' ? drawings : undefined}
                       trades={selectedRun.trades}
                       loading={chartLoading}
                     />
@@ -579,9 +678,11 @@ function BacktestsPageContent() {
             <EnlargedBacktestChart
               win={win}
               prices={prices}
-              indicatorPoints={indicatorPoints}
-              enabledIds={runEnabledIds}
-              drawings={drawings}
+              indicatorPoints={
+                chartDisplayMode === 'indicators' ? indicatorPoints : []
+              }
+              enabledIds={chartEnabledIds}
+              drawings={chartDisplayMode === 'indicators' ? drawings : undefined}
               trades={selectedRun.trades}
               loading={chartLoading}
             />
@@ -660,10 +761,36 @@ const chartToolbarStyle: CSSProperties = {
   justifyContent: 'space-between',
   marginBottom: '0.25rem',
 };
+const chartToolbarActionsStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '0.5rem',
+  alignItems: 'center',
+};
 const formWrapStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: '0.85rem',
+};
+const fieldsetStyle: CSSProperties = {
+  margin: 0,
+  padding: '0.65rem 0.75rem',
+  border: '1px solid rgba(232, 238, 245, 0.25)',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.45rem',
+};
+const legendStyle: CSSProperties = {
+  padding: '0 0.35rem',
+  fontSize: '0.85rem',
+  opacity: 0.85,
+};
+const radioLabelStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.45rem',
+  fontSize: '0.9rem',
+  cursor: 'pointer',
 };
 const formRowStyle: CSSProperties = {
   display: 'flex',

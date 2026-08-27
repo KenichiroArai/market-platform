@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "SignalStrategyType" ADD VALUE 'TREND_SCORE_THRESHOLD';

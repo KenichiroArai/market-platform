@@ -4,8 +4,15 @@
  * 戦略定義 CRUD とバックテスト実行結果を web / api 間で同一契約で扱う。
  */
 
-export type SignalStrategyType = 'smaCross' | 'rsiThreshold' | 'macdCross';
+export type SignalStrategyType =
+  | 'smaCross'
+  | 'rsiThreshold'
+  | 'macdCross'
+  | 'trendScoreThreshold';
 export type TradeSide = 'buy' | 'sell';
+
+/** バックテストの売買判断ソース。省略時は indicatorSet（既存互換）。 */
+export type BacktestSignalMode = 'indicatorSet' | 'trendScore';
 
 export interface SmaCrossParams {
   shortPeriod: number;
@@ -24,7 +31,20 @@ export interface MacdCrossParams {
   signal: number;
 }
 
-export type SignalStrategyParams = SmaCrossParams | RsiThresholdParams | MacdCrossParams;
+/**
+ * チャート分析と同系のトレンドスコアによる閾値クロス。
+ * buyThreshold / sellThreshold は -100〜+100。既定は状態ラベル境界（上昇 / やや下向き）。
+ */
+export interface TrendScoreThresholdParams {
+  buyThreshold: number;
+  sellThreshold: number;
+}
+
+export type SignalStrategyParams =
+  | SmaCrossParams
+  | RsiThresholdParams
+  | MacdCrossParams
+  | TrendScoreThresholdParams;
 
 export interface SignalDefinitionDto {
   id: string;
@@ -52,6 +72,20 @@ export interface BacktestTradeDto {
   feeAmount: number;
   slippageAmount: number;
   netPnl: number;
+  /** 買い判断コード。既存 Run は null（UI は空欄）。 */
+  entryReason: string | null;
+  /** 売り判断コード。既存 Run は null（UI は空欄）。 */
+  exitReason: string | null;
+  /**
+   * 買い判断に使ったスコア（例: RSI 値）。
+   * クロス戦略などスコア非採用時・既存 Run は null。
+   */
+  entryScore: number | null;
+  /**
+   * 売り判断に使ったスコア（例: RSI 値）。
+   * 期間末強制決済・クロス戦略・既存 Run は null。
+   */
+  exitScore: number | null;
 }
 
 export interface BacktestEquityPointDto {
@@ -117,14 +151,29 @@ export interface UpdateSignalDefinitionRequest {
 }
 
 export interface RunBacktestRequest {
-  /** チャートで保存した指標セット。シグナルはカタログから導出する。 */
-  indicatorSetId: string;
+  /**
+   * 売買判断のソース。
+   * - `indicatorSet`: 指標セットから SMA/MACD/RSI を導出（従来）
+   * - `trendScore`: チャートと同系の固定採点セットでスコア閾値クロス
+   * 省略時は `indicatorSet`。
+   */
+  signalMode?: BacktestSignalMode;
+  /**
+   * 指標セット ID。
+   * `signalMode=indicatorSet` では必須。
+   * `trendScore` では結果チャートのオーバーレイ用に任意（売買には使わない）。
+   */
+  indicatorSetId?: string;
   symbolId: string;
   from: string;
   to: string;
   initialCash: number;
   feeRate: number;
   slippageRate: number;
+  /** `trendScore` 時のみ。省略時は DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS。 */
+  buyThreshold?: number;
+  /** `trendScore` 時のみ。省略時は DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS。 */
+  sellThreshold?: number;
 }
 
 export interface ComputeSignalRequest {
@@ -222,7 +271,16 @@ export function isOptimizeBacktestResponse(value: unknown): value is OptimizeBac
 }
 
 export function isSignalStrategyType(value: unknown): value is SignalStrategyType {
-  return value === 'smaCross' || value === 'rsiThreshold' || value === 'macdCross';
+  return (
+    value === 'smaCross' ||
+    value === 'rsiThreshold' ||
+    value === 'macdCross' ||
+    value === 'trendScoreThreshold'
+  );
+}
+
+export function isBacktestSignalMode(value: unknown): value is BacktestSignalMode {
+  return value === 'indicatorSet' || value === 'trendScore';
 }
 
 export function isSignalDefinitionDto(value: unknown): value is SignalDefinitionDto {

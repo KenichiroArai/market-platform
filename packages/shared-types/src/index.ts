@@ -16,6 +16,7 @@ export * from './analysis';
 export * from './indicator-catalog';
 export * from './signals';
 export * from './signal-from-catalog';
+export * from './backtest-display';
 export * from './chart';
 export * from './trend-score';
 export * from './indicator-set';

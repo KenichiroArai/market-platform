@@ -48,6 +48,10 @@ const trade: BacktestTradeDto = {
   feeAmount: 0,
   slippageAmount: 0,
   netPnl: 10,
+  entryReason: 'sma_golden_cross',
+  exitReason: 'sma_dead_cross',
+  entryScore: null,
+  exitScore: null,
 };
 
 const equity: BacktestEquityPointDto = {
@@ -94,6 +98,52 @@ describe('BacktestTradesTable', () => {
     expect(screen.getByTestId('trades-table')).toBeInTheDocument();
     expect(screen.getByText('2026-01-02')).toBeInTheDocument();
     expect(screen.getByText('10.00')).toBeInTheDocument();
+    expect(screen.getByText('エントリー日')).toBeInTheDocument();
+    expect(screen.getByText('買い判断')).toBeInTheDocument();
+    expect(screen.getByTestId('trade-entry-reason-t_1')).toHaveTextContent('SMAゴールデンクロス');
+    expect(screen.getByTestId('trade-exit-reason-t_1')).toHaveTextContent('SMAデッドクロス');
+  });
+
+  it('leaves reason cells blank when codes are null', () => {
+    render(
+      <BacktestTradesTable
+        trades={[
+          {
+            ...trade,
+            id: 't_blank',
+            entryReason: null,
+            exitReason: null,
+            entryScore: null,
+            exitScore: null,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('trade-entry-reason-t_blank')).toHaveTextContent('');
+    expect(screen.getByTestId('trade-exit-reason-t_blank')).toHaveTextContent('');
+  });
+
+  it('appends score when decision scores are present', () => {
+    render(
+      <BacktestTradesTable
+        trades={[
+          {
+            ...trade,
+            id: 't_rsi',
+            entryReason: 'rsi_oversold',
+            exitReason: 'rsi_overbought',
+            entryScore: 28.4,
+            exitScore: 72.1,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('trade-entry-reason-t_rsi')).toHaveTextContent(
+      'RSI売られすぎ（28.4）',
+    );
+    expect(screen.getByTestId('trade-exit-reason-t_rsi')).toHaveTextContent(
+      'RSI買われすぎ（72.1）',
+    );
   });
 });
 

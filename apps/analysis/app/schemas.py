@@ -35,7 +35,7 @@ IndicatorComputeType = Literal[
     "volumeProfile",
     "fibonacci",
 ]
-SignalStrategyType = Literal["smaCross", "rsiThreshold", "macdCross"]
+SignalStrategyType = Literal["smaCross", "rsiThreshold", "macdCross", "trendScoreThreshold"]
 TradeSide = Literal["buy", "sell"]
 
 
@@ -184,6 +184,8 @@ class SignalSpec(BaseModel):
     fast: int | None = None
     slow: int | None = None
     signal: int | None = None
+    buyThreshold: float | None = None
+    sellThreshold: float | None = None
 
     @model_validator(mode="after")
     def validate_params(self) -> "SignalSpec":
@@ -208,6 +210,15 @@ class SignalSpec(BaseModel):
                 raise ValueError("macdCross fast/slow/signal must be >= 1")
             if self.fast >= self.slow:
                 raise ValueError("macdCross fast must be < slow")
+        elif self.strategyType == "trendScoreThreshold":
+            if self.buyThreshold is None or self.sellThreshold is None:
+                raise ValueError("trendScoreThreshold requires buyThreshold and sellThreshold")
+            if self.buyThreshold < -100 or self.buyThreshold > 100:
+                raise ValueError("trendScoreThreshold buyThreshold must be in [-100, 100]")
+            if self.sellThreshold < -100 or self.sellThreshold > 100:
+                raise ValueError("trendScoreThreshold sellThreshold must be in [-100, 100]")
+            if self.buyThreshold <= self.sellThreshold:
+                raise ValueError("trendScoreThreshold buyThreshold must be > sellThreshold")
         return self
 
 
@@ -233,7 +244,12 @@ class ComputeSignalsResponse(BaseModel):
 
 
 class BacktestTrade(BaseModel):
-    """バックテスト内の約定行。"""
+    """バックテスト内の約定行。
+
+    entryReason / exitReason は安定コード（例: sma_golden_cross）。
+    entryScore / exitScore は判断に使った数値（例: RSI・トレンドスコア）。スコア非採用時は None。
+    既存クライアント互換のため省略時は None。
+    """
 
     symbolId: str
     entryDate: str
@@ -246,6 +262,10 @@ class BacktestTrade(BaseModel):
     feeAmount: float
     slippageAmount: float
     netPnl: float
+    entryReason: str | None = None
+    exitReason: str | None = None
+    entryScore: float | None = None
+    exitScore: float | None = None
 
 
 class BacktestEquityPoint(BaseModel):
@@ -279,7 +299,11 @@ class BacktestSummary(BaseModel):
 
 
 class RunBacktestRequest(BaseModel):
-    """POST /backtests/run の入力。"""
+    """POST /backtests/run の入力。
+
+    rangeStartIndex: lookback 付き bars のうち、売買・エクイティを開始するインデックス。
+    チャートのトレンドスコアと同様、ウォームアップ分はシグナル計算に使うがシミュレーションには含めない。
+    """
 
     symbolId: str
     bars: list[OhlcBar]
@@ -287,6 +311,7 @@ class RunBacktestRequest(BaseModel):
     initialCash: float = Field(gt=0)
     feeRate: float = Field(ge=0)
     slippageRate: float = Field(ge=0)
+    rangeStartIndex: int = Field(default=0, ge=0)
 
 
 class RunBacktestResponse(BaseModel):
