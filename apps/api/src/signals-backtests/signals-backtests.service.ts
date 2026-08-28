@@ -315,7 +315,8 @@ export class SignalsBacktestsService {
     const catalogIds = indicatorSet.indicatorIds.filter((id): id is IndicatorCatalogId =>
       isIndicatorCatalogId(id),
     );
-    const rule = resolveSignalRule(catalogIds);
+    const paramOverrides = this.toParamOverrides(indicatorSet.indicatorParams);
+    const rule = resolveSignalRule(catalogIds, paramOverrides);
     if (!rule) {
       throw new BadRequestException({
         code: API_ERROR_CODES.VALIDATION_FAILED,
@@ -359,12 +360,9 @@ export class SignalsBacktestsService {
       });
     }
 
-    const rule = resolveTrendScoreSignalRule({
-      buyThreshold: dto.buyThreshold,
-      sellThreshold: dto.sellThreshold,
-    });
-
     let indicatorSetId: string | null = null;
+    let indicatorSetThresholds: { buyThreshold: number | null; sellThreshold: number | null } | null =
+      null;
     if (dto.indicatorSetId) {
       const indicatorSet = await this.prismaService.prisma.indicatorSet.findFirst({
         where: { id: dto.indicatorSetId, userId },
@@ -376,7 +374,16 @@ export class SignalsBacktestsService {
         });
       }
       indicatorSetId = indicatorSet.id;
+      indicatorSetThresholds = {
+        buyThreshold: indicatorSet.buyThreshold,
+        sellThreshold: indicatorSet.sellThreshold,
+      };
     }
+
+    const rule = resolveTrendScoreSignalRule({
+      buyThreshold: dto.buyThreshold ?? indicatorSetThresholds?.buyThreshold ?? undefined,
+      sellThreshold: dto.sellThreshold ?? indicatorSetThresholds?.sellThreshold ?? undefined,
+    });
 
     const analysisRequest = await this.buildComputeBacktestRequestTrendScore(rule, {
       symbolId: dto.symbolId,
@@ -888,5 +895,12 @@ export class SignalsBacktestsService {
       slow: macdParams.slow,
       signal: macdParams.signal,
     };
+  }
+
+  private toParamOverrides(raw: unknown) {
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+      return undefined;
+    }
+    return raw as Record<string, Record<string, number>>;
   }
 }

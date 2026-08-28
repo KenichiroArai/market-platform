@@ -188,6 +188,9 @@ describe('ChartsPage', () => {
         userId: 'u_1',
         name: 'スイング',
         indicatorIds: ['rsi'],
+        groupWeights: null,
+        buyThreshold: null,
+        sellThreshold: null,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
       },
@@ -197,6 +200,10 @@ describe('ChartsPage', () => {
       userId: 'u_1',
       name: '新規',
       indicatorIds: ['sma25'],
+      indicatorParams: {},
+      groupWeights: null,
+      buyThreshold: null,
+      sellThreshold: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     });
@@ -222,11 +229,15 @@ describe('ChartsPage', () => {
         interval: '1d',
       }),
     );
-    expect(fetchSymbolTrendScore).toHaveBeenCalledWith('sym_1', {
-      from: expectedFrom,
-      to: expectedTo,
-      interval: '1d',
-    });
+    expect(fetchSymbolTrendScore).toHaveBeenCalledWith(
+      'sym_1',
+      expect.objectContaining({
+        from: expectedFrom,
+        to: expectedTo,
+        interval: '1d',
+        indicatorParams: {},
+      }),
+    );
   });
 
   it('applies symbolId watchlistId from and to from search params', async () => {
@@ -757,5 +768,52 @@ describe('ChartsPage', () => {
     );
     fireEvent.change(screen.getByTestId('base-date-input'), { target: { value: '2026-03-15' } });
     expect(screen.getByTestId('base-date-input')).toHaveValue('2026-03-15');
+  });
+
+  it('duplicates a set into the indicator settings window', async () => {
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('open-indicator-set')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('open-indicator-set'));
+    await waitFor(() => expect(screen.getByTestId('indicator-set-duplicate-set_1')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('indicator-set-duplicate-set_1'));
+    await waitFor(() => expect(screen.getByTestId('indicator-catalog')).toBeInTheDocument());
+    expect(screen.getByTestId('indicator-set-name')).toHaveValue('スイング');
+    expect(screen.getAllByTestId('overlay-rsi')[0]).toBeChecked();
+  });
+
+  it('tolerates indicator set list fetch failures', async () => {
+    (fetchIndicatorSets as jest.Mock).mockRejectedValue(new Error('network'));
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('analysis-chart-stub')).toHaveTextContent('ready'),
+    );
+  });
+
+  it('refreshes indicator sets after save even when refresh fails', async () => {
+    (fetchIndicatorSets as jest.Mock)
+      .mockResolvedValueOnce([
+        {
+          id: 'set_1',
+          userId: 'u_1',
+          name: 'スイング',
+          indicatorIds: ['rsi'],
+          indicatorParams: {},
+          groupWeights: null,
+          buyThreshold: null,
+          sellThreshold: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ])
+      .mockRejectedValueOnce(new Error('refresh failed'));
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('open-indicator')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('open-indicator'));
+    fireEvent.change(screen.getByTestId('indicator-set-name'), { target: { value: '新規' } });
+    fireEvent.click(screen.getByTestId('indicator-set-save-button'));
+    await waitFor(() =>
+      expect(screen.getByTestId('indicator-set-save-success')).toHaveTextContent('保存しました'),
+    );
+    expect(fetchIndicatorSets).toHaveBeenCalledTimes(2);
   });
 });

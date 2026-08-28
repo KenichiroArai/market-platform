@@ -9,10 +9,14 @@ jest.mock('../generated/client', () => ({
     prismaClientCtor(options);
     return { options };
   },
+  Prisma: {
+    DbNull: 'DbNull',
+    JsonNull: 'JsonNull',
+  },
 }));
 
 import { PrismaPg } from '@prisma/adapter-pg';
-import { createPrismaClient } from '../src/index';
+import { Prisma, createPrismaClient } from '../src/index';
 
 describe('createPrismaClient', () => {
   const originalUrl = process.env.DATABASE_URL;
@@ -50,5 +54,10 @@ describe('createPrismaClient', () => {
     process.env.DATABASE_URL = 'postgresql://env/db';
     createPrismaClient();
     expect(PrismaPg).toHaveBeenCalledWith({ connectionString: 'postgresql://env/db' });
+  });
+
+  it('re-exports Prisma namespace for JSON null sentinels', () => {
+    expect(Prisma.DbNull).toBe('DbNull');
+    expect(Prisma.JsonNull).toBe('JsonNull');
   });
 });

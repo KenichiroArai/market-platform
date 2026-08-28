@@ -24,8 +24,12 @@ import {
   type ChartInterval,
   type DailyPriceDto,
   type IndicatorsResponseDto,
+  type CreateIndicatorSetRequest,
+  type GroupWeights,
   type IndicatorCatalogId,
+  type IndicatorParamOverrides,
   type IndicatorSetDto,
+  type UpdateIndicatorSetRequest,
   type LoginRequest,
   type OptimizeBacktestRequest,
   type OptimizeBacktestResponse,
@@ -43,6 +47,8 @@ import {
   type SymbolDto,
   type TrendScoreResponseDto,
   type WatchlistDto,
+  serializeGroupWeights,
+  serializeIndicatorParamOverrides,
 } from '@market/shared-types';
 import { getApiBaseUrl } from './api-base-url';
 import { getAccessToken } from './auth-token';
@@ -214,6 +220,7 @@ export async function fetchSymbolIndicators(
     to?: string;
     interval?: ChartInterval;
     indicators?: string;
+    indicatorParams?: IndicatorParamOverrides;
   } = {},
   fetchImpl?: typeof fetch,
 ): Promise<IndicatorsResponseDto> {
@@ -229,6 +236,9 @@ export async function fetchSymbolIndicators(
   }
   if (query.indicators) {
     params.set('indicators', query.indicators);
+  }
+  if (query.indicatorParams && Object.keys(query.indicatorParams).length > 0) {
+    params.set('indicatorParams', serializeIndicatorParamOverrides(query.indicatorParams));
   }
   const qs = params.toString();
   const path = `/symbols/${encodeURIComponent(symbolId)}/indicators${qs ? `?${qs}` : ''}`;
@@ -249,6 +259,8 @@ export async function fetchSymbolTrendScore(
     from?: string;
     to?: string;
     interval?: ChartInterval;
+    groupWeights?: GroupWeights;
+    indicatorParams?: IndicatorParamOverrides;
   } = {},
   fetchImpl?: typeof fetch,
 ): Promise<TrendScoreResponseDto> {
@@ -261,6 +273,12 @@ export async function fetchSymbolTrendScore(
   }
   if (query.interval) {
     params.set('interval', query.interval);
+  }
+  if (query.groupWeights) {
+    params.set('groupWeights', serializeGroupWeights(query.groupWeights));
+  }
+  if (query.indicatorParams && Object.keys(query.indicatorParams).length > 0) {
+    params.set('indicatorParams', serializeIndicatorParamOverrides(query.indicatorParams));
   }
   const qs = params.toString();
   const path = `/symbols/${encodeURIComponent(symbolId)}/trend-score${qs ? `?${qs}` : ''}`;
@@ -469,13 +487,29 @@ export async function fetchIndicatorSets(fetchImpl?: typeof fetch): Promise<Indi
 
 /** POST /indicator-sets */
 export async function createIndicatorSet(
-  name: string,
-  indicatorIds: IndicatorCatalogId[],
+  payload: CreateIndicatorSetRequest,
   fetchImpl?: typeof fetch,
 ): Promise<IndicatorSetDto> {
   const result = await apiFetch<unknown>(
     '/indicator-sets',
-    { method: 'POST', body: JSON.stringify({ name, indicatorIds }) },
+    { method: 'POST', body: JSON.stringify(payload) },
+    fetchImpl,
+  );
+  if (!isIndicatorSetDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected indicator set response', result);
+  }
+  return result;
+}
+
+/** PATCH /indicator-sets/:id */
+export async function updateIndicatorSet(
+  id: string,
+  payload: UpdateIndicatorSetRequest,
+  fetchImpl?: typeof fetch,
+): Promise<IndicatorSetDto> {
+  const result = await apiFetch<unknown>(
+    `/indicator-sets/${encodeURIComponent(id)}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
     fetchImpl,
   );
   if (!isIndicatorSetDto(result)) {

@@ -68,6 +68,22 @@ import {
   scoringCatalogIds,
   specsFromCatalogIds,
   TREND_SCORE_GROUP_WEIGHTS,
+  validateGroupWeights,
+  validateSignalThresholds,
+  resolveGroupWeights,
+  resolveIndicatorParams,
+  validateIndicatorParamOverrides,
+  isIndicatorParamOverrides,
+  serializeGroupWeights,
+  parseGroupWeightsJson,
+  serializeIndicatorParamOverrides,
+  parseIndicatorParamOverridesJson,
+  editableParamKeys,
+  catalogIdsWithParams,
+  effectiveLookbackBars,
+  resolveSignalThresholds,
+  scoreGroupCategoryIds,
+  isGroupWeights,
   createTrendScoreResponseDto,
   isScoredIndicatorId,
   isTrendScoreGroupId,
@@ -78,6 +94,7 @@ import {
   trendScoreGaugeSegments,
   trendScoreState,
   INDICATOR_CATALOG,
+  sanitizePartialGroupWeights,
   INDICATOR_CATALOG_BY_ID,
 } from '../src/index';
 
@@ -611,6 +628,10 @@ describe('shared-types indicator set', () => {
     userId: 'user_1',
     name: 'スイング',
     indicatorIds: ['sma25', 'rsi'] as const,
+    indicatorParams: {},
+    groupWeights: null,
+    buyThreshold: null,
+    sellThreshold: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
@@ -627,6 +648,102 @@ describe('shared-types indicator set', () => {
     expect(isIndicatorSetDto({ ...dto, name: 1 })).toBe(false);
     expect(isIndicatorSetDto({ ...dto, indicatorIds: ['nope'] })).toBe(false);
     expect(isIndicatorSetDto({ ...dto, indicatorIds: 'sma25' })).toBe(false);
+    expect(isIndicatorSetDto({ ...dto, indicatorParams: { bad: 'x' } })).toBe(false);
+    expect(isIndicatorSetDto({ ...dto, indicatorParams: { sma25: null } })).toBe(false);
+    expect(isIndicatorSetDto({ ...dto, indicatorParams: { sma25: { period: 'x' } } })).toBe(false);
+    expect(isIndicatorSetDto({ ...dto, groupWeights: 'bad' })).toBe(false);
+    expect(isIndicatorSetDto({ ...dto, indicatorParams: 1 })).toBe(false);
+    expect(isIndicatorSetDto({ ...dto, buyThreshold: 'bad' })).toBe(false);
+    expect(isIndicatorSetDto({ ...dto, sellThreshold: Number.POSITIVE_INFINITY })).toBe(false);
+    expect(isIndicatorSetDto({ ...dto, indicatorParams: { sma25: { period: Number.NaN } } })).toBe(
+      false,
+    );
+    expect(isIndicatorSetDto({ ...dto, groupWeights: [] })).toBe(false);
+    const { indicatorParams: _p, groupWeights: _g, ...withoutOptional } = dto;
+    expect(isIndicatorSetDto(withoutOptional)).toBe(true);
+    expect(isGroupWeights(TREND_SCORE_GROUP_WEIGHTS)).toBe(true);
+    expect(sanitizePartialGroupWeights({ trend: 40, bad: 1 })).toEqual({ trend: 40 });
+  });
+});
+
+describe('shared-types indicator score config', () => {
+  it('validates group weights sum to 100', () => {
+    expect(validateGroupWeights(TREND_SCORE_GROUP_WEIGHTS).ok).toBe(true);
+    expect(validateGroupWeights({ ...TREND_SCORE_GROUP_WEIGHTS, trend: 50 }).ok).toBe(false);
+    expect(validateGroupWeights(null).ok).toBe(false);
+    expect(validateGroupWeights({ trend: -1 }).ok).toBe(false);
+    expect(resolveGroupWeights(null)).toEqual(TREND_SCORE_GROUP_WEIGHTS);
+    expect(resolveGroupWeights({ trend: 50 })).toMatchObject({ trend: 50, momentum: 20 });
+  });
+
+  it('validates signal thresholds', () => {
+    expect(validateSignalThresholds(37.5, -42.5).ok).toBe(true);
+    expect(validateSignalThresholds(10, 20).ok).toBe(false);
+    expect(validateSignalThresholds(200, 0).ok).toBe(false);
+    expect(resolveSignalThresholds({ buyThreshold: 50 })).toEqual({
+      buyThreshold: 50,
+      sellThreshold: DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS.sellThreshold,
+    });
+    expect(resolveSignalThresholds({ sellThreshold: -50 })).toEqual({
+      buyThreshold: DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS.buyThreshold,
+      sellThreshold: -50,
+    });
+    expect(parseGroupWeightsJson(JSON.stringify(TREND_SCORE_GROUP_WEIGHTS))).toEqual(
+      TREND_SCORE_GROUP_WEIGHTS,
+    );
+    expect(parseGroupWeightsJson('not-json')).toBeNull();
+    expect(parseGroupWeightsJson('{"trend":50}')).toBeNull();
+    expect(scoreGroupCategoryIds()).toHaveLength(6);
+    expect(sanitizePartialGroupWeights(null)).toBeNull();
+    expect(serializeGroupWeights(TREND_SCORE_GROUP_WEIGHTS)).toContain('trend');
+  });
+});
+
+describe('shared-types indicator param rules', () => {
+  it('merges and validates param overrides', () => {
+    expect(resolveIndicatorParams('sma25', { sma25: { period: 30 } }).period).toBe(30);
+    expect(validateIndicatorParamOverrides({ sma25: { period: 30 } }).ok).toBe(true);
+    expect(validateIndicatorParamOverrides({ sma25: { nope: 1 } }).ok).toBe(false);
+    expect(validateIndicatorParamOverrides({ nope: { period: 1 } }).ok).toBe(false);
+    expect(validateIndicatorParamOverrides({ elliott: { period: 1 } }).ok).toBe(false);
+    expect(validateIndicatorParamOverrides({ sma25: { period: 9999 } }).ok).toBe(false);
+    expect(validateIndicatorParamOverrides(null).ok).toBe(true);
+  });
+
+  it('serializes and parses param overrides', () => {
+    const overrides = { sma25: { period: 30 } };
+    const json = serializeIndicatorParamOverrides(overrides);
+    expect(parseIndicatorParamOverridesJson(json)).toEqual(overrides);
+    expect(parseIndicatorParamOverridesJson('{')).toBeNull();
+    expect(parseIndicatorParamOverridesJson('{"sma25":{"period":9999}}')).toBeNull();
+    expect(isIndicatorParamOverrides(overrides)).toBe(true);
+    expect(validateIndicatorParamOverrides({ sma25: null }).ok).toBe(false);
+    expect(validateIndicatorParamOverrides({ sma25: { period: NaN } }).ok).toBe(false);
+  });
+
+  it('lists editable params and effective lookback', () => {
+    expect(editableParamKeys('sma25')[0]?.key).toBe('period');
+    expect(editableParamKeys('elliott')).toEqual([]);
+    expect(catalogIdsWithParams()).toContain('sma25');
+    expect(effectiveLookbackBars('sma25', { period: 100 })).toBeGreaterThanOrEqual(100);
+    expect(effectiveLookbackBars('macd', {})).toBeGreaterThanOrEqual(35);
+    expect(effectiveLookbackBars('ichimoku', {})).toBeGreaterThanOrEqual(78);
+    expect(effectiveLookbackBars('stoch', {})).toBeGreaterThanOrEqual(20);
+    expect(effectiveLookbackBars('keltner', {})).toBeGreaterThanOrEqual(20);
+    expect(effectiveLookbackBars('ichimoku', { senkouB: 60, displacement: 26 })).toBeGreaterThanOrEqual(86);
+    expect(
+      effectiveLookbackBars('stoch', { kPeriod: 14, kSmoothing: 3, dPeriod: 3 }),
+    ).toBeGreaterThanOrEqual(20);
+    expect(effectiveLookbackBars('keltner', { emaPeriod: 30, atrPeriod: 12 })).toBeGreaterThanOrEqual(30);
+    expect(effectiveLookbackBars('obv', {})).toBe(INDICATOR_CATALOG_BY_ID.obv.lookbackBars);
+  });
+
+  it('uses custom params in signal rule', () => {
+    const rule = resolveSignalRule(new Set(['sma25', 'sma75']), {
+      sma25: { period: 10 },
+      sma75: { period: 30 },
+    });
+    expect(rule?.params).toEqual({ shortPeriod: 10, longPeriod: 30 });
   });
 });
 

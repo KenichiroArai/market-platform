@@ -20,7 +20,9 @@ import { toggleIndicatorId } from './indicator-catalog';
 
 export type IndicatorSetPickerProps = {
   /** 呼び出したセットの指標 ID とセット ID（バックテスト連携用）。 */
-  onApply: (ids: IndicatorCatalogId[], setId: string) => void;
+  onApply: (set: IndicatorSetDto) => void;
+  /** 複製: 指標設定へ遷移し元名をセット名欄に表示。 */
+  onDuplicate: (set: IndicatorSetDto) => void;
 };
 
 /** セットに含まれる指標の表示用ラベル。 */
@@ -31,7 +33,7 @@ export function indicatorSetSummary(ids: IndicatorCatalogId[]): string {
   return ids.map((id) => INDICATOR_CATALOG_BY_ID[id].nameJa).join('、');
 }
 
-export function IndicatorSetPicker({ onApply }: IndicatorSetPickerProps) {
+export function IndicatorSetPicker({ onApply, onDuplicate }: IndicatorSetPickerProps) {
   const [sets, setSets] = useState<IndicatorSetDto[]>([]);
   const [nameQuery, setNameQuery] = useState('');
   const [requiredIds, setRequiredIds] = useState<Set<IndicatorCatalogId>>(() => new Set());
@@ -134,9 +136,17 @@ export function IndicatorSetPicker({ onApply }: IndicatorSetPickerProps) {
                     type="button"
                     style={buttonStyle}
                     data-testid={`indicator-set-apply-${set.id}`}
-                    onClick={() => onApply(set.indicatorIds, set.id)}
+                    onClick={() => onApply(set)}
                   >
                     呼び出す
+                  </button>
+                  <button
+                    type="button"
+                    style={buttonStyle}
+                    data-testid={`indicator-set-duplicate-${set.id}`}
+                    onClick={() => onDuplicate(set)}
+                  >
+                    複製
                   </button>
                   <button
                     type="button"

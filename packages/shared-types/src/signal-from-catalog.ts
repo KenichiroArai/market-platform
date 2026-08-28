@@ -6,9 +6,10 @@
  */
 
 import {
-  INDICATOR_CATALOG_BY_ID,
-  type IndicatorCatalogId,
-} from './indicator-catalog';
+  resolveIndicatorParams,
+  type IndicatorParamOverrides,
+} from './indicator-param-rules';
+import type { IndicatorCatalogId } from './indicator-catalog';
 import type {
   MacdCrossParams,
   RsiThresholdParams,
@@ -65,6 +66,7 @@ export interface CatalogSmaPair {
  */
 export function resolveSignalRule(
   ids: readonly IndicatorCatalogId[] | ReadonlySet<IndicatorCatalogId>,
+  paramOverrides?: IndicatorParamOverrides | null,
 ): ResolvedSignalRule | null {
   const enabled = toIdSet(ids);
 
@@ -72,8 +74,8 @@ export function resolveSignalRule(
   if (smaIds.length === 2) {
     const a = smaIds[0] as SmaSignalCatalogId;
     const b = smaIds[1] as SmaSignalCatalogId;
-    const first = catalogPeriod(a);
-    const second = catalogPeriod(b);
+    const first = catalogPeriod(a, paramOverrides);
+    const second = catalogPeriod(b, paramOverrides);
     const shortPeriod = Math.min(first, second);
     const longPeriod = Math.max(first, second);
     const params: SmaCrossParams = { shortPeriod, longPeriod };
@@ -85,7 +87,7 @@ export function resolveSignalRule(
   }
 
   if (enabled.has('macd')) {
-    const raw = INDICATOR_CATALOG_BY_ID.macd.params;
+    const raw = resolveIndicatorParams('macd', paramOverrides);
     const params: MacdCrossParams = {
       fast: numberParam(raw, 'fast'),
       slow: numberParam(raw, 'slow'),
@@ -99,7 +101,7 @@ export function resolveSignalRule(
   }
 
   if (enabled.has('rsi')) {
-    const period = catalogPeriod('rsi');
+    const period = catalogPeriod('rsi', paramOverrides);
     const params: RsiThresholdParams = {
       period,
       lower: DEFAULT_RSI_SIGNAL_THRESHOLDS.lower,
@@ -120,8 +122,9 @@ export function resolveSignalRule(
  */
 export function isSignalCapableIndicatorIds(
   ids: readonly IndicatorCatalogId[] | ReadonlySet<IndicatorCatalogId>,
+  paramOverrides?: IndicatorParamOverrides | null,
 ): boolean {
-  return resolveSignalRule(ids) !== null;
+  return resolveSignalRule(ids, paramOverrides) !== null;
 }
 
 /**
@@ -149,11 +152,13 @@ export function resolveTrendScoreSignalRule(
 /**
  * カタログ SMA の全ペア（25/75, 25/200, 75/200）。最適化はこれのみ。
  */
-export function listCatalogSmaPairs(): CatalogSmaPair[] {
+export function listCatalogSmaPairs(
+  paramOverrides?: IndicatorParamOverrides | null,
+): CatalogSmaPair[] {
   const periods: Array<{ id: SmaSignalCatalogId; period: number }> =
     SMA_SIGNAL_CATALOG_IDS.map((id) => ({
       id,
-      period: catalogPeriod(id),
+      period: catalogPeriod(id, paramOverrides),
     }));
   const pairs: CatalogSmaPair[] = [];
   for (let i = 0; i < periods.length; i += 1) {
@@ -176,8 +181,9 @@ export function listCatalogSmaPairs(): CatalogSmaPair[] {
  */
 export function describeSignalRule(
   ids: readonly IndicatorCatalogId[] | ReadonlySet<IndicatorCatalogId>,
+  paramOverrides?: IndicatorParamOverrides | null,
 ): string {
-  const rule = resolveSignalRule(ids);
+  const rule = resolveSignalRule(ids, paramOverrides);
   if (rule) {
     return `バックテスト用: ${rule.label}`;
   }
@@ -196,8 +202,11 @@ function toIdSet(
   return ids instanceof Set ? ids : new Set(ids);
 }
 
-function catalogPeriod(id: SmaSignalCatalogId | 'rsi'): number {
-  return numberParam(INDICATOR_CATALOG_BY_ID[id].params, 'period');
+function catalogPeriod(
+  id: SmaSignalCatalogId | 'rsi',
+  paramOverrides?: IndicatorParamOverrides | null,
+): number {
+  return numberParam(resolveIndicatorParams(id, paramOverrides), 'period');
 }
 
 function numberParam(params: Record<string, number>, key: string): number {

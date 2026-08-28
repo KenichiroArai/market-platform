@@ -100,7 +100,12 @@ def compute_trend_score_endpoint(body: ComputeTrendScoreRequest) -> ComputeTrend
 
     指標セットはサーバ側の正本。空の bars でも 200 + 空 points を返す。
     """
-    points = compute_trend_score(body.bars, range_start_index=max(0, body.rangeStartIndex))
+    points = compute_trend_score(
+        body.bars,
+        range_start_index=max(0, body.rangeStartIndex),
+        group_weights=body.groupWeights,
+        indicator_params=body.indicatorParams,
+    )
     return ComputeTrendScoreResponse(points=points)
 
 

@@ -10,6 +10,7 @@ import { PrismaClient } from '../generated/client';
 
 /** 型だけ再エクスポートし、アプリ側は値としての PrismaClient を直接 new しない。 */
 export type { PrismaClient } from '../generated/client';
+export { Prisma } from '../generated/client';
 
 /**
  * PrismaClient を生成する。

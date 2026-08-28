@@ -14,15 +14,22 @@ import { Suspense, useEffect, useMemo, useState, type CSSProperties } from 'reac
 import type {
   ChartInterval,
   DailyPriceDto,
+  GroupWeights,
   IndicatorCatalogId,
   IndicatorDrawings,
+  IndicatorParamOverrides,
   IndicatorSeriesPoint,
   IndicatorSetDto,
   SymbolDto,
   TrendScorePoint,
   WatchlistDto,
 } from '@market/shared-types';
-import { computeCatalogIds } from '@market/shared-types';
+import {
+  DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS,
+  computeCatalogIds,
+  resolveGroupWeights,
+  resolveSignalThresholds,
+} from '@market/shared-types';
 import {
   AnalysisChart,
   computeAnalysisChartHeight,
@@ -34,6 +41,12 @@ import {
 } from '../../../components/indicator-catalog';
 import { IndicatorSetPicker } from '../../../components/indicator-set-picker';
 import { IndicatorSetSaveForm } from '../../../components/indicator-set-save-form';
+import { IndicatorParamEditor } from '../../../components/indicator-param-editor';
+import {
+  IndicatorScoreConfigForm,
+  defaultGroupWeights,
+  isScoreConfigValid,
+} from '../../../components/indicator-score-config-form';
 import { ModelessWindow } from '../../../components/modeless-window';
 import {
   nextOpenToggle,
@@ -48,6 +61,7 @@ import { TrendScoreBreakdown } from '../../../components/trend-score-breakdown';
 import { WindowDisplayModeSwitch } from '../../../components/window-display-mode-switch';
 import {
   ApiClientError,
+  fetchIndicatorSets,
   fetchSymbolIndicators,
   fetchSymbolPrices,
   fetchSymbolTrendScore,
@@ -104,20 +118,63 @@ function ChartsPageContent() {
   const [baseDate, setBaseDate] = useState<string | null>(null);
   /** 保存または呼び出した指標セット。バックテストへのディープリンク用。 */
   const [activeIndicatorSetId, setActiveIndicatorSetId] = useState<string | null>(null);
+  const [indicatorSets, setIndicatorSets] = useState<IndicatorSetDto[]>([]);
+  const [indicatorParams, setIndicatorParams] = useState<IndicatorParamOverrides>({});
+  const [groupWeights, setGroupWeights] = useState<GroupWeights>(() => defaultGroupWeights());
+  const [buyThreshold, setBuyThreshold] = useState<number>(
+    DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS.buyThreshold,
+  );
+  const [sellThreshold, setSellThreshold] = useState<number>(
+    DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS.sellThreshold,
+  );
+  const [draftSetName, setDraftSetName] = useState('');
 
-  const signalRulePreview = useMemo(
-    () => signalRulePreviewText(enabledIds),
-    [enabledIds],
+  const scoreConfigValid = useMemo(
+    () => isScoreConfigValid(groupWeights, buyThreshold, sellThreshold),
+    [groupWeights, buyThreshold, sellThreshold],
   );
 
+  const signalRulePreview = useMemo(
+    () => signalRulePreviewText(enabledIds, indicatorParams),
+    [enabledIds, indicatorParams],
+  );
+
+  function loadSetIntoEditor(set: IndicatorSetDto, options?: { asDuplicate?: boolean }) {
+    setEnabledIds(new Set(set.indicatorIds));
+    setIndicatorParams(set.indicatorParams ?? {});
+    setGroupWeights(resolveGroupWeights(set.groupWeights));
+    const thresholds = resolveSignalThresholds({
+      buyThreshold: set.buyThreshold,
+      sellThreshold: set.sellThreshold,
+    });
+    setBuyThreshold(thresholds.buyThreshold);
+    setSellThreshold(thresholds.sellThreshold);
+    setDraftSetName(set.name);
+    if (options?.asDuplicate) {
+      setActiveIndicatorSetId(null);
+    } else {
+      setActiveIndicatorSetId(set.id);
+    }
+  }
+
   /** 呼び出しウィンドウから選んだセットを現行の指標指定へ反映する。 */
-  function applyIndicatorSet(ids: IndicatorCatalogId[], setId: string) {
-    setEnabledIds(new Set(ids));
-    setActiveIndicatorSetId(setId);
+  function applyIndicatorSet(set: IndicatorSetDto) {
+    loadSetIntoEditor(set);
+  }
+
+  function duplicateIndicatorSet(set: IndicatorSetDto) {
+    loadSetIntoEditor(set, { asDuplicate: true });
+    if (indicatorUi === 'closed') {
+      toggleIndicatorUi();
+    }
+    setRecallUi('closed');
   }
 
   function onIndicatorSetSaved(set: IndicatorSetDto) {
     setActiveIndicatorSetId(set.id);
+    void fetchIndicatorSets()
+      .then(setIndicatorSets)
+      .catch(() => undefined);
   }
 
   /** オープンボタン: 共通 preferred で開く／同モードなら閉じる／異なれば切替。 */
@@ -274,6 +331,20 @@ function ChartsPageContent() {
   }, [searchParams]);
 
   useEffect(() => {
+    let cancelled = false;
+    void fetchIndicatorSets()
+      .then((rows) => {
+        if (!cancelled) {
+          setIndicatorSets(rows);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!symbolId || loading) {
       return;
     }
@@ -292,9 +363,16 @@ function ChartsPageContent() {
                 to,
                 interval,
                 indicators: indicatorsQuery,
+                indicatorParams,
               })
             : Promise.resolve({ points: [] as IndicatorSeriesPoint[], drawings: undefined });
-        const trendPromise = fetchSymbolTrendScore(symbolId, { from, to, interval });
+        const trendPromise = fetchSymbolTrendScore(symbolId, {
+          from,
+          to,
+          interval,
+          groupWeights,
+          indicatorParams,
+        });
 
         const [priceResult, indicatorResult, trendResult] = await Promise.allSettled([
           pricePromise,
@@ -345,7 +423,7 @@ function ChartsPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [symbolId, from, to, interval, indicatorsQuery, loading]);
+  }, [symbolId, from, to, interval, indicatorsQuery, indicatorParams, groupWeights, loading]);
 
   return (
     <main style={pageStyle}>
@@ -555,7 +633,31 @@ function ChartsPageContent() {
               testId="indicator-in-window-mode"
               legend="このウィンドウの表示"
             />
-            <IndicatorSetSaveForm enabledIds={enabledIds} onSaved={onIndicatorSetSaved} />
+            <IndicatorSetSaveForm
+              enabledIds={enabledIds}
+              indicatorParams={indicatorParams}
+              groupWeights={groupWeights}
+              buyThreshold={buyThreshold}
+              sellThreshold={sellThreshold}
+              draftName={draftSetName}
+              onDraftNameChange={setDraftSetName}
+              existingSets={indicatorSets}
+              scoreConfigValid={scoreConfigValid}
+              onSaved={onIndicatorSetSaved}
+            />
+            <IndicatorScoreConfigForm
+              groupWeights={groupWeights}
+              buyThreshold={buyThreshold}
+              sellThreshold={sellThreshold}
+              onGroupWeightsChange={setGroupWeights}
+              onBuyThresholdChange={setBuyThreshold}
+              onSellThresholdChange={setSellThreshold}
+            />
+            <IndicatorParamEditor
+              enabledIds={enabledIds}
+              params={indicatorParams}
+              onChange={setIndicatorParams}
+            />
             <SignalRulePanel
               preview={signalRulePreview}
               indicatorSetId={activeIndicatorSetId}
@@ -582,7 +684,31 @@ function ChartsPageContent() {
               testId="indicator-in-window-mode"
               legend="このウィンドウの表示"
             />
-            <IndicatorSetSaveForm enabledIds={enabledIds} onSaved={onIndicatorSetSaved} />
+            <IndicatorSetSaveForm
+              enabledIds={enabledIds}
+              indicatorParams={indicatorParams}
+              groupWeights={groupWeights}
+              buyThreshold={buyThreshold}
+              sellThreshold={sellThreshold}
+              draftName={draftSetName}
+              onDraftNameChange={setDraftSetName}
+              existingSets={indicatorSets}
+              scoreConfigValid={scoreConfigValid}
+              onSaved={onIndicatorSetSaved}
+            />
+            <IndicatorScoreConfigForm
+              groupWeights={groupWeights}
+              buyThreshold={buyThreshold}
+              sellThreshold={sellThreshold}
+              onGroupWeightsChange={setGroupWeights}
+              onBuyThresholdChange={setBuyThreshold}
+              onSellThresholdChange={setSellThreshold}
+            />
+            <IndicatorParamEditor
+              enabledIds={enabledIds}
+              params={indicatorParams}
+              onChange={setIndicatorParams}
+            />
             <SignalRulePanel
               preview={signalRulePreview}
               indicatorSetId={activeIndicatorSetId}
@@ -606,7 +732,7 @@ function ChartsPageContent() {
               testId="recall-in-window-mode"
               legend="このウィンドウの表示"
             />
-            <IndicatorSetPicker onApply={applyIndicatorSet} />
+            <IndicatorSetPicker onApply={applyIndicatorSet} onDuplicate={duplicateIndicatorSet} />
           </div>
         </ModelessWindow>
       ) : null}
@@ -628,7 +754,7 @@ function ChartsPageContent() {
               testId="recall-in-window-mode"
               legend="このウィンドウの表示"
             />
-            <IndicatorSetPicker onApply={applyIndicatorSet} />
+            <IndicatorSetPicker onApply={applyIndicatorSet} onDuplicate={duplicateIndicatorSet} />
           </div>
         </PopoutWindow>
       ) : null}
@@ -649,7 +775,7 @@ function ChartsPageContent() {
               testId="score-in-window-mode"
               legend="このウィンドウの表示"
             />
-            <TrendScoreBreakdown point={scoredPoint} />
+            <TrendScoreBreakdown point={scoredPoint} groupWeights={groupWeights} />
           </div>
         </ModelessWindow>
       ) : null}
@@ -671,7 +797,7 @@ function ChartsPageContent() {
               testId="score-in-window-mode"
               legend="このウィンドウの表示"
             />
-            <TrendScoreBreakdown point={scoredPoint} />
+            <TrendScoreBreakdown point={scoredPoint} groupWeights={groupWeights} />
           </div>
         </PopoutWindow>
       ) : null}

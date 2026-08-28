@@ -290,13 +290,16 @@ def rolling_sma(values: Sequence[float | None], period: int) -> list[float | Non
 
 def aggregate_scores(
     indicator_scores: dict[str, float | None],
+    group_weights: dict[str, float] | None = None,
 ) -> tuple[float | None, dict[str, float | None]]:
     """
     グループ平均を配点へスケールして合算する。
 
     有効点が 0 件のグループ寄与は None。全て None なら総合も None。
+    group_weights 省略時は GROUP_WEIGHTS 既定。
     """
-    by_group: dict[str, list[float]] = {group: [] for group in GROUP_WEIGHTS}
+    weights = group_weights if group_weights is not None else GROUP_WEIGHTS
+    by_group: dict[str, list[float]] = {group: [] for group in weights}
     for indicator_id, score in indicator_scores.items():
         group = SCORE_GROUPS.get(indicator_id)
         if group is None or score is None:
@@ -306,8 +309,8 @@ def aggregate_scores(
     contrib: dict[str, float | None] = {}
     total = 0.0
     any_group = False
-    for group, weight in GROUP_WEIGHTS.items():
-        values = by_group[group]
+    for group, weight in weights.items():
+        values = by_group.get(group, [])
         if not values:
             contrib[group] = None
             continue

@@ -29,6 +29,8 @@ import { TREND_SCORE_GAUGE_COLORS } from '../lib/trend-score-gauge-colors';
 
 export type TrendScoreBreakdownProps = {
   point: TrendScorePoint | null;
+  /** カスタムグループ配点。省略時は ADR 007 既定。 */
+  groupWeights?: Record<IndicatorCategoryId, number>;
 };
 
 /** 点数を表示用文字列にする（null は未算出）。 */
@@ -103,7 +105,10 @@ type GroupTableBlock = {
 };
 
 /** 表示用にグループ／指標の寄与と比率を組み立てる。 */
-export function buildBreakdownTable(point: TrendScorePoint): GroupTableBlock[] {
+export function buildBreakdownTable(
+  point: TrendScorePoint,
+  weights: Record<IndicatorCategoryId, number> = TREND_SCORE_GROUP_WEIGHTS,
+): GroupTableBlock[] {
   const groupParts: Array<number | null> = INDICATOR_CATEGORIES.map(
     (category) => point.groups[category.id],
   );
@@ -130,7 +135,7 @@ export function buildBreakdownTable(point: TrendScorePoint): GroupTableBlock[] {
 
   // 全体分母用に、全指標の寄与点を先に集める
   for (const category of INDICATOR_CATEGORIES) {
-    const weight = TREND_SCORE_GROUP_WEIGHTS[category.id];
+    const weight = weights[category.id];
     const valid = perGroupValidScores[category.id];
     const n = valid.length;
     const defs = definitionsForScoreGroup(category.id);
@@ -146,7 +151,7 @@ export function buildBreakdownTable(point: TrendScorePoint): GroupTableBlock[] {
 
   let overallPartIndex = 0;
   return INDICATOR_CATEGORIES.map((category) => {
-    const weight = TREND_SCORE_GROUP_WEIGHTS[category.id];
+    const weight = weights[category.id];
     const groupScore = point.groups[category.id];
     const valid = perGroupValidScores[category.id];
     const n = valid.length;
@@ -185,7 +190,8 @@ export function buildBreakdownTable(point: TrendScorePoint): GroupTableBlock[] {
 }
 
 /** グループ／個別のスコア内訳パネル。 */
-export function TrendScoreBreakdown({ point }: TrendScoreBreakdownProps) {
+export function TrendScoreBreakdown({ point, groupWeights }: TrendScoreBreakdownProps) {
+  const weights = groupWeights ?? TREND_SCORE_GROUP_WEIGHTS;
   if (point === null) {
     return (
       <p data-testid="trend-score-breakdown-empty" style={emptyStyle}>
@@ -198,7 +204,7 @@ export function TrendScoreBreakdown({ point }: TrendScoreBreakdownProps) {
   const segments = trendScoreGaugeSegments();
   const gaugeSpan = TREND_SCORE_GAUGE_MAX - TREND_SCORE_GAUGE_MIN;
   const markerPct = point.score === null ? null : scoreToGaugePercent(point.score);
-  const table = buildBreakdownTable(point);
+  const table = buildBreakdownTable(point, weights);
 
   return (
     <div data-testid="trend-score-breakdown" style={rootStyle}>

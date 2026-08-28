@@ -3,12 +3,12 @@
  *
  * すべて JWT 必須（グローバル Guard）。操作対象は CurrentUser の所有分のみ。
  */
-import { Body, Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { IndicatorSetDto } from '@market/shared-types';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
-import { CreateIndicatorSetDto } from './indicator-sets.dto';
+import { CreateIndicatorSetDto, UpdateIndicatorSetDto } from './indicator-sets.dto';
 import { IndicatorSetsService } from './indicator-sets.service';
 
 @ApiTags('indicator-sets')
@@ -32,6 +32,17 @@ export class IndicatorSetsController {
     @Body() dto: CreateIndicatorSetDto,
   ): Promise<IndicatorSetDto> {
     return this.indicatorSetsService.create(user.id, dto);
+  }
+
+  /** 更新（上書き）。 */
+  @Patch(':id')
+  @ApiOkResponse({ description: 'Updated indicator set' })
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateIndicatorSetDto,
+  ): Promise<IndicatorSetDto> {
+    return this.indicatorSetsService.update(user.id, id, dto);
   }
 
   /** 削除。 */

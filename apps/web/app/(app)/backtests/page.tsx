@@ -29,6 +29,7 @@ import {
   describeSignalRule,
   isSignalCapableIndicatorIds,
   listCatalogSmaPairs,
+  resolveSignalThresholds,
   resolveTrendScoreSignalRule,
 } from '@market/shared-types';
 import {
@@ -367,10 +368,16 @@ function BacktestsPageContent() {
         feeRate: DEFAULT_FEE,
         slippageRate: DEFAULT_SLIPPAGE,
         ...(signalMode === 'trendScore'
-          ? {
-              buyThreshold: DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS.buyThreshold,
-              sellThreshold: DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS.sellThreshold,
-            }
+          ? (() => {
+              const thresholds = resolveSignalThresholds({
+                buyThreshold: selectedSet?.buyThreshold,
+                sellThreshold: selectedSet?.sellThreshold,
+              });
+              return {
+                buyThreshold: thresholds.buyThreshold,
+                sellThreshold: thresholds.sellThreshold,
+              };
+            })()
           : {}),
       });
       setRunList((prev) => [backtestRunToListItem(created), ...prev]);

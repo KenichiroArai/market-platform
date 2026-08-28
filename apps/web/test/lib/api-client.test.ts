@@ -6,6 +6,7 @@ import {
   createPortfolio,
   createSignalDefinition,
   createIndicatorSet,
+  updateIndicatorSet,
   createWatchlist,
   deleteSignalDefinition,
   deleteIndicatorSet,
@@ -114,6 +115,10 @@ const indicatorSet = {
   userId: 'user_1',
   name: 'スイング',
   indicatorIds: ['sma25', 'rsi'],
+  indicatorParams: {},
+  groupWeights: null,
+  buyThreshold: null,
+  sellThreshold: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -320,6 +325,7 @@ describe('api-client', () => {
           to: '2026-06-30',
           interval: '1d',
           indicators: 'sma25,ema50',
+          indicatorParams: { sma25: { period: 30 } },
         },
         full as unknown as typeof fetch,
       ),
@@ -333,6 +339,7 @@ describe('api-client', () => {
     expect(calledUrl).toContain('to=2026-06-30');
     expect(calledUrl).toContain('interval=1d');
     expect(calledUrl).toContain('indicators=sma25%2Cema50');
+    expect(calledUrl).toContain('indicatorParams=');
 
     const bare = okJson(indicatorsResponse);
     await expect(
@@ -383,7 +390,7 @@ describe('api-client', () => {
     await expect(
       fetchSymbolTrendScore(
         'sym_1',
-        { from: '2026-01-01', to: '2026-06-30', interval: '1d' },
+        { from: '2026-01-01', to: '2026-06-30', interval: '1d', groupWeights: { trend: 40, momentum: 20, oscillator: 10, volatility: 10, volume: 10, cycle: 10 }, indicatorParams: { sma25: { period: 30 } } },
         full as unknown as typeof fetch,
       ),
     ).resolves.toEqual(trendResponse);
@@ -395,6 +402,8 @@ describe('api-client', () => {
     expect(calledUrl).toContain('from=2026-01-01');
     expect(calledUrl).toContain('to=2026-06-30');
     expect(calledUrl).toContain('interval=1d');
+    expect(calledUrl).toContain('groupWeights=');
+    expect(calledUrl).toContain('indicatorParams=');
 
     const bare = okJson(trendResponse);
     await expect(
@@ -556,8 +565,21 @@ describe('api-client', () => {
       fetchIndicatorSets(okJson([indicatorSet]) as unknown as typeof fetch),
     ).resolves.toEqual([indicatorSet]);
     await expect(
-      createIndicatorSet('スイング', ['sma25', 'rsi'], okJson(indicatorSet) as unknown as typeof fetch),
+      createIndicatorSet(
+        { name: 'スイング', indicatorIds: ['sma25', 'rsi'] },
+        okJson(indicatorSet) as unknown as typeof fetch,
+      ),
     ).resolves.toEqual(indicatorSet);
+    await expect(
+      updateIndicatorSet(
+        'set_1',
+        { name: '改', indicatorIds: ['sma25'] },
+        okJson(indicatorSet) as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual(indicatorSet);
+    await expect(
+      updateIndicatorSet('set_1', { name: 'bad' }, okJson({ bad: true }) as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     const del = jest.fn().mockResolvedValue({ ok: true, status: 204, json: async () => null });
     await expect(deleteIndicatorSet('set_1', del as unknown as typeof fetch)).resolves.toBeUndefined();
   });
@@ -649,7 +671,7 @@ describe('api-client', () => {
       fetchIndicatorSets(okJson([{ id: 1 }]) as unknown as typeof fetch),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     await expect(
-      createIndicatorSet('x', ['sma25'], okJson({ id: 1 }) as unknown as typeof fetch),
+      createIndicatorSet({ name: 'x', indicatorIds: ['sma25'] }, okJson({ id: 1 }) as unknown as typeof fetch),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     await expect(
       fetchSymbolPrices('sym_1', {}, okJson([{ id: 1 }]) as unknown as typeof fetch),

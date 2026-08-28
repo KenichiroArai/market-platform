@@ -65,7 +65,30 @@ TREND_SCORE_SPECS: list[IndicatorSpec] = [
 ]
 
 
-def compute_trend_score(bars: list[OhlcBar], range_start_index: int = 0) -> list[TrendScorePoint]:
+def _merge_specs(
+    base: list[IndicatorSpec],
+    indicator_params: dict[str, dict[str, float]] | None,
+) -> list[IndicatorSpec]:
+    """カタログ既定スペックにパラメータ上書きをマージする。"""
+    if not indicator_params:
+        return base
+    merged: list[IndicatorSpec] = []
+    for spec in base:
+        patch = indicator_params.get(spec.id)
+        if not patch:
+            merged.append(spec)
+            continue
+        params = {**spec.params, **patch}
+        merged.append(IndicatorSpec(id=spec.id, type=spec.type, params=params))
+    return merged
+
+
+def compute_trend_score(
+    bars: list[OhlcBar],
+    range_start_index: int = 0,
+    group_weights: dict[str, float] | None = None,
+    indicator_params: dict[str, dict[str, float]] | None = None,
+) -> list[TrendScorePoint]:
     """
     OHLC 配列に対して日足ごとのトレンドスコアを返す。
 
@@ -75,7 +98,8 @@ def compute_trend_score(bars: list[OhlcBar], range_start_index: int = 0) -> list
         return []
 
     start = max(0, range_start_index)
-    points, drawings = compute_indicator_series(bars, TREND_SCORE_SPECS, range_start_index=start)
+    specs = _merge_specs(TREND_SCORE_SPECS, indicator_params)
+    points, drawings = compute_indicator_series(bars, specs, range_start_index=start)
     n = len(bars)
     closes = [bar.close for bar in bars]
     opens = [bar.open for bar in bars]
@@ -150,7 +174,7 @@ def compute_trend_score(bars: list[OhlcBar], range_start_index: int = 0) -> list
             ),
         }
 
-        total, groups = aggregate_scores(indicator_scores)
+        total, groups = aggregate_scores(indicator_scores, group_weights)
         out.append(
             TrendScorePoint(
                 date=bars[i].date,

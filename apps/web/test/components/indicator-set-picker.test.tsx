@@ -25,6 +25,10 @@ const swing = {
   userId: 'user_1',
   name: 'スイング',
   indicatorIds: ['sma25', 'rsi'] as const,
+  indicatorParams: {},
+  groupWeights: null,
+  buyThreshold: null,
+  sellThreshold: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -34,6 +38,10 @@ const day = {
   userId: 'user_1',
   name: 'デイトレ',
   indicatorIds: ['macd', 'volume'] as const,
+  indicatorParams: {},
+  groupWeights: null,
+  buyThreshold: null,
+  sellThreshold: null,
   createdAt: '2026-01-02T00:00:00.000Z',
   updatedAt: '2026-01-02T00:00:00.000Z',
 };
@@ -53,15 +61,24 @@ describe('IndicatorSetPicker', () => {
   it('loads sets and applies one', async () => {
     (fetchIndicatorSets as jest.Mock).mockResolvedValue([swing, day]);
     const onApply = jest.fn();
-    render(<IndicatorSetPicker onApply={onApply} />);
+    render(<IndicatorSetPicker onApply={onApply} onDuplicate={jest.fn()} />);
     await waitFor(() => expect(screen.getByTestId('indicator-set-row-set_1')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('indicator-set-apply-set_1'));
-    expect(onApply).toHaveBeenCalledWith(['sma25', 'rsi'], 'set_1');
+    expect(onApply).toHaveBeenCalledWith(swing);
+  });
+
+  it('calls onDuplicate when duplicate is clicked', async () => {
+    (fetchIndicatorSets as jest.Mock).mockResolvedValue([swing]);
+    const onDuplicate = jest.fn();
+    render(<IndicatorSetPicker onApply={jest.fn()} onDuplicate={onDuplicate} />);
+    await waitFor(() => expect(screen.getByTestId('indicator-set-duplicate-set_1')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('indicator-set-duplicate-set_1'));
+    expect(onDuplicate).toHaveBeenCalledWith(swing);
   });
 
   it('filters by name and required indicators', async () => {
     (fetchIndicatorSets as jest.Mock).mockResolvedValue([swing, day]);
-    render(<IndicatorSetPicker onApply={jest.fn()} />);
+    render(<IndicatorSetPicker onApply={jest.fn()} onDuplicate={jest.fn()} />);
     await waitFor(() => expect(screen.getByText('スイング')).toBeInTheDocument());
 
     fireEvent.change(screen.getByTestId('indicator-set-search-name'), { target: { value: 'デイ' } });
@@ -82,7 +99,7 @@ describe('IndicatorSetPicker', () => {
         resolveList = resolve;
       }),
     );
-    render(<IndicatorSetPicker onApply={jest.fn()} />);
+    render(<IndicatorSetPicker onApply={jest.fn()} onDuplicate={jest.fn()} />);
     expect(screen.getByTestId('indicator-set-picker-loading')).toBeInTheDocument();
     resolveList([swing]);
     await waitFor(() => expect(screen.getByTestId('indicator-set-row-set_1')).toBeInTheDocument());
@@ -90,7 +107,7 @@ describe('IndicatorSetPicker', () => {
 
   it('shows empty state', async () => {
     (fetchIndicatorSets as jest.Mock).mockResolvedValue([]);
-    render(<IndicatorSetPicker onApply={jest.fn()} />);
+    render(<IndicatorSetPicker onApply={jest.fn()} onDuplicate={jest.fn()} />);
     await waitFor(() =>
       expect(screen.getByText('該当するセットがありません')).toBeInTheDocument(),
     );
@@ -100,7 +117,7 @@ describe('IndicatorSetPicker', () => {
     (fetchIndicatorSets as jest.Mock).mockRejectedValue(
       new ApiClientError(500, 'HTTP_ERROR', '読み込み失敗'),
     );
-    render(<IndicatorSetPicker onApply={jest.fn()} />);
+    render(<IndicatorSetPicker onApply={jest.fn()} onDuplicate={jest.fn()} />);
     await waitFor(() =>
       expect(screen.getByTestId('indicator-set-picker-error')).toHaveTextContent('読み込み失敗'),
     );
@@ -108,7 +125,7 @@ describe('IndicatorSetPicker', () => {
 
   it('shows a fallback on unexpected load failure', async () => {
     (fetchIndicatorSets as jest.Mock).mockRejectedValue(new Error('boom'));
-    render(<IndicatorSetPicker onApply={jest.fn()} />);
+    render(<IndicatorSetPicker onApply={jest.fn()} onDuplicate={jest.fn()} />);
     await waitFor(() =>
       expect(screen.getByTestId('indicator-set-picker-error')).toHaveTextContent(
         '読み込みに失敗しました',
@@ -119,7 +136,7 @@ describe('IndicatorSetPicker', () => {
   it('deletes a set', async () => {
     (fetchIndicatorSets as jest.Mock).mockResolvedValue([swing, day]);
     (deleteIndicatorSet as jest.Mock).mockResolvedValue(undefined);
-    render(<IndicatorSetPicker onApply={jest.fn()} />);
+    render(<IndicatorSetPicker onApply={jest.fn()} onDuplicate={jest.fn()} />);
     await waitFor(() => expect(screen.getByTestId('indicator-set-delete-set_1')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('indicator-set-delete-set_1'));
     await waitFor(() => expect(screen.queryByTestId('indicator-set-row-set_1')).not.toBeInTheDocument());
@@ -135,7 +152,7 @@ describe('IndicatorSetPicker', () => {
         resolveDelete = resolve;
       }),
     );
-    render(<IndicatorSetPicker onApply={jest.fn()} />);
+    render(<IndicatorSetPicker onApply={jest.fn()} onDuplicate={jest.fn()} />);
     await waitFor(() => expect(screen.getByTestId('indicator-set-delete-set_1')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('indicator-set-delete-set_1'));
     expect(screen.getByTestId('indicator-set-delete-set_1')).toBeDisabled();
@@ -148,7 +165,7 @@ describe('IndicatorSetPicker', () => {
     (deleteIndicatorSet as jest.Mock).mockRejectedValue(
       new ApiClientError(404, 'INDICATOR_SET_NOT_FOUND', 'not found'),
     );
-    render(<IndicatorSetPicker onApply={jest.fn()} />);
+    render(<IndicatorSetPicker onApply={jest.fn()} onDuplicate={jest.fn()} />);
     await waitFor(() => expect(screen.getByTestId('indicator-set-delete-set_1')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('indicator-set-delete-set_1'));
     await waitFor(() =>
@@ -159,7 +176,7 @@ describe('IndicatorSetPicker', () => {
   it('shows a fallback when delete fails unexpectedly', async () => {
     (fetchIndicatorSets as jest.Mock).mockResolvedValue([swing]);
     (deleteIndicatorSet as jest.Mock).mockRejectedValue(new Error('boom'));
-    render(<IndicatorSetPicker onApply={jest.fn()} />);
+    render(<IndicatorSetPicker onApply={jest.fn()} onDuplicate={jest.fn()} />);
     await waitFor(() => expect(screen.getByTestId('indicator-set-delete-set_1')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('indicator-set-delete-set_1'));
     await waitFor(() =>

@@ -14,6 +14,11 @@ import {
   type IndicatorCatalogId,
   type IndicatorComputeType,
 } from './indicator-catalog';
+import {
+  effectiveLookbackBars,
+  resolveIndicatorParams,
+  type IndicatorParamOverrides,
+} from './indicator-param-rules';
 
 export type { IndicatorCatalogId, IndicatorComputeType };
 /** @deprecated ADR 006 以降は IndicatorComputeType を使う。シグナル計算の 4 種と名前が重なるため残す。 */
@@ -88,13 +93,16 @@ export interface ComputeIndicatorsRequest {
 }
 
 /** カタログ ID から analysis 向けスペックを組み立てる。計算しない ID は除く。 */
-export function specsFromCatalogIds(ids: IndicatorCatalogId[]): IndicatorRequestSpec[] {
+export function specsFromCatalogIds(
+  ids: IndicatorCatalogId[],
+  paramOverrides?: IndicatorParamOverrides | null,
+): IndicatorRequestSpec[] {
   return computeCatalogIds(ids).map((id) => {
     const def = INDICATOR_CATALOG_BY_ID[id];
     return {
       id,
       type: def.computeType as IndicatorComputeType,
-      params: { ...def.params },
+      params: resolveIndicatorParams(id, paramOverrides),
     };
   });
 }
@@ -253,8 +261,7 @@ export function isIndicatorsResponseDto(value: unknown): value is IndicatorsResp
 export function computeIndicatorLookback(specs: IndicatorRequestSpec[]): number {
   let max = 0;
   for (const spec of specs) {
-    const def = INDICATOR_CATALOG_BY_ID[spec.id];
-    max = Math.max(max, def.lookbackBars);
+    max = Math.max(max, effectiveLookbackBars(spec.id, spec.params));
   }
   return max;
 }

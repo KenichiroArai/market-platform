@@ -84,6 +84,10 @@ describe('SignalsBacktestsService', () => {
     userId: 'u_1',
     name: 'SMA 25/75',
     indicatorIds: ['sma25', 'sma75'],
+    indicatorParams: {},
+    groupWeights: null,
+    buyThreshold: null,
+    sellThreshold: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
@@ -366,6 +370,41 @@ describe('SignalsBacktestsService', () => {
     }
   });
 
+  it('ignores invalid indicatorParams on indicator set when resolving signal rule', async () => {
+    prisma.indicatorSet.findFirst.mockResolvedValue({
+      ...indicatorSetRow,
+      indicatorParams: null,
+    });
+    pricesService.listBySymbolId.mockResolvedValue([
+      { date: '2026-01-01', open: 1, high: 1, low: 1, close: 1, volume: 1 },
+    ]);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ summary: enrichedSummary, trades: [], equityPoints: [] }),
+    }) as any;
+    prisma.backtestRun.create.mockResolvedValue({
+      ...backtestRunBase,
+      trades: [],
+      equityPoints: [],
+    });
+    try {
+      await expect(
+        service.runBacktest('u_1', {
+          indicatorSetId: 'iset_1',
+          symbolId: 'sym_1',
+          from: '2026-01-01',
+          to: '2026-06-30',
+          initialCash: 100000,
+          feeRate: 0.001,
+          slippageRate: 0.001,
+        } as any),
+      ).resolves.toMatchObject({ strategyType: 'smaCross' });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('rejects missing indicator set and unresolved signal rules', async () => {
     prisma.indicatorSet.findFirst.mockResolvedValue(null);
     await expect(
@@ -552,6 +591,50 @@ describe('SignalsBacktestsService', () => {
         slippageRate: 0.001,
       } as any),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('ignores invalid indicatorParams on indicator set when resolving rule', async () => {
+    pricesService.listWithLookback.mockResolvedValue({
+      bars: [{ date: '2026-01-01', open: 1, high: 1, low: 1, close: 1, volume: 1 }],
+      rangeStartIndex: 0,
+    });
+    prisma.indicatorSet.findFirst.mockResolvedValue({
+      ...indicatorSetRow,
+      indicatorParams: ['bad'],
+      buyThreshold: 55,
+      sellThreshold: -55,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ summary: enrichedSummary, trades: [], equityPoints: [] }),
+    }) as any;
+    prisma.backtestRun.create.mockResolvedValue({
+      ...backtestRunBase,
+      strategyType: 'TREND_SCORE_THRESHOLD',
+      paramsJson: { buyThreshold: 55, sellThreshold: -55 },
+      trades: [],
+      equityPoints: [],
+    });
+    try {
+      await expect(
+        service.runBacktest('u_1', {
+          signalMode: 'trendScore',
+          indicatorSetId: 'iset_1',
+          symbolId: 'sym_1',
+          from: '2026-01-01',
+          to: '2026-06-30',
+          initialCash: 100000,
+          feeRate: 0.001,
+          slippageRate: 0.001,
+        } as any),
+      ).resolves.toMatchObject({
+        strategyType: 'trendScoreThreshold',
+        params: { buyThreshold: 55, sellThreshold: -55 },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('optimizes catalog SMA pairs without persisting', async () => {

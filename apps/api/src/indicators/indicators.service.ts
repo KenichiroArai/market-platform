@@ -14,7 +14,9 @@ import {
   computeIndicatorLookback,
   createIndicatorsResponseDto,
   createTrendScoreResponseDto,
+  parseGroupWeightsJson,
   parseIndicatorCatalogQuery,
+  parseIndicatorParamOverridesJson,
   scoringCatalogIds,
   specsFromCatalogIds,
   type AnalysisOhlcBar,
@@ -51,10 +53,12 @@ export class IndicatorsService {
       to?: string;
       interval?: '1d' | '1w';
       indicators?: string;
+      indicatorParams?: string;
     },
   ): Promise<IndicatorsResponseDto> {
     const ids = this.parseCatalogIds(query.indicators);
-    const specs = specsFromCatalogIds(ids);
+    const paramOverrides = this.parseIndicatorParamsQuery(query.indicatorParams);
+    const specs = specsFromCatalogIds(ids, paramOverrides);
     const lookback = computeIndicatorLookback(specs);
     const interval = query.interval === '1w' ? '1w' : '1d';
 
@@ -117,9 +121,13 @@ export class IndicatorsService {
       from?: string;
       to?: string;
       interval?: '1d' | '1w';
+      groupWeights?: string;
+      indicatorParams?: string;
     },
   ): Promise<TrendScoreResponseDto> {
-    const specs = specsFromCatalogIds(scoringCatalogIds());
+    const paramOverrides = this.parseIndicatorParamsQuery(query.indicatorParams);
+    const specs = specsFromCatalogIds(scoringCatalogIds(), paramOverrides);
+    const groupWeights = this.parseGroupWeightsQuery(query.groupWeights);
     const lookback = computeIndicatorLookback(specs);
     const interval = query.interval === '1w' ? '1w' : '1d';
 
@@ -146,6 +154,10 @@ export class IndicatorsService {
         volume: bar.volume,
       })),
       rangeStartIndex,
+      ...(groupWeights ? { groupWeights } : {}),
+      ...(paramOverrides && Object.keys(paramOverrides).length > 0
+        ? { indicatorParams: paramOverrides }
+        : {}),
     });
 
     return createTrendScoreResponseDto({
@@ -173,6 +185,46 @@ export class IndicatorsService {
       });
     }
     return parsed.ids;
+  }
+
+  private parseIndicatorParamsQuery(raw?: string) {
+    if (!raw) {
+      return null;
+    }
+    if (raw.length > 4096) {
+      throw new UnprocessableEntityException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: 'indicatorParams query is too long',
+      });
+    }
+    const parsed = parseIndicatorParamOverridesJson(raw);
+    if (!parsed) {
+      throw new UnprocessableEntityException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: 'Invalid indicatorParams JSON',
+      });
+    }
+    return parsed;
+  }
+
+  private parseGroupWeightsQuery(raw?: string) {
+    if (!raw) {
+      return null;
+    }
+    if (raw.length > 512) {
+      throw new UnprocessableEntityException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: 'groupWeights query is too long',
+      });
+    }
+    const parsed = parseGroupWeightsJson(raw);
+    if (!parsed) {
+      throw new UnprocessableEntityException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: 'Invalid groupWeights JSON',
+      });
+    }
+    return parsed;
   }
 
   /** analysis へ POST し、失敗時は ANALYSIS_UPSTREAM_ERROR。 */

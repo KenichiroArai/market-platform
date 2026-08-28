@@ -79,6 +79,10 @@ describe('BacktestsPage', () => {
     userId: 'u_1',
     name: 'SMAクロス',
     indicatorIds: ['sma25', 'sma75'] as const,
+    indicatorParams: {},
+    groupWeights: null,
+    buyThreshold: 50,
+    sellThreshold: -50,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
@@ -87,6 +91,10 @@ describe('BacktestsPage', () => {
     userId: 'u_1',
     name: '表示のみ',
     indicatorIds: ['bb', 'volume'] as const,
+    indicatorParams: {},
+    groupWeights: null,
+    buyThreshold: null,
+    sellThreshold: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
@@ -193,8 +201,8 @@ describe('BacktestsPage', () => {
           signalMode: 'trendScore',
           indicatorSetId: 'set_1',
           initialCash: 200000,
-          buyThreshold: 37.5,
-          sellThreshold: -42.5,
+          buyThreshold: 50,
+          sellThreshold: -50,
         }),
       ),
     );

@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.indicators import score as score_mod
-from app.indicators.trend_score import compute_trend_score
+from app.indicators.trend_score import TREND_SCORE_SPECS, _merge_specs, compute_trend_score
 from app.main import app
 from app.schemas import OhlcBar
 
@@ -221,3 +221,79 @@ def test_post_trend_score_endpoint() -> None:
     assert payload["points"][0]["date"] == "2024-01-01"
     assert "groups" in payload["points"][0]
     assert "indicators" in payload["points"][0]
+
+
+def test_post_trend_score_custom_group_weights() -> None:
+    client = TestClient(app)
+    body = {
+        "bars": [
+            {
+                "date": "2024-01-01",
+                "open": 10,
+                "high": 11,
+                "low": 9,
+                "close": 10,
+                "volume": 100,
+            },
+            {
+                "date": "2024-01-02",
+                "open": 10,
+                "high": 12,
+                "low": 9,
+                "close": 11,
+                "volume": 120,
+            },
+        ],
+        "rangeStartIndex": 0,
+        "groupWeights": {
+            "trend": 50,
+            "momentum": 10,
+            "oscillator": 10,
+            "volatility": 10,
+            "volume": 10,
+            "cycle": 10,
+        },
+    }
+    response = client.post("/trend-score", json=body)
+    assert response.status_code == 200
+
+
+def test_merge_specs_applies_indicator_params() -> None:
+    merged = _merge_specs(TREND_SCORE_SPECS, {"sma25": {"period": 30}, "macd": {"fast": 8}})
+    sma25 = next(spec for spec in merged if spec.id == "sma25")
+    macd = next(spec for spec in merged if spec.id == "macd")
+    rsi = next(spec for spec in merged if spec.id == "rsi")
+    assert sma25.params["period"] == 30
+    assert macd.params["fast"] == 8
+    assert macd.params["slow"] == 26
+    assert rsi.params["period"] == 14
+    assert _merge_specs(TREND_SCORE_SPECS, None) is TREND_SCORE_SPECS
+    assert _merge_specs(TREND_SCORE_SPECS, {}) is TREND_SCORE_SPECS
+
+
+def test_post_trend_score_custom_indicator_params() -> None:
+    client = TestClient(app)
+    body = {
+        "bars": [
+            {
+                "date": "2024-01-01",
+                "open": 10,
+                "high": 11,
+                "low": 9,
+                "close": 10,
+                "volume": 100,
+            },
+            {
+                "date": "2024-01-02",
+                "open": 10,
+                "high": 12,
+                "low": 9,
+                "close": 11,
+                "volume": 120,
+            },
+        ],
+        "rangeStartIndex": 0,
+        "indicatorParams": {"sma25": {"period": 30}},
+    }
+    response = client.post("/trend-score", json=body)
+    assert response.status_code == 200

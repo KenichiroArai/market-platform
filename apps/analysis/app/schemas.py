@@ -160,10 +160,12 @@ class TrendScorePoint(BaseModel):
 
 
 class ComputeTrendScoreRequest(BaseModel):
-    """POST /trend-score のリクエスト。指標セットはサーバ側で固定。"""
+    """POST /trend-score のリクエスト。指標セットはサーバ側で固定。配点・パラメータは任意上書き。"""
 
     bars: list[OhlcBar]
     rangeStartIndex: int = 0
+    groupWeights: dict[str, float] | None = None
+    indicatorParams: dict[str, dict[str, float]] | None = None
 
 
 class ComputeTrendScoreResponse(BaseModel):

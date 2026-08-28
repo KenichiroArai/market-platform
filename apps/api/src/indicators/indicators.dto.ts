@@ -35,6 +35,14 @@ export class GetIndicatorsQueryDto {
   @IsOptional()
   @IsString()
   indicators?: string;
+
+  @ApiPropertyOptional({
+    example: '{"sma25":{"period":30}}',
+    description: '指標パラメータ上書き JSON',
+  })
+  @IsOptional()
+  @IsString()
+  indicatorParams?: string;
 }
 
 export class GetTrendScoreQueryDto {
@@ -57,4 +65,20 @@ export class GetTrendScoreQueryDto {
   @IsString()
   @IsIn(['1d', '1w'])
   interval?: '1d' | '1w';
+
+  @ApiPropertyOptional({
+    example: '{"trend":40,"momentum":20,"oscillator":10,"volatility":10,"volume":10,"cycle":10}',
+    description: '6 グループ配点 JSON。合計 100 必須',
+  })
+  @IsOptional()
+  @IsString()
+  groupWeights?: string;
+
+  @ApiPropertyOptional({
+    example: '{"sma25":{"period":30}}',
+    description: '指標パラメータ上書き JSON',
+  })
+  @IsOptional()
+  @IsString()
+  indicatorParams?: string;
 }

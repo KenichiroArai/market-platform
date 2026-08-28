@@ -1,4 +1,5 @@
 import { BadGatewayException, UnprocessableEntityException } from '@nestjs/common';
+import { TREND_SCORE_GROUP_WEIGHTS } from '@market/shared-types';
 import { PricesService } from '../../src/prices/prices.service';
 import { IndicatorsService } from '../../src/indicators/indicators.service';
 
@@ -291,6 +292,42 @@ describe('IndicatorsService', () => {
       BadGatewayException,
     );
   });
+
+  it('passes indicatorParams query to analysis', async () => {
+    const bars = makeBars(30);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        indicators: [{ id: 'sma25', type: 'sma', params: { period: 30 } }],
+        points: bars.map((bar) => ({ date: bar.date, values: { sma25: 10 } })),
+      }),
+    }) as unknown as typeof fetch;
+
+    const indicatorParams = JSON.stringify({ sma25: { period: 30 } });
+    await service.getForSymbol('s1', { indicators: 'sma25', indicatorParams });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://analysis.test/indicators',
+      expect.objectContaining({
+        body: expect.stringContaining('"period":30'),
+      }),
+    );
+  });
+
+  it('rejects invalid indicatorParams query', async () => {
+    await expect(
+      service.getForSymbol('s1', { indicators: 'sma25', indicatorParams: 'not-json' }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      service.getForSymbol('s1', {
+        indicators: 'sma25',
+        indicatorParams: 'x'.repeat(4097),
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
 });
 
 describe('IndicatorsService trend score', () => {
@@ -416,5 +453,34 @@ describe('IndicatorsService trend score', () => {
     await expect(service.getTrendScoreForSymbol('s1', {})).rejects.toBeInstanceOf(
       UnprocessableEntityException,
     );
+  });
+
+  it('passes groupWeights query to analysis', async () => {
+    const bars = makeBars(201);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ points: [] }),
+    }) as unknown as typeof fetch;
+
+    await service.getTrendScoreForSymbol('s1', {
+      groupWeights: JSON.stringify(TREND_SCORE_GROUP_WEIGHTS),
+      indicatorParams: JSON.stringify({ sma25: { period: 30 } }),
+    });
+    const body = String((global.fetch as jest.Mock).mock.calls[0]?.[1]?.body);
+    expect(body).toContain('"groupWeights"');
+    expect(body).toContain('"indicatorParams"');
+  });
+
+  it('rejects invalid groupWeights query', async () => {
+    await expect(
+      service.getTrendScoreForSymbol('s1', { groupWeights: 'not-json' }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      service.getTrendScoreForSymbol('s1', { groupWeights: 'x'.repeat(513) }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 });
