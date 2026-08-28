@@ -50,6 +50,21 @@ describe('IndicatorScoreConfigForm', () => {
     expect(onSellThresholdChange).toHaveBeenCalledWith(-50);
   });
 
+  it('renders as a collapsible details section', () => {
+    render(
+      <IndicatorScoreConfigForm
+        groupWeights={TREND_SCORE_GROUP_WEIGHTS}
+        buyThreshold={37.5}
+        sellThreshold={-42.5}
+        onGroupWeightsChange={jest.fn()}
+        onBuyThresholdChange={jest.fn()}
+        onSellThresholdChange={jest.fn()}
+      />,
+    );
+    expect(screen.getByTestId('indicator-score-config')).toHaveAttribute('open');
+    expect(screen.getByText(/配点 100%/)).toBeInTheDocument();
+  });
+
   it('shows validation errors for invalid thresholds', () => {
     render(
       <IndicatorScoreConfigForm

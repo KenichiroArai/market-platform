@@ -94,9 +94,15 @@ export function IndicatorParamEditor({
 
   if (editableIds.length === 0) {
     return (
-      <p style={hintStyle} data-testid="indicator-param-editor-empty">
-        パラメータを編集できる指標がありません
-      </p>
+      <details open style={detailsStyle} data-testid="indicator-param-editor">
+        <summary style={summaryStyle}>
+          指標パラメータ
+          <span style={summaryHintStyle}>編集可能な指標なし</span>
+        </summary>
+        <p style={hintStyle} data-testid="indicator-param-editor-empty">
+          パラメータを編集できる指標がありません
+        </p>
+      </details>
     );
   }
 
@@ -116,8 +122,11 @@ export function IndicatorParamEditor({
   }
 
   return (
-    <section style={sectionStyle} data-testid="indicator-param-editor">
-      <h3 style={headingStyle}>指標パラメータ</h3>
+    <details open style={detailsStyle} data-testid="indicator-param-editor">
+      <summary style={summaryStyle}>
+        指標パラメータ
+        <span style={summaryHintStyle}>{editableIds.length} 件の指標</span>
+      </summary>
       <ul style={listStyle}>
         {editableIds.map((id) => {
           const def = INDICATOR_CATALOG_BY_ID[id];
@@ -150,24 +159,33 @@ export function IndicatorParamEditor({
           );
         })}
       </ul>
-    </section>
+    </details>
   );
 }
 
-const sectionStyle: CSSProperties = {
+const detailsStyle: CSSProperties = {
   border: '1px solid rgba(232, 238, 245, 0.2)',
   borderRadius: 4,
-  padding: '0.6rem',
+  padding: '0.35rem 0.6rem',
 };
 
-const headingStyle: CSSProperties = {
-  margin: '0 0 0.5rem',
-  fontSize: '0.9rem',
+const summaryStyle: CSSProperties = {
+  cursor: 'pointer',
+  fontWeight: 600,
+  fontSize: '0.95rem',
+};
+
+const summaryHintStyle: CSSProperties = {
+  display: 'block',
+  fontWeight: 400,
+  opacity: 0.75,
+  fontSize: '0.75rem',
+  marginTop: '0.15rem',
 };
 
 const listStyle: CSSProperties = {
   listStyle: 'none',
-  margin: 0,
+  margin: '0.5rem 0 0',
   padding: 0,
   display: 'flex',
   flexDirection: 'column',

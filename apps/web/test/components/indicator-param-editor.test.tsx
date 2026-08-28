@@ -41,6 +41,18 @@ describe('IndicatorParamEditor', () => {
     expect(screen.getByTestId('indicator-param-editor-empty')).toBeInTheDocument();
   });
 
+  it('renders as a collapsible details section', () => {
+    render(
+      <IndicatorParamEditor
+        enabledIds={new Set<IndicatorCatalogId>(['sma25'])}
+        params={{}}
+        onChange={jest.fn()}
+      />,
+    );
+    expect(screen.getByTestId('indicator-param-editor')).toHaveAttribute('open');
+    expect(screen.getByText('1 件の指標')).toBeInTheDocument();
+  });
+
   it('edits params through the UI', () => {
     const onChange = jest.fn();
     const { rerender } = render(

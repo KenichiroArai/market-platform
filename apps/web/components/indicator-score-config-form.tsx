@@ -76,8 +76,14 @@ export function IndicatorScoreConfigForm({
   }
 
   return (
-    <section style={sectionStyle} data-testid="indicator-score-config">
-      <h3 style={headingStyle}>スコア設定</h3>
+    <details open style={detailsStyle} data-testid="indicator-score-config">
+      <summary style={summaryStyle}>
+        スコア設定
+        <span style={summaryHintStyle}>
+          配点 {sum}% / 買い≥{buyThreshold} 売り≤{sellThreshold}
+        </span>
+      </summary>
+      <div style={bodyStyle}>
       <p style={hintStyle}>グループ配点（合計 100%）</p>
       <div style={gridStyle}>
         {INDICATOR_CATEGORIES.map((category) => (
@@ -136,7 +142,8 @@ export function IndicatorScoreConfigForm({
           買い閾値は売り閾値より大きく、-100〜100 の範囲にしてください
         </p>
       ) : null}
-    </section>
+      </div>
+    </details>
   );
 }
 
@@ -145,18 +152,31 @@ export function defaultGroupWeights(): GroupWeights {
   return { ...TREND_SCORE_GROUP_WEIGHTS };
 }
 
-const sectionStyle: CSSProperties = {
+const detailsStyle: CSSProperties = {
   border: '1px solid rgba(232, 238, 245, 0.2)',
   borderRadius: 4,
-  padding: '0.6rem',
+  padding: '0.35rem 0.6rem',
+};
+
+const summaryStyle: CSSProperties = {
+  cursor: 'pointer',
+  fontWeight: 600,
+  fontSize: '0.95rem',
+};
+
+const summaryHintStyle: CSSProperties = {
+  display: 'block',
+  fontWeight: 400,
+  opacity: 0.75,
+  fontSize: '0.75rem',
+  marginTop: '0.15rem',
+};
+
+const bodyStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: '0.5rem',
-};
-
-const headingStyle: CSSProperties = {
-  margin: 0,
-  fontSize: '0.9rem',
+  marginTop: '0.5rem',
 };
 
 const hintStyle: CSSProperties = {
