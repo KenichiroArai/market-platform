@@ -5,6 +5,8 @@
  */
 
 import type {
+  BacktestRunDto,
+  BacktestRunListItemDto,
   MacdCrossParams,
   RsiThresholdParams,
   SignalStrategyParams,
@@ -36,6 +38,23 @@ const TRADE_REASON_LABELS: Record<BacktestTradeReasonCode, string> = {
   score_cross_down: 'スコア下降クロス',
   force_close_end: '期間末強制決済',
 };
+
+/**
+ * 実行スナップショットから人間向け戦略ラベルを作る。
+ * resolveSignalRule の label と同形式。
+ */
+export function formatStrategyTypeShortLabel(strategyType: SignalStrategyType): string {
+  if (strategyType === 'smaCross') {
+    return 'SMAクロス';
+  }
+  if (strategyType === 'macdCross') {
+    return 'MACDクロス';
+  }
+  if (strategyType === 'trendScoreThreshold') {
+    return 'トレンドスコア';
+  }
+  return 'RSI閾値';
+}
 
 /**
  * 実行スナップショットから人間向け戦略ラベルを作る。
@@ -85,6 +104,21 @@ export function formatTradeReason(
 export function formatDecisionScore(score: number): string {
   const rounded = Math.round(score * 10) / 10;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+/** 詳細 DTO から一覧用 DTO へ変換する（実行直後のリスト更新用）。 */
+export function backtestRunToListItem(run: BacktestRunDto): BacktestRunListItemDto {
+  return {
+    id: run.id,
+    symbolId: run.symbolId,
+    indicatorSetId: run.indicatorSetId,
+    strategyType: run.strategyType,
+    fromDate: run.fromDate,
+    toDate: run.toDate,
+    summary: run.summary,
+    isActive: run.isActive,
+    createdAt: run.createdAt,
+  };
 }
 
 export function isBacktestTradeReasonCode(value: unknown): value is BacktestTradeReasonCode {

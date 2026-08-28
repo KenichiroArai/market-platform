@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import BacktestsPage from '../../../../app/(app)/backtests/page';
 import {
   ApiClientError,
+  fetchBacktestRun,
   fetchBacktestRuns,
   fetchIndicatorSets,
   fetchSymbolIndicators,
@@ -18,6 +19,7 @@ import {
 jest.mock('../../../../lib/api-client', () => ({
   fetchIndicatorSets: jest.fn(),
   fetchBacktestRuns: jest.fn(),
+  fetchBacktestRun: jest.fn(),
   fetchSymbols: jest.fn(),
   fetchSymbolPrices: jest.fn(),
   fetchSymbolIndicators: jest.fn(),
@@ -116,6 +118,19 @@ describe('BacktestsPage', () => {
     equityPoints: [],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+    isActive: true,
+  };
+
+  const runListItem = {
+    id: 'run_1',
+    symbolId: 'sym_1',
+    indicatorSetId: 'set_1',
+    strategyType: 'smaCross' as const,
+    fromDate: '2026-01-01',
+    toDate: '2026-06-30',
+    summary: run.summary,
+    isActive: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
   };
 
   beforeEach(() => {
@@ -127,9 +142,10 @@ describe('BacktestsPage', () => {
 
   it('loads indicator sets and supports run/optimize with tabs', async () => {
     (fetchIndicatorSets as jest.Mock).mockResolvedValue([capableSet, incapableSet]);
-    (fetchBacktestRuns as jest.Mock).mockResolvedValue([run]);
+    (fetchBacktestRuns as jest.Mock).mockResolvedValue([runListItem]);
+    (fetchBacktestRun as jest.Mock).mockResolvedValue(run);
     (fetchSymbols as jest.Mock).mockResolvedValue([symbol]);
-    (runBacktest as jest.Mock).mockResolvedValue({ ...run, id: 'run_2' });
+    (runBacktest as jest.Mock).mockResolvedValue({ ...run, id: 'run_2', isActive: true });
     (optimizeBacktest as jest.Mock).mockResolvedValue({
       results: [
         {
@@ -156,6 +172,8 @@ describe('BacktestsPage', () => {
     expect(screen.getByTestId('backtest-overview-symbol')).toHaveTextContent('AAPL — Apple');
     expect(screen.getByTestId('backtest-overview-metrics')).toHaveTextContent('リターン 1.00%');
     expect(screen.getByTestId('backtest-run-select')).toBeInTheDocument();
+    expect(screen.getByTestId('backtest-run-search-open')).toBeInTheDocument();
+    await waitFor(() => expect(fetchBacktestRun).toHaveBeenCalledWith('run_1'));
     expect(screen.getByTestId('summary-cards-stub')).toBeInTheDocument();
     expect(screen.getByTestId('equity-chart-stub')).toBeInTheDocument();
     expect(screen.getByTestId('analysis-chart-stub')).toBeInTheDocument();

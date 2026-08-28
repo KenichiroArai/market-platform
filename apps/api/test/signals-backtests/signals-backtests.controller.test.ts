@@ -14,6 +14,8 @@ describe('SignalsBacktestsController', () => {
     getBacktestRun: jest.fn(),
     runBacktest: jest.fn(),
     optimizeBacktest: jest.fn(),
+    removeBacktestRun: jest.fn(),
+    removeBacktestRuns: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -35,16 +37,20 @@ describe('SignalsBacktestsController', () => {
     service.runBacktest.mockResolvedValue({ id: 'r' });
     service.optimizeBacktest.mockResolvedValue({ results: [] });
     service.removeSignalDefinition.mockResolvedValue(undefined);
+    service.removeBacktestRun.mockResolvedValue(undefined);
+    service.removeBacktestRuns.mockResolvedValue({ deletedCount: 0 });
 
     const user = { id: 'u' } as any;
     await expect(controller.listSignals(user)).resolves.toEqual([]);
     await expect(controller.getSignal(user, 's')).resolves.toEqual({ id: 's' });
     await expect(controller.createSignal(user, {} as any)).resolves.toEqual({ id: 's' });
     await expect(controller.updateSignal(user, 's', {} as any)).resolves.toEqual({ id: 's' });
-    await expect(controller.listBacktests(user)).resolves.toEqual([]);
+    await expect(controller.listBacktests(user, {})).resolves.toEqual([]);
+    await expect(controller.removeBacktests(user, {})).resolves.toEqual({ deletedCount: 0 });
     await expect(controller.getBacktest(user, 'r')).resolves.toEqual({ id: 'r' });
     await expect(controller.runBacktest(user, {} as any)).resolves.toEqual({ id: 'r' });
     await expect(controller.optimizeBacktest(user, {} as any)).resolves.toEqual({ results: [] });
     await expect(controller.removeSignal(user, 's')).resolves.toBeUndefined();
+    await expect(controller.removeBacktest(user, 'r')).resolves.toBeUndefined();
   });
 });

@@ -10,9 +10,10 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { FormEvent, Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type {
   BacktestRunDto,
+  BacktestRunListItemDto,
   BacktestSignalMode,
   DailyPriceDto,
   IndicatorCatalogId,
@@ -24,6 +25,7 @@ import type {
 } from '@market/shared-types';
 import {
   DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS,
+  backtestRunToListItem,
   describeSignalRule,
   isSignalCapableIndicatorIds,
   listCatalogSmaPairs,
@@ -37,6 +39,7 @@ import {
   BacktestChartDisplayModeSwitch,
   type BacktestChartDisplayMode,
 } from '../../../components/backtest-chart-display-mode';
+import { BacktestRunSearchPanel } from '../../../components/backtest-run-search-panel';
 import { BacktestEquityChart } from '../../../components/backtest-equity-chart';
 import { BacktestOverviewStrip } from '../../../components/backtest-overview-strip';
 import { BacktestRunConditions } from '../../../components/backtest-run-conditions';
@@ -53,6 +56,7 @@ import {
 } from '../../../components/popout-window';
 import {
   ApiClientError,
+  fetchBacktestRun,
   fetchBacktestRuns,
   fetchIndicatorSets,
   fetchSymbolIndicators,
@@ -80,7 +84,10 @@ function resolveIndicatorSetId(
 function BacktestsPageContent() {
   const searchParams = useSearchParams();
   const [indicatorSets, setIndicatorSets] = useState<IndicatorSetDto[]>([]);
-  const [runs, setRuns] = useState<BacktestRunDto[]>([]);
+  const [runList, setRunList] = useState<BacktestRunListItemDto[]>([]);
+  const [runDetails, setRunDetails] = useState<Record<string, BacktestRunDto>>({});
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
   const [symbols, setSymbols] = useState<SymbolDto[]>([]);
   const [prices, setPrices] = useState<DailyPriceDto[]>([]);
   const [indicatorPoints, setIndicatorPoints] = useState<IndicatorSeriesPoint[]>([]);
@@ -106,9 +113,29 @@ function BacktestsPageContent() {
     useState<BacktestChartDisplayMode>('base');
 
   const selectedRun = useMemo(
-    () => runs.find((run) => run.id === selectedRunId) ?? runs[0] ?? null,
-    [runs, selectedRunId],
+    () => (selectedRunId ? (runDetails[selectedRunId] ?? null) : null),
+    [runDetails, selectedRunId],
   );
+
+  const refreshRunList = useCallback(async () => {
+    const rows = await fetchBacktestRuns();
+    setRunList(rows);
+    setRunDetails((prev) => {
+      const next = { ...prev };
+      for (const id of Object.keys(next)) {
+        if (!rows.some((row) => row.id === id && row.isActive)) {
+          delete next[id];
+        }
+      }
+      return next;
+    });
+    setSelectedRunId((current) => {
+      if (current && rows.some((row) => row.id === current && row.isActive)) {
+        return current;
+      }
+      return rows.find((row) => row.isActive)?.id ?? '';
+    });
+  }, []);
 
   const selectedSet = useMemo(
     () => indicatorSets.find((set) => set.id === indicatorSetId) ?? null,
@@ -192,7 +219,7 @@ function BacktestsPageContent() {
         ]);
         if (!cancelled) {
           setIndicatorSets(setRows);
-          setRuns(runRows);
+          setRunList(runRows);
           setSymbols(symbolRows);
           setIndicatorSetId(resolveIndicatorSetId(searchParams.get('indicatorSetId'), setRows));
           setSymbolId(symbolRows[0]?.id ?? '');
@@ -212,6 +239,38 @@ function BacktestsPageContent() {
       cancelled = true;
     };
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!selectedRunId) {
+      return;
+    }
+    if (runDetails[selectedRunId]) {
+      return;
+    }
+
+    let cancelled = false;
+    setDetailLoading(true);
+    void (async () => {
+      try {
+        const detail = await fetchBacktestRun(selectedRunId);
+        if (!cancelled) {
+          setRunDetails((prev) => ({ ...prev, [detail.id]: detail }));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof ApiClientError ? err.message : '実行結果の取得に失敗しました');
+        }
+      } finally {
+        if (!cancelled) {
+          setDetailLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRunId, runDetails]);
 
   useEffect(() => {
     if (!selectedRun) {
@@ -314,7 +373,8 @@ function BacktestsPageContent() {
             }
           : {}),
       });
-      setRuns((prev) => [created, ...prev]);
+      setRunList((prev) => [backtestRunToListItem(created), ...prev]);
+      setRunDetails((prev) => ({ ...prev, [created.id]: created }));
       setSelectedRunId(created.id);
       setActiveTab('results');
     } catch (err) {
@@ -557,28 +617,44 @@ function BacktestsPageContent() {
 
           {activeTab === 'results' ? (
             <div style={resultsStackStyle}>
-              <label style={labelStyle}>
-                実行履歴
-                <select
-                  value={selectedRun?.id ?? ''}
-                  onChange={(e) => setSelectedRunId(e.target.value)}
-                  style={inputStyle}
-                  data-testid="backtest-run-select"
+              <div style={runSelectRowStyle}>
+                <label style={labelStyle}>
+                  実行履歴
+                  <select
+                    value={selectedRunId}
+                    onChange={(e) => setSelectedRunId(e.target.value)}
+                    style={inputStyle}
+                    data-testid="backtest-run-select"
+                  >
+                    {runList.length === 0 ? (
+                      <option value="">まだ結果がありません</option>
+                    ) : null}
+                    {runList.map((run) => {
+                      const runSym = symbols.find((s) => s.id === run.symbolId);
+                      const ticker = runSym?.ticker ?? run.symbolId;
+                      return (
+                        <option key={run.id} value={run.id}>
+                          {ticker} {run.fromDate}〜{run.toDate} リターン=
+                          {(run.summary.totalReturnRate * 100).toFixed(2)}% 取引数=
+                          {run.summary.totalTrades}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  style={buttonStyle}
+                  onClick={() => setSearchPanelOpen(true)}
+                  data-testid="backtest-run-search-open"
                 >
-                  {runs.length === 0 ? <option value="">まだ結果がありません</option> : null}
-                  {runs.map((run) => {
-                    const runSym = symbols.find((s) => s.id === run.symbolId);
-                    const ticker = runSym?.ticker ?? run.symbolId;
-                    return (
-                      <option key={run.id} value={run.id}>
-                        {ticker} {run.fromDate}〜{run.toDate} リターン=
-                        {(run.summary.totalReturnRate * 100).toFixed(2)}% 取引数=
-                        {run.summary.totalTrades}
-                      </option>
-                    );
-                  })}
-                </select>
-              </label>
+                  検索…
+                </button>
+              </div>
+
+              {detailLoading && selectedRunId && !selectedRun ? (
+                <p style={{ opacity: 0.85 }}>実行結果を読み込み中…</p>
+              ) : null}
 
               <BacktestOverviewStrip
                 ticker={runSymbol?.ticker ?? null}
@@ -689,6 +765,23 @@ function BacktestsPageContent() {
           )}
         </PopoutWindow>
       ) : null}
+
+      {searchPanelOpen ? (
+        <BacktestRunSearchPanel
+          symbols={symbols}
+          indicatorSets={indicatorSets}
+          onClose={() => setSearchPanelOpen(false)}
+          onSelectRun={(runId) => {
+            setSelectedRunId(runId);
+            setActiveTab('results');
+          }}
+          onRunsChanged={() => {
+            void refreshRunList().catch((err) => {
+              setError(err instanceof ApiClientError ? err.message : '一覧の更新に失敗しました');
+            });
+          }}
+        />
+      ) : null}
     </main>
   );
 }
@@ -752,6 +845,12 @@ const resultsStackStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: '1.5rem',
+};
+const runSelectRowStyle: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '0.75rem',
+  alignItems: 'flex-end',
 };
 const chartToolbarStyle: CSSProperties = {
   display: 'flex',

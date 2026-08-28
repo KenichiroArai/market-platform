@@ -35,6 +35,7 @@ const backtestRunBase = {
   profitFactor: { toString: () => '1.2' },
   buyHoldReturnRate: { toString: () => '0.01' },
   buyHoldFinalEquity: { toString: () => '101000' },
+  isActive: true,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 };
@@ -55,6 +56,8 @@ describe('SignalsBacktestsService', () => {
       findMany: jest.fn(),
       findFirst: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
     },
   };
   const prismaService = { prisma } as any;
@@ -135,6 +138,7 @@ describe('SignalsBacktestsService', () => {
   it('lists and gets backtest runs', async () => {
     const row = {
       ...backtestRunBase,
+      isActive: true,
       trades: [
         {
           id: 't_1',
@@ -169,25 +173,92 @@ describe('SignalsBacktestsService', () => {
       ],
     };
     prisma.backtestRun.findMany.mockResolvedValue([row]);
-    prisma.backtestRun.findFirst.mockResolvedValue(row);
+    prisma.backtestRun.findFirst.mockResolvedValue({ ...row, trades: row.trades, equityPoints: row.equityPoints });
     const listed = await service.listBacktestRuns('u_1');
     expect(listed).toHaveLength(1);
     expect(listed[0]).toMatchObject({
       id: 'run_1',
       indicatorSetId: 'iset_1',
-      signalDefinitionId: null,
       strategyType: 'smaCross',
-      params: { shortPeriod: 25, longPeriod: 75 },
+      isActive: true,
     });
-    expect(listed[0]!.trades[0]).toMatchObject({
-      entryReason: 'sma_golden_cross',
-      exitReason: 'sma_dead_cross',
-      entryScore: 28.5,
-      exitScore: 71.2,
+    expect(listed[0]).not.toHaveProperty('trades');
+    await expect(service.getBacktestRun('u_1', 'run_1')).resolves.toMatchObject({
+      id: 'run_1',
+      isActive: true,
+      trades: expect.arrayContaining([
+        expect.objectContaining({
+          entryReason: 'sma_golden_cross',
+          exitReason: 'sma_dead_cross',
+        }),
+      ]),
     });
-    await expect(service.getBacktestRun('u_1', 'run_1')).resolves.toMatchObject({ id: 'run_1' });
     prisma.backtestRun.findFirst.mockResolvedValueOnce(null);
     await expect(service.getBacktestRun('u_1', 'x')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('searches and soft-deletes backtest runs', async () => {
+    const row = { ...backtestRunBase, isActive: true };
+    prisma.backtestRun.findMany.mockResolvedValue([row]);
+    await expect(
+      service.listBacktestRuns('u_1', {
+        symbolId: 'sym_1',
+        strategyType: 'smaCross',
+        indicatorSetId: 'iset_1',
+        fromDate: '2026-01-01',
+        toDate: '2026-06-30',
+        createdFrom: '2026-01-01',
+        createdTo: '2026-12-31',
+        isActive: 'all',
+      }),
+    ).resolves.toHaveLength(1);
+    expect(prisma.backtestRun.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: 'u_1',
+          symbolId: 'sym_1',
+          indicatorSetId: 'iset_1',
+          strategyType: 'SMA_CROSS',
+        }),
+      }),
+    );
+
+    expect(service.parseBacktestRunIsActiveFilter(undefined)).toBe(true);
+    expect(service.parseBacktestRunIsActiveFilter('all')).toBe('all');
+    expect(service.parseBacktestRunIsActiveFilter('false')).toBe(false);
+    expect(service.parseBacktestRunIsActiveFilter('0')).toBe(false);
+    expect(service.parseBacktestRunIsActiveFilter('true')).toBe(true);
+
+    expect(service.buildBacktestRunWhere('u_1', {})).toEqual({
+      userId: 'u_1',
+      isActive: true,
+    });
+
+    prisma.backtestRun.findFirst.mockResolvedValue(row);
+    prisma.backtestRun.update.mockResolvedValue({ ...row, isActive: false });
+    await expect(service.removeBacktestRun('u_1', 'run_1')).resolves.toBeUndefined();
+    expect(prisma.backtestRun.update).toHaveBeenCalledWith({
+      where: { id: 'run_1' },
+      data: { isActive: false },
+    });
+
+    prisma.backtestRun.findFirst.mockResolvedValueOnce(null);
+    await expect(service.removeBacktestRun('u_1', 'missing')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+
+    prisma.backtestRun.updateMany.mockResolvedValue({ count: 3 });
+    await expect(
+      service.removeBacktestRuns('u_1', { symbolId: 'sym_1', isActive: 'true' }),
+    ).resolves.toEqual({ deletedCount: 3 });
+
+    prisma.backtestRun.findMany.mockResolvedValue([]);
+    await expect(service.listBacktestRuns('u_1', { isActive: 'false' })).resolves.toEqual([]);
+    expect(prisma.backtestRun.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: 'u_1', isActive: false }),
+      }),
+    );
   });
 
   it('runs backtest from indicator set and persists result', async () => {
@@ -680,6 +751,7 @@ describe('SignalsBacktestsService', () => {
       profitFactor: 0,
       buyHoldReturnRate: 0,
       buyHoldFinalEquity: 1,
+      isActive: true,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       trades: [

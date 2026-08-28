@@ -11,6 +11,9 @@ import {
   deleteIndicatorSet,
   deletePortfolio,
   deleteWatchlist,
+  deleteBacktestRun,
+  deleteBacktestRuns,
+  fetchBacktestRun,
   fetchBacktestRuns,
   fetchCurrentUser,
   fetchIndicatorSets,
@@ -154,8 +157,21 @@ const run = {
   },
   trades: [],
   equityPoints: [],
+  isActive: true,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+};
+
+const runListItem = {
+  id: 'run_1',
+  symbolId: 'sym_1',
+  indicatorSetId: 'set_1',
+  strategyType: 'smaCross' as const,
+  fromDate: '2026-01-01',
+  toDate: '2026-06-30',
+  summary: run.summary,
+  isActive: true,
+  createdAt: '2026-01-01T00:00:00.000Z',
 };
 
 function okJson(body: unknown) {
@@ -456,7 +472,52 @@ describe('api-client', () => {
       deleteSignalDefinition('sig_1', del as unknown as typeof fetch),
     ).resolves.toBeUndefined();
 
-    await expect(fetchBacktestRuns(okJson([run]) as unknown as typeof fetch)).resolves.toEqual([run]);
+    await expect(
+      fetchBacktestRuns(undefined, okJson([runListItem]) as unknown as typeof fetch),
+    ).resolves.toEqual([runListItem]);
+    await expect(
+      fetchBacktestRuns(
+        {
+          symbolId: 'sym_1',
+          strategyType: 'smaCross',
+          indicatorSetId: 'set_1',
+          fromDate: '2026-01-01',
+          toDate: '2026-06-30',
+          createdFrom: '2026-02-01',
+          createdTo: '2026-03-01',
+          isActive: false,
+        },
+        okJson([runListItem]) as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual([runListItem]);
+    await expect(
+      fetchBacktestRuns(
+        {
+          symbolId: 'sym_1',
+          strategyType: 'smaCross',
+          indicatorSetId: 'set_1',
+          fromDate: '2026-01-01',
+          toDate: '2026-06-30',
+          createdFrom: '2026-02-01',
+          createdTo: '2026-03-01',
+          isActive: 'all',
+        },
+        okJson([runListItem]) as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual([runListItem]);
+    await expect(
+      fetchBacktestRun('run_1', okJson(run) as unknown as typeof fetch),
+    ).resolves.toEqual(run);
+    await expect(deleteBacktestRun('run_1', del as unknown as typeof fetch)).resolves.toBeUndefined();
+    await expect(
+      deleteBacktestRuns(
+        { symbolId: 'sym_1', isActive: true },
+        okJson({ deletedCount: 2 }) as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual({ deletedCount: 2 });
+    await expect(
+      deleteBacktestRuns(undefined, okJson({ deletedCount: 0 }) as unknown as typeof fetch),
+    ).resolves.toEqual({ deletedCount: 0 });
     await expect(
       runBacktest(
         {
@@ -576,7 +637,13 @@ describe('api-client', () => {
       fetchSignalDefinitions(okJson([{ id: 1 }]) as unknown as typeof fetch),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     await expect(
-      fetchBacktestRuns(okJson([{ id: 1 }]) as unknown as typeof fetch),
+      fetchBacktestRuns(undefined, okJson([{ id: 1 }]) as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      fetchBacktestRun('run_1', okJson({ id: 1 }) as unknown as typeof fetch),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+    await expect(
+      deleteBacktestRuns({}, okJson({ deletedCount: 'x' }) as unknown as typeof fetch),
     ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
     await expect(
       fetchIndicatorSets(okJson([{ id: 1 }]) as unknown as typeof fetch),

@@ -23,6 +23,8 @@ import {
   scoringCatalogIds,
   specsFromCatalogIds,
   type BacktestRunDto,
+  type BacktestRunListItemDto,
+  type BacktestRunSearchQuery,
   type ComputeBacktestResponse,
   type ComputeSignalRequest,
   type CreateSignalDefinitionRequest,
@@ -38,6 +40,7 @@ import {
 import { PricesService } from '../prices/prices.service';
 import { PrismaService } from '../prisma.service';
 import type {
+  BacktestRunSearchQueryDto,
   CreateSignalDefinitionDto,
   OptimizeBacktestDto,
   RunBacktestDto,
@@ -143,13 +146,132 @@ export class SignalsBacktestsService {
     await this.prismaService.prisma.signalDefinition.delete({ where: { id } });
   }
 
-  async listBacktestRuns(userId: string): Promise<BacktestRunDto[]> {
+  async listBacktestRuns(
+    userId: string,
+    queryDto: BacktestRunSearchQueryDto = {},
+  ): Promise<BacktestRunListItemDto[]> {
+    const query = this.parseBacktestRunSearchQuery(queryDto);
     const rows = await this.prismaService.prisma.backtestRun.findMany({
-      where: { userId },
-      include: { trades: true, equityPoints: true },
+      where: this.buildBacktestRunWhere(userId, query),
       orderBy: { createdAt: 'desc' },
     });
-    return rows.map((row) => this.toBacktestRunDto(row));
+    return rows.map((row) => this.toBacktestRunListItemDto(row));
+  }
+
+  async removeBacktestRun(userId: string, id: string): Promise<void> {
+    const row = await this.prismaService.prisma.backtestRun.findFirst({
+      where: { id, userId, isActive: true },
+    });
+    if (!row) {
+      throw new NotFoundException({
+        code: API_ERROR_CODES.BACKTEST_RUN_NOT_FOUND,
+        message: 'Backtest run not found',
+      });
+    }
+    await this.prismaService.prisma.backtestRun.update({
+      where: { id },
+      data: { isActive: false },
+    });
+  }
+
+  async removeBacktestRuns(
+    userId: string,
+    queryDto: BacktestRunSearchQueryDto,
+  ): Promise<{ deletedCount: number }> {
+    const query = this.parseBacktestRunSearchQuery(queryDto);
+    const where = {
+      ...this.buildBacktestRunWhere(userId, query),
+      isActive: true,
+    };
+    const result = await this.prismaService.prisma.backtestRun.updateMany({
+      where,
+      data: { isActive: false },
+    });
+    return { deletedCount: result.count };
+  }
+
+  /** HTTP クエリ DTO を共有型の検索条件へ正規化する。 */
+  parseBacktestRunSearchQuery(dto: BacktestRunSearchQueryDto): BacktestRunSearchQuery {
+    return {
+      symbolId: dto.symbolId?.trim() || undefined,
+      strategyType: dto.strategyType,
+      indicatorSetId: dto.indicatorSetId?.trim() || undefined,
+      fromDate: dto.fromDate?.trim() || undefined,
+      toDate: dto.toDate?.trim() || undefined,
+      createdFrom: dto.createdFrom?.trim() || undefined,
+      createdTo: dto.createdTo?.trim() || undefined,
+      isActive: this.parseBacktestRunIsActiveFilter(dto.isActive),
+    };
+  }
+
+  /** isActive クエリ文字列を boolean | 'all' に変換。省略時 true。 */
+  parseBacktestRunIsActiveFilter(value?: string): boolean | 'all' {
+    if (value === undefined || value === '') {
+      return true;
+    }
+    if (value === 'all') {
+      return 'all';
+    }
+    if (value === 'false' || value === '0') {
+      return false;
+    }
+    return true;
+  }
+
+  /** GET/DELETE 共通の Prisma where 条件。 */
+  buildBacktestRunWhere(
+    userId: string,
+    query: BacktestRunSearchQuery,
+  ): Record<string, unknown> {
+    const where: Record<string, unknown> = { userId };
+
+    const isActive = query.isActive ?? true;
+    if (isActive !== 'all') {
+      where.isActive = isActive;
+    }
+
+    if (query.symbolId) {
+      where.symbolId = query.symbolId;
+    }
+    if (query.indicatorSetId) {
+      where.indicatorSetId = query.indicatorSetId;
+    }
+    if (query.strategyType) {
+      where.strategyType = this.toPrismaStrategyType(query.strategyType);
+    }
+
+    // 検証期間 overlap: run.toDate >= filter.from AND run.fromDate <= filter.to
+    if (query.fromDate || query.toDate) {
+      const fromDateFilter: Record<string, Date> = {};
+      const toDateFilter: Record<string, Date> = {};
+      if (query.fromDate) {
+        toDateFilter.gte = new Date(query.fromDate);
+      }
+      if (query.toDate) {
+        fromDateFilter.lte = new Date(query.toDate);
+      }
+      if (Object.keys(fromDateFilter).length > 0) {
+        where.fromDate = fromDateFilter;
+      }
+      if (Object.keys(toDateFilter).length > 0) {
+        where.toDate = toDateFilter;
+      }
+    }
+
+    if (query.createdFrom || query.createdTo) {
+      const createdAt: Record<string, Date> = {};
+      if (query.createdFrom) {
+        createdAt.gte = new Date(query.createdFrom);
+      }
+      if (query.createdTo) {
+        const end = new Date(query.createdTo);
+        end.setUTCHours(23, 59, 59, 999);
+        createdAt.lte = end;
+      }
+      where.createdAt = createdAt;
+    }
+
+    return where;
   }
 
   async getBacktestRun(userId: string, id: string): Promise<BacktestRunDto> {
@@ -527,6 +649,48 @@ export class SignalsBacktestsService {
     };
   }
 
+  private toBacktestRunListItemDto(row: {
+    id: string;
+    symbolId: string;
+    indicatorSetId: string | null;
+    strategyType: SignalDefinitionRow['strategyType'];
+    fromDate: Date;
+    toDate: Date;
+    finalEquity: DecimalLike;
+    totalReturnRate: DecimalLike;
+    maxDrawdownRate: DecimalLike;
+    totalTrades: number;
+    winRate: DecimalLike;
+    sharpeRatio: DecimalLike;
+    profitFactor: DecimalLike;
+    buyHoldReturnRate: DecimalLike;
+    buyHoldFinalEquity: DecimalLike;
+    isActive: boolean;
+    createdAt: Date;
+  }): BacktestRunListItemDto {
+    return {
+      id: row.id,
+      symbolId: row.symbolId,
+      indicatorSetId: row.indicatorSetId,
+      strategyType: this.fromPrismaStrategyType(row.strategyType),
+      fromDate: row.fromDate.toISOString().slice(0, 10),
+      toDate: row.toDate.toISOString().slice(0, 10),
+      summary: {
+        finalEquity: this.toNumber(row.finalEquity),
+        totalReturnRate: this.toNumber(row.totalReturnRate),
+        maxDrawdownRate: this.toNumber(row.maxDrawdownRate),
+        totalTrades: row.totalTrades,
+        winRate: this.toNumber(row.winRate),
+        sharpeRatio: this.toNumber(row.sharpeRatio),
+        profitFactor: this.toNumber(row.profitFactor),
+        buyHoldReturnRate: this.toNumber(row.buyHoldReturnRate),
+        buyHoldFinalEquity: this.toNumber(row.buyHoldFinalEquity),
+      },
+      isActive: row.isActive,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
   private toBacktestRunDto(
     row: {
       id: string;
@@ -550,6 +714,7 @@ export class SignalsBacktestsService {
       profitFactor: DecimalLike;
       buyHoldReturnRate: DecimalLike;
       buyHoldFinalEquity: DecimalLike;
+      isActive: boolean;
       createdAt: Date;
       updatedAt: Date;
       trades: Array<{
@@ -635,6 +800,7 @@ export class SignalsBacktestsService {
         equity: this.toNumber(point.equity),
         drawdownRate: this.toNumber(point.drawdownRate),
       })),
+      isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

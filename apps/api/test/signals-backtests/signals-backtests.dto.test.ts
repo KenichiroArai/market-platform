@@ -1,4 +1,5 @@
 import {
+  BacktestRunSearchQueryDto,
   CreateSignalDefinitionDto,
   OptimizeBacktestDto,
   RunBacktestDto,
@@ -67,5 +68,16 @@ describe('signals-backtests DTOs', () => {
     expect(typeof optimize.slippageRate).toBe('number');
     expect((optimize as unknown as Record<string, unknown>).shortMin).toBeUndefined();
     expect((optimize as unknown as Record<string, unknown>).shortMax).toBeUndefined();
+
+    const search = new BacktestRunSearchQueryDto();
+    search.symbolId = 'sym_1';
+    search.strategyType = 'smaCross';
+    search.indicatorSetId = 'set_1';
+    search.fromDate = '2026-01-01';
+    search.toDate = '2026-06-30';
+    search.createdFrom = '2026-02-01';
+    search.createdTo = '2026-03-01';
+    search.isActive = 'all';
+    expect(search.symbolId).toBe('sym_1');
   });
 });

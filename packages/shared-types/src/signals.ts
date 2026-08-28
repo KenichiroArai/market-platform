@@ -131,8 +131,41 @@ export interface BacktestRunDto {
   summary: BacktestSummaryDto;
   trades: BacktestTradeDto[];
   equityPoints: BacktestEquityPointDto[];
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 実行履歴一覧・検索用の軽量 DTO（trades / equityPoints 不含）。 */
+export interface BacktestRunListItemDto {
+  id: string;
+  symbolId: string;
+  indicatorSetId: string | null;
+  strategyType: SignalStrategyType;
+  fromDate: string;
+  toDate: string;
+  summary: BacktestSummaryDto;
+  isActive: boolean;
+  createdAt: string;
+}
+
+/** GET/DELETE /backtests の検索クエリ（API と UI 共通）。 */
+export interface BacktestRunSearchQuery {
+  symbolId?: string;
+  strategyType?: SignalStrategyType;
+  indicatorSetId?: string;
+  /** 検証期間フィルタ（Run 期間との overlap 判定） */
+  fromDate?: string;
+  toDate?: string;
+  /** 実行日時フィルタ */
+  createdFrom?: string;
+  createdTo?: string;
+  /** 省略時 true（活動中のみ）。false=削除済みのみ。all=両方。 */
+  isActive?: boolean | 'all';
+}
+
+export interface DeleteBacktestRunsResponse {
+  deletedCount: number;
 }
 
 export interface CreateSignalDefinitionRequest {
@@ -320,10 +353,39 @@ export function isBacktestRunDto(value: unknown): value is BacktestRunDto {
     typeof record.initialCash === 'number' &&
     typeof record.feeRate === 'number' &&
     typeof record.slippageRate === 'number' &&
+    typeof record.isActive === 'boolean' &&
     typeof record.createdAt === 'string' &&
     typeof record.updatedAt === 'string' &&
     Array.isArray(record.trades) &&
     Array.isArray(record.equityPoints) &&
     isBacktestSummaryDto(record.summary)
   );
+}
+
+export function isBacktestRunListItemDto(value: unknown): value is BacktestRunListItemDto {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  const indicatorSetOk =
+    record.indicatorSetId === null || typeof record.indicatorSetId === 'string';
+  return (
+    typeof record.id === 'string' &&
+    typeof record.symbolId === 'string' &&
+    indicatorSetOk &&
+    isSignalStrategyType(record.strategyType) &&
+    typeof record.fromDate === 'string' &&
+    typeof record.toDate === 'string' &&
+    typeof record.isActive === 'boolean' &&
+    typeof record.createdAt === 'string' &&
+    isBacktestSummaryDto(record.summary)
+  );
+}
+
+export function isDeleteBacktestRunsResponse(value: unknown): value is DeleteBacktestRunsResponse {
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return typeof record.deletedCount === 'number';
 }

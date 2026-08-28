@@ -8,6 +8,8 @@ import {
   isAuthTokenResponse,
   isAuthUser,
   isBacktestRunDto,
+  isBacktestRunListItemDto,
+  isDeleteBacktestRunsResponse,
   isDailyPriceDto,
   isIndicatorSetDto,
   isIndicatorsResponseDto,
@@ -29,6 +31,9 @@ import {
   type OptimizeBacktestResponse,
   type PortfolioDto,
   type BacktestRunDto,
+  type BacktestRunListItemDto,
+  type BacktestRunSearchQuery,
+  type DeleteBacktestRunsResponse,
   type RegisterRequest,
   type RunBacktestRequest,
   type SignalDefinitionDto,
@@ -484,10 +489,91 @@ export async function deleteIndicatorSet(id: string, fetchImpl?: typeof fetch): 
   await apiFetch<null>(`/indicator-sets/${id}`, { method: 'DELETE' }, fetchImpl);
 }
 
-/** GET /backtests */
-export async function fetchBacktestRuns(fetchImpl?: typeof fetch): Promise<BacktestRunDto[]> {
-  const result = await apiFetch<unknown>('/backtests', { method: 'GET' }, fetchImpl);
-  return assertArray(result, isBacktestRunDto, 'backtest runs');
+/** BacktestRunSearchQuery を URLSearchParams に変換する。 */
+function buildBacktestRunSearchParams(query: BacktestRunSearchQuery = {}): URLSearchParams {
+  const params = new URLSearchParams();
+  if (query.symbolId) {
+    params.set('symbolId', query.symbolId);
+  }
+  if (query.strategyType) {
+    params.set('strategyType', query.strategyType);
+  }
+  if (query.indicatorSetId) {
+    params.set('indicatorSetId', query.indicatorSetId);
+  }
+  if (query.fromDate) {
+    params.set('fromDate', query.fromDate);
+  }
+  if (query.toDate) {
+    params.set('toDate', query.toDate);
+  }
+  if (query.createdFrom) {
+    params.set('createdFrom', query.createdFrom);
+  }
+  if (query.createdTo) {
+    params.set('createdTo', query.createdTo);
+  }
+  if (query.isActive !== undefined) {
+    if (query.isActive === 'all') {
+      params.set('isActive', 'all');
+    } else {
+      params.set('isActive', query.isActive ? 'true' : 'false');
+    }
+  }
+  return params;
+}
+
+/** GET /backtests（条件付き一覧。省略時 isActive=true） */
+export async function fetchBacktestRuns(
+  query?: BacktestRunSearchQuery,
+  fetchImpl?: typeof fetch,
+): Promise<BacktestRunListItemDto[]> {
+  const params = buildBacktestRunSearchParams(query);
+  const qs = params.toString();
+  const path = `/backtests${qs ? `?${qs}` : ''}`;
+  const result = await apiFetch<unknown>(path, { method: 'GET' }, fetchImpl);
+  return assertArray(result, isBacktestRunListItemDto, 'backtest runs');
+}
+
+/** GET /backtests/:id（詳細。trades / equityPoints 込み） */
+export async function fetchBacktestRun(
+  id: string,
+  fetchImpl?: typeof fetch,
+): Promise<BacktestRunDto> {
+  const result = await apiFetch<unknown>(
+    `/backtests/${encodeURIComponent(id)}`,
+    { method: 'GET' },
+    fetchImpl,
+  );
+  if (!isBacktestRunDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected backtest run response', result);
+  }
+  return result;
+}
+
+/** DELETE /backtests/:id（単一論理削除） */
+export async function deleteBacktestRun(id: string, fetchImpl?: typeof fetch): Promise<void> {
+  await apiFetch<null>(`/backtests/${encodeURIComponent(id)}`, { method: 'DELETE' }, fetchImpl);
+}
+
+/** DELETE /backtests（条件付き一括論理削除） */
+export async function deleteBacktestRuns(
+  query: BacktestRunSearchQuery = {},
+  fetchImpl?: typeof fetch,
+): Promise<DeleteBacktestRunsResponse> {
+  const params = buildBacktestRunSearchParams(query);
+  const qs = params.toString();
+  const path = `/backtests${qs ? `?${qs}` : ''}`;
+  const result = await apiFetch<unknown>(path, { method: 'DELETE' }, fetchImpl);
+  if (!isDeleteBacktestRunsResponse(result)) {
+    throw new ApiClientError(
+      500,
+      'INVALID_RESPONSE',
+      'Unexpected delete backtest runs response',
+      result,
+    );
+  }
+  return result;
 }
 
 /** POST /backtests/run（指標セット起点。シグナルはカタログから導出） */

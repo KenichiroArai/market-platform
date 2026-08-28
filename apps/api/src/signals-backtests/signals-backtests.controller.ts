@@ -7,12 +7,20 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import type { BacktestRunDto, OptimizeBacktestResponse, SignalDefinitionDto } from '@market/shared-types';
+import type {
+  BacktestRunDto,
+  BacktestRunListItemDto,
+  DeleteBacktestRunsResponse,
+  OptimizeBacktestResponse,
+  SignalDefinitionDto,
+} from '@market/shared-types';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import {
+  BacktestRunSearchQueryDto,
   CreateSignalDefinitionDto,
   OptimizeBacktestDto,
   RunBacktestDto,
@@ -67,9 +75,21 @@ export class SignalsBacktestsController {
   }
 
   @Get('backtests')
-  @ApiOkResponse({ description: 'Backtest run list' })
-  listBacktests(@CurrentUser() user: AuthenticatedUser): Promise<BacktestRunDto[]> {
-    return this.signalsBacktestsService.listBacktestRuns(user.id);
+  @ApiOkResponse({ description: 'Backtest run list (searchable, lightweight)' })
+  listBacktests(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: BacktestRunSearchQueryDto,
+  ): Promise<BacktestRunListItemDto[]> {
+    return this.signalsBacktestsService.listBacktestRuns(user.id, query);
+  }
+
+  @Delete('backtests')
+  @ApiOkResponse({ description: 'Bulk soft-delete backtest runs matching search query' })
+  removeBacktests(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: BacktestRunSearchQueryDto,
+  ): Promise<DeleteBacktestRunsResponse> {
+    return this.signalsBacktestsService.removeBacktestRuns(user.id, query);
   }
 
   @Get('backtests/:id')
@@ -97,5 +117,14 @@ export class SignalsBacktestsController {
     @Body() dto: OptimizeBacktestDto,
   ): Promise<OptimizeBacktestResponse> {
     return this.signalsBacktestsService.optimizeBacktest(user.id, dto);
+  }
+
+  @Delete('backtests/:id')
+  @HttpCode(204)
+  async removeBacktest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this.signalsBacktestsService.removeBacktestRun(user.id, id);
   }
 }

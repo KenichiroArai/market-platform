@@ -16,6 +16,59 @@ const strategyTypes: SignalStrategyType[] = ['smaCross', 'rsiThreshold', 'macdCr
 
 const signalModes: BacktestSignalMode[] = ['indicatorSet', 'trendScore'];
 
+const allStrategyTypes: SignalStrategyType[] = [
+  'smaCross',
+  'rsiThreshold',
+  'macdCross',
+  'trendScoreThreshold',
+];
+
+/** GET/DELETE /backtests の検索クエリ。省略時 isActive=true（活動中のみ）。 */
+export class BacktestRunSearchQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  symbolId?: string;
+
+  @ApiPropertyOptional({ enum: allStrategyTypes })
+  @IsOptional()
+  @IsIn(allStrategyTypes)
+  strategyType?: SignalStrategyType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  indicatorSetId?: string;
+
+  @ApiPropertyOptional({ example: '2026-01-01', description: '検証期間フィルタ（overlap）' })
+  @IsOptional()
+  @IsString()
+  fromDate?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-30', description: '検証期間フィルタ（overlap）' })
+  @IsOptional()
+  @IsString()
+  toDate?: string;
+
+  @ApiPropertyOptional({ example: '2026-01-01', description: '実行日時フィルタ（createdAt >=）' })
+  @IsOptional()
+  @IsString()
+  createdFrom?: string;
+
+  @ApiPropertyOptional({ example: '2026-12-31', description: '実行日時フィルタ（createdAt <= 日末）' })
+  @IsOptional()
+  @IsString()
+  createdTo?: string;
+
+  @ApiPropertyOptional({
+    description: '省略時 true。false=削除済みのみ。all=両方。',
+    enum: ['true', 'false', 'all', '1', '0'],
+  })
+  @IsOptional()
+  @IsString()
+  isActive?: string;
+}
+
 export class CreateSignalDefinitionDto {
   @ApiProperty({ example: 'SMA 5/20' })
   @IsString()

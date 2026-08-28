@@ -38,10 +38,14 @@ import {
   isPriceSyncJobResult,
   isSymbolDto,
   describeSignalRule,
+  formatStrategyTypeShortLabel,
   formatStrategyLabel,
+  backtestRunToListItem,
   formatTradeReason,
   formatDecisionScore,
   isBacktestRunDto,
+  isBacktestRunListItemDto,
+  isDeleteBacktestRunsResponse,
   isBacktestSummaryDto,
   isBacktestTradeReasonCode,
   isOptimizeBacktestResponse,
@@ -229,8 +233,21 @@ describe('shared-types signals', () => {
     },
     trades: [],
     equityPoints: [],
+    isActive: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  const runListItem = {
+    id: 'run_1',
+    symbolId: 'sym_1',
+    indicatorSetId: 'iset_1',
+    strategyType: 'smaCross' as const,
+    fromDate: '2026-01-01',
+    toDate: '2026-06-30',
+    summary: run.summary,
+    isActive: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
   };
 
   it('validates strategy types', () => {
@@ -265,6 +282,13 @@ describe('shared-types signals', () => {
     expect(isBacktestRunDto({ ...run, indicatorSetId: 1 })).toBe(false);
     expect(isBacktestRunDto({ ...run, signalDefinitionId: 1 })).toBe(false);
     expect(isBacktestRunDto({ ...run, strategyType: 'invalid' })).toBe(false);
+    expect(isBacktestRunDto({ ...run, isActive: 'x' })).toBe(false);
+    expect(isBacktestRunListItemDto(runListItem)).toBe(true);
+    expect(isBacktestRunListItemDto(null)).toBe(false);
+    expect(isBacktestRunListItemDto({ ...runListItem, summary: null })).toBe(false);
+    expect(isDeleteBacktestRunsResponse({ deletedCount: 2 })).toBe(true);
+    expect(isDeleteBacktestRunsResponse({ deletedCount: '2' })).toBe(false);
+    expect(isDeleteBacktestRunsResponse(null)).toBe(false);
   });
 });
 
@@ -335,6 +359,62 @@ describe('shared-types backtest-display', () => {
     expect(
       formatStrategyLabel('trendScoreThreshold', { buyThreshold: 37.5, sellThreshold: -42.5 }),
     ).toBe('トレンドスコア（≥37.5 / ≤-42.5）');
+    expect(formatStrategyTypeShortLabel('smaCross')).toBe('SMAクロス');
+    expect(formatStrategyTypeShortLabel('macdCross')).toBe('MACDクロス');
+    expect(formatStrategyTypeShortLabel('rsiThreshold')).toBe('RSI閾値');
+    expect(formatStrategyTypeShortLabel('trendScoreThreshold')).toBe('トレンドスコア');
+    expect(
+      backtestRunToListItem({
+        id: 'run_1',
+        userId: 'u_1',
+        indicatorSetId: 'iset_1',
+        signalDefinitionId: null,
+        strategyType: 'smaCross',
+        params: { shortPeriod: 25, longPeriod: 75 },
+        symbolId: 'sym_1',
+        fromDate: '2026-01-01',
+        toDate: '2026-06-30',
+        initialCash: 100000,
+        feeRate: 0.001,
+        slippageRate: 0.001,
+        summary: {
+          finalEquity: 110000,
+          totalReturnRate: 0.1,
+          maxDrawdownRate: 0.05,
+          totalTrades: 5,
+          winRate: 0.6,
+          sharpeRatio: 1.2,
+          profitFactor: 1.5,
+          buyHoldReturnRate: 0.08,
+          buyHoldFinalEquity: 108000,
+        },
+        trades: [],
+        equityPoints: [],
+        isActive: true,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }),
+    ).toEqual({
+      id: 'run_1',
+      symbolId: 'sym_1',
+      indicatorSetId: 'iset_1',
+      strategyType: 'smaCross',
+      fromDate: '2026-01-01',
+      toDate: '2026-06-30',
+      summary: {
+        finalEquity: 110000,
+        totalReturnRate: 0.1,
+        maxDrawdownRate: 0.05,
+        totalTrades: 5,
+        winRate: 0.6,
+        sharpeRatio: 1.2,
+        profitFactor: 1.5,
+        buyHoldReturnRate: 0.08,
+        buyHoldFinalEquity: 108000,
+      },
+      isActive: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
   });
 
   it('formats trade reason codes and rejects unknown', () => {

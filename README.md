@@ -134,7 +134,7 @@ pnpm test
 
 - [ドキュメント索引](docs/README.md)
 - [アーキテクチャ概要](docs/architecture/overview.md)
-- [開発ロードマップ](docs/roadmap/README.md)（現行: [v0.3.0](docs/roadmap/v0/v0.3/v0.3.0.md)）
+- [開発ロードマップ](docs/roadmap/README.md)（現行: [v0.4.0](docs/roadmap/v0/v0.4/v0.4.0.md)）
 - [ADR 001: JWT 認証](docs/adr/001-authentication-jwt.md)
 - [ADR 002: 市場データプロバイダ](docs/adr/002-market-data-provider.md)
 - [ADR 003: ウォッチリスト / ポートフォリオ](docs/adr/003-watchlist-portfolio.md)
@@ -144,6 +144,7 @@ pnpm test
 - [ADR 007: トレンドスコア](docs/adr/007-trend-score.md)
 - [ADR 008: テクニカル指標セット](docs/adr/008-indicator-sets.md)
 - [ADR 009: バックテスト結果の拡張と SMA 最適化](docs/adr/009-backtest-enrichment.md)
+- [ADR 013: 実行履歴の検索と論理削除](docs/adr/013-backtest-run-history-management.md)
 
 ## ライセンス
 
