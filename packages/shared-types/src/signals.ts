@@ -58,6 +58,15 @@ export interface SignalDefinitionDto {
   updatedAt: string;
 }
 
+/**
+ * トレンドスコア約定時点の内訳（グループ寄与 + 指標点）。
+ * date は約定日と別フィールドにあるため含めない。
+ */
+export interface BacktestScoreBreakdown {
+  groups: Record<string, number | null>;
+  indicators: Record<string, number | null>;
+}
+
 export interface BacktestTradeDto {
   id: string;
   backtestRunId: string;
@@ -86,6 +95,10 @@ export interface BacktestTradeDto {
    * 期間末強制決済・クロス戦略・既存 Run は null。
    */
   exitScore: number | null;
+  /** 買い時点のトレンドスコア内訳。RSI/クロス・既存 Run は null。 */
+  entryScoreBreakdown: BacktestScoreBreakdown | null;
+  /** 売り時点のトレンドスコア内訳。強制決済・非トレンド・既存 Run は null。 */
+  exitScoreBreakdown: BacktestScoreBreakdown | null;
 }
 
 export interface BacktestEquityPointDto {
@@ -96,6 +109,10 @@ export interface BacktestEquityPointDto {
   positionValue: number;
   equity: number;
   drawdownRate: number;
+  /** その日の判断スコア（RSI / 総合トレンドスコア）。非スコア戦略・既存は null。 */
+  decisionScore: number | null;
+  /** その日のトレンドスコア内訳。RSI/非トレンド・既存は null。 */
+  scoreBreakdown: BacktestScoreBreakdown | null;
 }
 
 export interface BacktestSummaryDto {

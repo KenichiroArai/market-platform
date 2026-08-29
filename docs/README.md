@@ -27,6 +27,9 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 | [adr/010-signal-from-indicator-set.md](adr/010-signal-from-indicator-set.md) | 指標セット起点のシグナル導出と charts / backtests 画面分離              |
 | [adr/011-backtest-result-clarity.md](adr/011-backtest-result-clarity.md) | バックテスト結果の条件表示・約定理由・チャート表示モード              |
 | [adr/012-trend-score-backtest.md](adr/012-trend-score-backtest.md) | トレンドスコア閾値によるバックテスト売買                              |
+| [adr/013-backtest-run-history-management.md](adr/013-backtest-run-history-management.md) | 実行履歴の検索と論理削除 |
+| [adr/014-indicator-set-config.md](adr/014-indicator-set-config.md) | 指標セットのパラメータ・スコア配点・閾値 |
+| [adr/015-backtest-result-analysis.md](adr/015-backtest-result-analysis.md) | バックテスト結果の分析しやすさ（スコア内訳・日次 ZIP） |
 
 ## ドキュメント方針
 

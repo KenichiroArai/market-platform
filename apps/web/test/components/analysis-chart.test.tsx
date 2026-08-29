@@ -142,6 +142,8 @@ describe('analysis-chart helpers', () => {
         exitReason: 'sma_dead_cross',
         entryScore: null,
         exitScore: null,
+        entryScoreBreakdown: null,
+        exitScoreBreakdown: null,
       },
       {
         id: 't1',
@@ -161,6 +163,8 @@ describe('analysis-chart helpers', () => {
         exitReason: null,
         entryScore: null,
         exitScore: null,
+        entryScoreBreakdown: null,
+        exitScoreBreakdown: null,
       },
     ];
     const markers = toTradeMarkers(trades);
@@ -416,6 +420,8 @@ describe('AnalysisChart', () => {
       exitReason: 'sma_dead_cross',
       entryScore: null,
       exitScore: null,
+      entryScoreBreakdown: null,
+      exitScoreBreakdown: null,
     };
     render(
       <AnalysisChart prices={[price, downPrice]} indicatorPoints={points} trades={[trade]} />,

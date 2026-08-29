@@ -51,6 +51,8 @@ const trade: BacktestTradeDto = {
   exitReason: null,
   entryScore: null,
   exitScore: null,
+  entryScoreBreakdown: null,
+  exitScoreBreakdown: null,
 };
 
 describe('PriceChart', () => {

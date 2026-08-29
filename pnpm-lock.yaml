@@ -113,6 +113,9 @@ importers:
       '@market/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       lightweight-charts:
         specifier: ^5.2.0
         version: 5.2.0
@@ -2423,6 +2426,9 @@ packages:
   fetch-mock-cache@3.1.0:
     resolution: {integrity: sha512-VxdIstx7qhqW9+9AOjYAlxEguX9HnBFdSaydlwLiZR+xAldGdZMLmSn8pYLd6hNh3vjcIcqUkgFgcdcPomctFg==}
     engines: {node: '>=22.0.0'}
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   file-type@21.3.4:
     resolution: {integrity: sha512-Ievi/yy8DS3ygGvT47PjSfdFoX+2isQueoYP1cntFW1JLYAuS4GD7NUPGg4zv2iZfV52uDyk5w5Z0TdpRS6Q1g==}
@@ -6535,6 +6541,8 @@ snapshots:
       filenamify-url: 4.0.0
     transitivePeerDependencies:
       - supports-color
+
+  fflate@0.8.3: {}
 
   file-type@21.3.4:
     dependencies:

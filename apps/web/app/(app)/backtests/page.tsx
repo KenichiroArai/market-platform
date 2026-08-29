@@ -4,7 +4,7 @@
  *
  * 売買判断は (1) 指標セットから導出する SMA/MACD/RSI か (2) チャート同系のトレンドスコア。
  * 指標トグルの編集はチャート分析側。ここではセット選択・実行・結果を扱う。
- * 「設定と実行」「結果」の2タブ。結果チャートは表示モード切替（既定: ローソク＋Buy/Sell）。
+ * 「設定と実行」「結果」「日次データ」の3タブ。結果チャートは表示モード切替（既定: ローソク＋Buy/Sell）。
  */
 'use client';
 
@@ -42,11 +42,14 @@ import {
 } from '../../../components/backtest-chart-display-mode';
 import { BacktestRunSearchPanel } from '../../../components/backtest-run-search-panel';
 import { BacktestEquityChart } from '../../../components/backtest-equity-chart';
+import { BacktestEquityHelp } from '../../../components/backtest-equity-help';
 import { BacktestOverviewStrip } from '../../../components/backtest-overview-strip';
 import { BacktestRunConditions } from '../../../components/backtest-run-conditions';
 import { BacktestSmaOptimizeHelp } from '../../../components/backtest-sma-optimize-help';
 import { BacktestSummaryCards } from '../../../components/backtest-summary-cards';
 import { BacktestTradesTable } from '../../../components/backtest-trades-table';
+import { BacktestDailyDataPanel } from '../../../components/backtest-daily-data-panel';
+import { downloadBacktestExportZip } from '../../../lib/backtest-export';
 import {
   BacktestWorkspaceTabs,
   type BacktestWorkspaceTabId,
@@ -67,6 +70,7 @@ import {
   runBacktest,
 } from '../../../lib/api-client';
 import { chartsHref, symbolsHref } from '../../../lib/app-routes';
+import { defaultChartFromDate, defaultChartToDate } from '../../../lib/chart-date-range';
 
 const DEFAULT_FEE = 0.001;
 const DEFAULT_SLIPPAGE = 0.001;
@@ -98,8 +102,8 @@ function BacktestsPageContent() {
   const [indicatorSetId, setIndicatorSetId] = useState('');
   /** 既定はチャートと同系のトレンドスコア。指標セット起点も選択可。 */
   const [signalMode, setSignalMode] = useState<BacktestSignalMode>('trendScore');
-  const [from, setFrom] = useState('2026-01-01');
-  const [to, setTo] = useState('2026-06-30');
+  const [from, setFrom] = useState(() => defaultChartFromDate());
+  const [to, setTo] = useState(() => defaultChartToDate());
   const [initialCash, setInitialCash] = useState(100000);
   const [error, setError] = useState<string | null>(null);
   const [chartError, setChartError] = useState<string | null>(null);
@@ -690,7 +694,10 @@ function BacktestsPageContent() {
                   </section>
 
                   <section>
-                    <h2 style={sectionTitleStyle}>エクイティカーブ</h2>
+                    <h2 style={equityTitleRowStyle}>
+                      <span>エクイティカーブ</span>
+                      <BacktestEquityHelp />
+                    </h2>
                     <BacktestEquityChart
                       equityPoints={selectedRun.equityPoints}
                       prices={prices}
@@ -739,11 +746,49 @@ function BacktestsPageContent() {
 
                   <section>
                     <h2 style={sectionTitleStyle}>取引履歴</h2>
-                    <BacktestTradesTable trades={selectedRun.trades} />
+                    <BacktestTradesTable
+                      trades={selectedRun.trades}
+                      strategyType={selectedRun.strategyType}
+                    />
                   </section>
                 </>
               ) : (
                 <p style={{ margin: 0, opacity: 0.8 }}>実行結果を選ぶと詳細を表示します</p>
+              )}
+            </div>
+          ) : null}
+
+          {activeTab === 'daily' ? (
+            <div>
+              {!selectedRunId ? (
+                <p style={{ margin: 0, opacity: 0.8 }}>
+                  結果タブで実行結果を選んでから日次データを表示できます
+                </p>
+              ) : detailLoading && !selectedRun ? (
+                <p style={{ opacity: 0.85 }}>実行結果を読み込み中…</p>
+              ) : selectedRun ? (
+                <BacktestDailyDataPanel
+                  run={selectedRun}
+                  prices={prices}
+                  symbolLabel={
+                    runSymbol
+                      ? `${runSymbol.ticker}${runSymbol.name?.trim() ? ` — ${runSymbol.name}` : ''}`
+                      : selectedRun.symbolId
+                  }
+                  indicatorSetName={runIndicatorSet?.name ?? null}
+                  onDownloadZip={() =>
+                    downloadBacktestExportZip({
+                      run: selectedRun,
+                      prices,
+                      symbolCode: runSymbol?.ticker ?? selectedSymbol?.ticker,
+                      indicatorSetName: runIndicatorSet?.name,
+                    })
+                  }
+                />
+              ) : (
+                <p style={{ margin: 0, opacity: 0.8 }}>
+                  結果タブで実行結果を選んでから日次データを表示できます
+                </p>
               )}
             </div>
           ) : null}
@@ -848,6 +893,14 @@ const stepsStyle: CSSProperties = {
   opacity: 0.9,
 };
 const sectionTitleStyle: CSSProperties = { fontSize: '1.1rem', fontWeight: 600, margin: '0 0 0.75rem' };
+const equityTitleRowStyle: CSSProperties = {
+  fontSize: '1.1rem',
+  fontWeight: 600,
+  margin: '0 0 0.75rem',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.35rem',
+};
 const resultsStackStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',

@@ -250,6 +250,7 @@ class BacktestTrade(BaseModel):
 
     entryReason / exitReason は安定コード（例: sma_golden_cross）。
     entryScore / exitScore は判断に使った数値（例: RSI・トレンドスコア）。スコア非採用時は None。
+    entryScoreBreakdown / exitScoreBreakdown はトレンドスコア内訳（groups + indicators）。
     既存クライアント互換のため省略時は None。
     """
 
@@ -268,6 +269,8 @@ class BacktestTrade(BaseModel):
     exitReason: str | None = None
     entryScore: float | None = None
     exitScore: float | None = None
+    entryScoreBreakdown: dict[str, Any] | None = None
+    exitScoreBreakdown: dict[str, Any] | None = None
 
 
 class BacktestEquityPoint(BaseModel):
@@ -278,6 +281,8 @@ class BacktestEquityPoint(BaseModel):
     positionValue: float
     equity: float
     drawdownRate: float
+    decisionScore: float | None = None
+    scoreBreakdown: dict[str, Any] | None = None
 
 
 class BacktestSummary(BaseModel):

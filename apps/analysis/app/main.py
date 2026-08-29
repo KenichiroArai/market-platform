@@ -38,6 +38,7 @@ from app.schemas import (
     RunBacktestResponse,
     SignalPoint,
     SignalSpec,
+    TrendScorePoint,
 )
 from app.version import read_app_version
 
@@ -132,7 +133,9 @@ def run_backtest(body: RunBacktestRequest) -> RunBacktestResponse:
     closes = [bar.close for bar in body.bars]
     dates = [bar.date for bar in body.bars]
     trade_start = min(max(0, body.rangeStartIndex), len(dates))
-    points, decision_scores = _signals_and_scores(dates, closes, body.signal, bars=body.bars)
+    points, decision_scores, score_breakdowns = _signals_and_scores(
+        dates, closes, body.signal, bars=body.bars
+    )
     trades, equity_points = _simulate_long_only(
         symbol_id=body.symbolId,
         dates=dates,
@@ -144,6 +147,7 @@ def run_backtest(body: RunBacktestRequest) -> RunBacktestResponse:
         fee_rate=body.feeRate,
         slippage_rate=body.slippageRate,
         trade_start_index=trade_start,
+        score_breakdowns=score_breakdowns,
     )
     summary_closes = closes[trade_start:] if trade_start < len(closes) else closes
     summary = _build_backtest_summary(
@@ -170,7 +174,9 @@ def optimize_backtest(body: OptimizeBacktestRequest) -> OptimizeBacktestResponse
             if short >= long:
                 continue
             spec = SignalSpec(strategyType="smaCross", shortPeriod=short, longPeriod=long)
-            points, decision_scores = _signals_and_scores(dates, closes, spec, bars=body.bars)
+            points, decision_scores, score_breakdowns = _signals_and_scores(
+                dates, closes, spec, bars=body.bars
+            )
             trades, equity_points = _simulate_long_only(
                 symbol_id=body.symbolId,
                 dates=dates,
@@ -181,6 +187,7 @@ def optimize_backtest(body: OptimizeBacktestRequest) -> OptimizeBacktestResponse
                 initial_cash=body.initialCash,
                 fee_rate=body.feeRate,
                 slippage_rate=body.slippageRate,
+                score_breakdowns=score_breakdowns,
             )
             summary = _build_backtest_summary(
                 initial_cash=body.initialCash,
@@ -201,21 +208,31 @@ def _signals_and_scores(
     spec: SignalSpec,
     *,
     bars: list,
-) -> tuple[list[SignalPoint], list[float | None]]:
-    """シグナルと判断スコアを一度に組み立てる（トレンドスコアの二重計算を避ける）。"""
+) -> tuple[list[SignalPoint], list[float | None], list[TrendScorePoint | None]]:
+    """シグナル・判断スコア・内訳を一度に組み立てる（トレンドスコアの二重計算を避ける）。"""
     if spec.strategyType == "trendScoreThreshold":
         assert spec.buyThreshold is not None and spec.sellThreshold is not None
-        score_series = [point.score for point in compute_trend_score(bars, range_start_index=0)]
+        # 内訳付きポイントを保持し、スコア系列とシグナルに流用する
+        breakdowns = compute_trend_score(bars, range_start_index=0)
+        score_series = [point.score for point in breakdowns]
         points = _score_threshold_signal_points(
             dates,
             score_series,
             buy_threshold=spec.buyThreshold,
             sell_threshold=spec.sellThreshold,
         )
-        return points, score_series
+        return points, score_series, breakdowns
 
     points = _build_signal_points(dates, closes, spec, bars=bars)
-    return points, _decision_scores(dates, closes, spec)
+    # RSI/SMA/MACD はトレンド内訳を持たない
+    return points, _decision_scores(dates, closes, spec), [None] * len(dates)
+
+
+def _score_breakdown_payload(point: TrendScorePoint | None) -> dict | None:
+    """トレード／エクイティ点に載せるスコア内訳。TrendScore 以外は None。"""
+    if point is None:
+        return None
+    return {"groups": point.groups, "indicators": point.indicators}
 
 
 def _build_signal_points(
@@ -358,10 +375,12 @@ def _simulate_long_only(
     fee_rate: float,
     slippage_rate: float,
     trade_start_index: int = 0,
+    score_breakdowns: list[TrendScorePoint | None] | None = None,
 ) -> tuple[list[BacktestTrade], list[BacktestEquityPoint]]:
     """ロング限定の単純売買シミュレーション（全額投資・同時保有1ポジション）。
 
     trade_start_index より前はウォームアップ専用（売買・エクイティ点を出さない）。
+    score_breakdowns はトレンドスコア内訳。未指定時は全日 None 扱い。
     """
     cash = initial_cash
     quantity = 0.0
@@ -369,11 +388,14 @@ def _simulate_long_only(
     entry_date = ""
     entry_reason = ""
     entry_score: float | None = None
+    entry_breakdown: dict | None = None
     entry_fee = 0.0
     entry_slippage = 0.0
     peak_equity = initial_cash
     trades: list[BacktestTrade] = []
     equity_points: list[BacktestEquityPoint] = []
+    # 呼び出し省略時も日付長に揃える（zip の長さ不一致を防ぐ）
+    breakdowns = score_breakdowns if score_breakdowns is not None else [None] * len(dates)
 
     for index, (date, close, signal, score) in enumerate(
         zip(dates, closes, signals, decision_scores, strict=True)
@@ -391,6 +413,7 @@ def _simulate_long_only(
             entry_date = date
             entry_reason = _entry_reason_code(strategy_type)
             entry_score = score
+            entry_breakdown = _score_breakdown_payload(breakdowns[index])
         elif quantity > 0.0 and signal.sell:
             fill_price = close * (1.0 - slippage_rate)
             exit_fee = quantity * fill_price * fee_rate
@@ -418,6 +441,8 @@ def _simulate_long_only(
                     exitReason=_exit_reason_code(strategy_type),
                     entryScore=entry_score,
                     exitScore=score,
+                    entryScoreBreakdown=entry_breakdown,
+                    exitScoreBreakdown=_score_breakdown_payload(breakdowns[index]),
                 )
             )
             quantity = 0.0
@@ -425,6 +450,7 @@ def _simulate_long_only(
             entry_date = ""
             entry_reason = ""
             entry_score = None
+            entry_breakdown = None
 
         position_value = quantity * close
         equity = cash + position_value
@@ -437,6 +463,9 @@ def _simulate_long_only(
                 positionValue=position_value,
                 equity=equity,
                 drawdownRate=drawdown_rate,
+                # 当日の判断スコア（戦略により None）
+                decisionScore=score,
+                scoreBreakdown=_score_breakdown_payload(breakdowns[index]),
             )
         )
 
@@ -470,6 +499,8 @@ def _simulate_long_only(
                 entryScore=entry_score,
                 # 期間末強制決済はスコア判断ではない
                 exitScore=None,
+                entryScoreBreakdown=entry_breakdown,
+                exitScoreBreakdown=None,
             )
         )
         quantity = 0.0
@@ -480,6 +511,9 @@ def _simulate_long_only(
             positionValue=0.0,
             equity=cash,
             drawdownRate=last.drawdownRate,
+            # 強制決済後も当日スコアは維持（ポジション価値だけ更新）
+            decisionScore=last.decisionScore,
+            scoreBreakdown=last.scoreBreakdown,
         )
     return trades, equity_points
 

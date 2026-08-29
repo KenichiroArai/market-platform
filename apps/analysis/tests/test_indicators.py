@@ -351,7 +351,12 @@ def test_post_backtests_run_trend_score_with_range_start(monkeypatch: pytest.Mon
         # スコアを明示してクロスを起こす（lookback 1 本 + 表示 3 本）
         values = [0.0, 10.0, 50.0, -50.0]
         return [
-            TrendScorePoint(date=bar.date, score=values[i], groups={}, indicators={})
+            TrendScorePoint(
+                date=bar.date,
+                score=values[i],
+                groups={"trend": values[i]},
+                indicators={"sma": values[i]},
+            )
             for i, bar in enumerate(bars)
         ]
 
@@ -379,8 +384,24 @@ def test_post_backtests_run_trend_score_with_range_start(monkeypatch: pytest.Mon
     trade = body["trades"][0]
     assert trade["entryReason"] == "score_cross_up"
     assert trade["entryScore"] == 50.0
+    assert trade["entryScoreBreakdown"] == {"groups": {"trend": 50.0}, "indicators": {"sma": 50.0}}
     assert trade["exitReason"] in ("score_cross_down", "force_close_end")
-
+    if trade["exitReason"] == "score_cross_down":
+        assert trade["exitScore"] == -50.0
+        assert trade["exitScoreBreakdown"] == {
+            "groups": {"trend": -50.0},
+            "indicators": {"sma": -50.0},
+        }
+    else:
+        assert trade["exitScore"] is None
+        assert trade["exitScoreBreakdown"] is None
+    # equity にも当日スコアが載る（rangeStartIndex=1 以降）
+    assert [p["decisionScore"] for p in body["equityPoints"]] == [10.0, 50.0, -50.0]
+    assert [p["scoreBreakdown"] for p in body["equityPoints"]] == [
+        {"groups": {"trend": 10.0}, "indicators": {"sma": 10.0}},
+        {"groups": {"trend": 50.0}, "indicators": {"sma": 50.0}},
+        {"groups": {"trend": -50.0}, "indicators": {"sma": -50.0}},
+    ]
 
 
 def test_post_signals_trend_score(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -486,6 +507,10 @@ def test_post_backtests_run_force_close_at_end() -> None:
     assert all(t["entryReason"] == "sma_golden_cross" for t in body["trades"])
     assert all(t.get("entryScore") is None for t in body["trades"])
     assert all(t.get("exitScore") is None for t in body["trades"])
+    assert all(t.get("entryScoreBreakdown") is None for t in body["trades"])
+    assert all(t.get("exitScoreBreakdown") is None for t in body["trades"])
+    assert all(p.get("decisionScore") is None for p in body["equityPoints"])
+    assert all(p.get("scoreBreakdown") is None for p in body["equityPoints"])
 
 
 def test_post_backtests_run_rsi_includes_decision_scores() -> None:
@@ -509,6 +534,12 @@ def test_post_backtests_run_rsi_includes_decision_scores() -> None:
     assert trade["entryScore"] is not None
     assert trade["exitReason"] == "force_close_end"
     assert trade["exitScore"] is None
+    # RSI は数値スコアのみ。トレンド内訳は付けない
+    assert trade["entryScoreBreakdown"] is None
+    assert trade["exitScoreBreakdown"] is None
+    assert any(p.get("decisionScore") is not None for p in body["equityPoints"])
+    # RSI は decisionScore のみ。日次内訳は null
+    assert all(p.get("scoreBreakdown") is None for p in body["equityPoints"])
 
 
 def test_post_backtests_run_buy_hold_metrics() -> None:

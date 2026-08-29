@@ -297,6 +297,12 @@ packages:
 - **shared-types**: `resolveTrendScoreSignalRule`、理由コード `score_cross_up` / `score_cross_down`
 - 詳細は [ADR 012](../adr/012-trend-score-backtest.md)
 
+### バックテスト結果の分析しやすさ（v0.4.0 / Ph3）
+
+- **Web** `/backtests`: エクイティ見出しの HoverHelp、取引履歴の総合スコア列／トレンド時のグループ・指標内訳列、日次データタブ、日次詳細 ZIP（クライアント生成）
+- **永続化**: Equity の `decisionScore`、Trade の `entryScoreBreakdown` / `exitScoreBreakdown`
+- 詳細は [ADR 015](../adr/015-backtest-result-analysis.md)
+
 ### 後続で追加予定
 
 - ESLint flat config（shared-config への集約）
@@ -320,3 +326,6 @@ ESLint 本体は必要になったタイミングで最小構成で入れる。
 - [ADR 010: 指標セット起点のシグナル導出と画面分離](../adr/010-signal-from-indicator-set.md)
 - [ADR 011: バックテスト結果の分かりやすさ](../adr/011-backtest-result-clarity.md)
 - [ADR 012: トレンドスコアによるバックテスト売買](../adr/012-trend-score-backtest.md)
+- [ADR 013: 実行履歴の検索と論理削除](../adr/013-backtest-run-history-management.md)
+- [ADR 014: 指標セットの拡張設定](../adr/014-indicator-set-config.md)
+- [ADR 015: バックテスト結果の分析しやすさ](../adr/015-backtest-result-analysis.md)

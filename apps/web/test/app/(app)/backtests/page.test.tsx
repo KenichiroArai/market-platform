@@ -15,6 +15,7 @@ import {
   optimizeBacktest,
   runBacktest,
 } from '../../../../lib/api-client';
+import { defaultChartFromDate, defaultChartToDate } from '../../../../lib/chart-date-range';
 
 jest.mock('../../../../lib/api-client', () => ({
   fetchIndicatorSets: jest.fn(),
@@ -54,6 +55,10 @@ jest.mock('../../../../components/backtest-equity-chart', () => ({
 
 jest.mock('../../../../components/backtest-trades-table', () => ({
   BacktestTradesTable: () => <div data-testid="trades-table-stub" />,
+}));
+
+jest.mock('../../../../components/backtest-daily-data-panel', () => ({
+  BacktestDailyDataPanel: () => <div data-testid="daily-data-panel-stub" />,
 }));
 
 jest.mock('../../../../components/popout-window', () => ({
@@ -187,10 +192,13 @@ describe('BacktestsPage', () => {
     expect(screen.getByTestId('analysis-chart-stub')).toBeInTheDocument();
     expect(screen.getByTestId('trades-table-stub')).toBeInTheDocument();
 
+    fireEvent.click(screen.getByTestId('backtest-tab-daily'));
+    expect(screen.getByTestId('daily-data-panel-stub')).toBeInTheDocument();
+
     fireEvent.click(screen.getByTestId('backtest-tab-setup'));
     expect(screen.getByRole('link', { name: '詳細チャート' })).toHaveAttribute(
       'href',
-      '/charts?symbolId=sym_1&from=2026-01-01&to=2026-06-30',
+      `/charts?symbolId=sym_1&from=${defaultChartFromDate()}&to=${defaultChartToDate()}`,
     );
 
     fireEvent.change(screen.getByLabelText('開始資金'), { target: { value: '200000' } });

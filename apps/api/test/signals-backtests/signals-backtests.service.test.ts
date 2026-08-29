@@ -162,6 +162,8 @@ describe('SignalsBacktestsService', () => {
           exitReason: 'sma_dead_cross',
           entryScore: 28.5,
           exitScore: 71.2,
+          entryScoreBreakdown: null,
+          exitScoreBreakdown: null,
         },
       ],
       equityPoints: [
@@ -173,6 +175,8 @@ describe('SignalsBacktestsService', () => {
           positionValue: 2,
           equity: 3,
           drawdownRate: 0,
+          decisionScore: null,
+          scoreBreakdown: null,
         },
       ],
     };
@@ -194,7 +198,12 @@ describe('SignalsBacktestsService', () => {
         expect.objectContaining({
           entryReason: 'sma_golden_cross',
           exitReason: 'sma_dead_cross',
+          entryScoreBreakdown: null,
+          exitScoreBreakdown: null,
         }),
+      ]),
+      equityPoints: expect.arrayContaining([
+        expect.objectContaining({ decisionScore: null, scoreBreakdown: null }),
       ]),
     });
     prisma.backtestRun.findFirst.mockResolvedValueOnce(null);
@@ -359,7 +368,14 @@ describe('SignalsBacktestsService', () => {
                   exitReason: null,
                   entryScore: null,
                   exitScore: null,
+                  entryScoreBreakdown: null,
+                  exitScoreBreakdown: null,
                 }),
+              ]),
+            }),
+            equityPoints: expect.objectContaining({
+              create: expect.arrayContaining([
+                expect.objectContaining({ decisionScore: null, scoreBreakdown: null }),
               ]),
             }),
           }),
@@ -479,9 +495,30 @@ describe('SignalsBacktestsService', () => {
             exitReason: 'score_cross_down',
             entryScore: 40,
             exitScore: -50,
+            entryScoreBreakdown: {
+              groups: { trend: 20, momentum: 20 },
+              indicators: { sma: 10, rsi: 30 },
+            },
+            exitScoreBreakdown: {
+              groups: { trend: -25, momentum: -25 },
+              indicators: { sma: -20, rsi: -30 },
+            },
           },
         ],
-        equityPoints: [],
+        equityPoints: [
+          {
+            date: '2026-01-01',
+            cash: 100001,
+            positionValue: 0,
+            equity: 100001,
+            drawdownRate: 0,
+            decisionScore: 40,
+            scoreBreakdown: {
+              groups: { trend: 20, momentum: 20 },
+              indicators: { sma: 10, rsi: 30 },
+            },
+          },
+        ],
       }),
     }) as any;
     prisma.backtestRun.create.mockResolvedValue({
@@ -519,6 +556,31 @@ describe('SignalsBacktestsService', () => {
           data: expect.objectContaining({
             strategyType: 'TREND_SCORE_THRESHOLD',
             paramsJson: { buyThreshold: 37.5, sellThreshold: -42.5 },
+            trades: expect.objectContaining({
+              create: expect.arrayContaining([
+                expect.objectContaining({
+                  entryScoreBreakdown: {
+                    groups: { trend: 20, momentum: 20 },
+                    indicators: { sma: 10, rsi: 30 },
+                  },
+                  exitScoreBreakdown: {
+                    groups: { trend: -25, momentum: -25 },
+                    indicators: { sma: -20, rsi: -30 },
+                  },
+                }),
+              ]),
+            }),
+            equityPoints: expect.objectContaining({
+              create: expect.arrayContaining([
+                expect.objectContaining({
+                  decisionScore: 40,
+                  scoreBreakdown: {
+                    groups: { trend: 20, momentum: 20 },
+                    indicators: { sma: 10, rsi: 30 },
+                  },
+                }),
+              ]),
+            }),
           }),
         }),
       );
@@ -856,11 +918,29 @@ describe('SignalsBacktestsService', () => {
           exitReason: null,
           entryScore: null,
           exitScore: null,
+          entryScoreBreakdown: null,
+          exitScoreBreakdown: null,
         },
       ],
-      equityPoints: [],
+      equityPoints: [
+        {
+          id: 'e_sell',
+          backtestRunId: 'run_sell',
+          date: new Date('2026-01-01'),
+          cash: 1,
+          positionValue: 0,
+          equity: 1,
+          drawdownRate: 0,
+          decisionScore: { toString: () => '12.5' },
+          scoreBreakdown: null,
+        },
+      ],
     });
     expect(sellMapped.trades[0].side).toBe('sell');
+    expect(sellMapped.trades[0].entryScoreBreakdown).toBeNull();
+    expect(sellMapped.trades[0].exitScoreBreakdown).toBeNull();
+    expect(sellMapped.equityPoints[0].decisionScore).toBe(12.5);
+    expect(sellMapped.equityPoints[0].scoreBreakdown).toBeNull();
     expect(sellMapped.indicatorSetId).toBeNull();
     expect(sellMapped.strategyType).toBe('smaCross');
     expect(sellMapped.params).toEqual({ shortPeriod: 25, longPeriod: 75 });

@@ -25,6 +25,7 @@ import {
   type BacktestRunDto,
   type BacktestRunListItemDto,
   type BacktestRunSearchQuery,
+  type BacktestScoreBreakdown,
   type ComputeBacktestResponse,
   type ComputeSignalRequest,
   type CreateSignalDefinitionRequest,
@@ -37,6 +38,7 @@ import {
   type TradeSide,
   type TrendScoreThresholdParams,
 } from '@market/shared-types';
+import { Prisma } from '@market/database';
 import { PricesService } from '../prices/prices.service';
 import { PrismaService } from '../prisma.service';
 import type {
@@ -435,23 +437,30 @@ export class SignalsBacktestsService {
         buyHoldReturnRate: result.summary.buyHoldReturnRate,
         buyHoldFinalEquity: result.summary.buyHoldFinalEquity,
         trades: {
-          create: result.trades.map((trade) => ({
-            symbolId: dto.symbolId,
-            entryDate: new Date(trade.entryDate),
-            exitDate: new Date(trade.exitDate),
-            entryPrice: trade.entryPrice,
-            exitPrice: trade.exitPrice,
-            quantity: trade.quantity,
-            side: this.toPrismaTradeSide(trade.side),
-            grossPnl: trade.grossPnl,
-            feeAmount: trade.feeAmount,
-            slippageAmount: trade.slippageAmount,
-            netPnl: trade.netPnl,
-            entryReason: trade.entryReason ?? null,
-            exitReason: trade.exitReason ?? null,
-            entryScore: trade.entryScore ?? null,
-            exitScore: trade.exitScore ?? null,
-          })),
+          // UncheckedCreate（symbolId）を明示し、Json オブジェクトで relation create に寄らないようにする
+          create: result.trades.map(
+            (trade): Prisma.BacktestTradeUncheckedCreateWithoutBacktestRunInput => ({
+              symbolId: dto.symbolId,
+              entryDate: new Date(trade.entryDate),
+              exitDate: new Date(trade.exitDate),
+              entryPrice: trade.entryPrice,
+              exitPrice: trade.exitPrice,
+              quantity: trade.quantity,
+              side: this.toPrismaTradeSide(trade.side),
+              grossPnl: trade.grossPnl,
+              feeAmount: trade.feeAmount,
+              slippageAmount: trade.slippageAmount,
+              netPnl: trade.netPnl,
+              entryReason: trade.entryReason ?? null,
+              exitReason: trade.exitReason ?? null,
+              entryScore: trade.entryScore ?? null,
+              exitScore: trade.exitScore ?? null,
+              entryScoreBreakdown: (trade.entryScoreBreakdown ??
+                null) as unknown as Prisma.InputJsonValue,
+              exitScoreBreakdown: (trade.exitScoreBreakdown ??
+                null) as unknown as Prisma.InputJsonValue,
+            }),
+          ),
         },
         equityPoints: {
           create: result.equityPoints.map((point) => ({
@@ -460,6 +469,9 @@ export class SignalsBacktestsService {
             positionValue: point.positionValue,
             equity: point.equity,
             drawdownRate: point.drawdownRate,
+            decisionScore: point.decisionScore ?? null,
+            scoreBreakdown: (point.scoreBreakdown ??
+              null) as unknown as Prisma.InputJsonValue,
           })),
         },
       },
@@ -742,6 +754,8 @@ export class SignalsBacktestsService {
         exitReason?: string | null;
         entryScore?: number | null | DecimalLike;
         exitScore?: number | null | DecimalLike;
+        entryScoreBreakdown?: Prisma.JsonValue | null;
+        exitScoreBreakdown?: Prisma.JsonValue | null;
       }>;
       equityPoints: Array<{
         id: string;
@@ -751,6 +765,8 @@ export class SignalsBacktestsService {
         positionValue: DecimalLike;
         equity: DecimalLike;
         drawdownRate: DecimalLike;
+        decisionScore?: number | null | DecimalLike;
+        scoreBreakdown?: Prisma.JsonValue | null;
       }>;
     },
   ): BacktestRunDto {
@@ -797,6 +813,8 @@ export class SignalsBacktestsService {
         entryScore:
           trade.entryScore == null ? null : this.toNumber(trade.entryScore),
         exitScore: trade.exitScore == null ? null : this.toNumber(trade.exitScore),
+        entryScoreBreakdown: this.toScoreBreakdown(trade.entryScoreBreakdown),
+        exitScoreBreakdown: this.toScoreBreakdown(trade.exitScoreBreakdown),
       })),
       equityPoints: row.equityPoints.map((point) => ({
         id: point.id,
@@ -806,6 +824,9 @@ export class SignalsBacktestsService {
         positionValue: this.toNumber(point.positionValue),
         equity: this.toNumber(point.equity),
         drawdownRate: this.toNumber(point.drawdownRate),
+        decisionScore:
+          point.decisionScore == null ? null : this.toNumber(point.decisionScore),
+        scoreBreakdown: this.toScoreBreakdown(point.scoreBreakdown),
       })),
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
@@ -815,6 +836,32 @@ export class SignalsBacktestsService {
 
   private toNumber(value: DecimalLike): number {
     return typeof value === 'number' ? value : Number(value.toString());
+  }
+
+  /** Prisma Json → スコア内訳。不正／欠損は null。 */
+  private toScoreBreakdown(
+    raw: Prisma.JsonValue | null | undefined,
+  ): BacktestScoreBreakdown | null {
+    if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
+      return null;
+    }
+    const record = raw as Record<string, unknown>;
+    const groups = record.groups;
+    const indicators = record.indicators;
+    if (
+      groups == null ||
+      typeof groups !== 'object' ||
+      Array.isArray(groups) ||
+      indicators == null ||
+      typeof indicators !== 'object' ||
+      Array.isArray(indicators)
+    ) {
+      return null;
+    }
+    return {
+      groups: groups as BacktestScoreBreakdown['groups'],
+      indicators: indicators as BacktestScoreBreakdown['indicators'],
+    };
   }
 
   private fromPrismaStrategyType(value: SignalDefinitionRow['strategyType']): SignalStrategyType {

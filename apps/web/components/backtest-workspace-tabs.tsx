@@ -1,14 +1,14 @@
 /**
- * バックテスト画面のタブ切替（v0.3.0 Ph5）。
+ * バックテスト画面のタブ切替（v0.3.0 Ph5 / v0.4.0 Ph3）。
  *
- * 設定と実行 / 結果の2タブ。結果詳細は結果タブ内で縦にまとめる。
+ * 設定と実行 / 結果 / 日次データの3タブ。結果詳細は結果タブ内で縦にまとめる。
  */
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
 
 /** バックテスト作業領域のタブ ID。 */
-export type BacktestWorkspaceTabId = 'setup' | 'results';
+export type BacktestWorkspaceTabId = 'setup' | 'results' | 'daily';
 
 export type BacktestWorkspaceTab = {
   id: BacktestWorkspaceTabId;
@@ -18,6 +18,7 @@ export type BacktestWorkspaceTab = {
 export const BACKTEST_WORKSPACE_TABS: readonly BacktestWorkspaceTab[] = [
   { id: 'setup', label: '設定と実行' },
   { id: 'results', label: '結果' },
+  { id: 'daily', label: '日次データ' },
 ] as const;
 
 export type BacktestWorkspaceTabsProps = {
@@ -70,7 +71,7 @@ export function BacktestWorkspaceTabs({
 
 const rootStyle: CSSProperties = {
   marginTop: '1.25rem',
-  maxWidth: '56rem',
+  maxWidth: 'min(100%, 90rem)',
 };
 
 const tabListStyle: CSSProperties = {
