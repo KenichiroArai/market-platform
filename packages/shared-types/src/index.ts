@@ -15,6 +15,7 @@ export * from './portfolio';
 export * from './analysis';
 export * from './indicator-catalog';
 export * from './signals';
+export * from './money-management';
 export * from './signal-from-catalog';
 export * from './backtest-display';
 export * from './chart';

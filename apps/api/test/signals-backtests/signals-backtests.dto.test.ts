@@ -42,7 +42,11 @@ describe('signals-backtests DTOs', () => {
       to: '2026-06-30',
       initialCash: '1000',
       feeRate: '0.001',
+      feeMode: 'fixed',
+      feeFixed: '100',
       slippageRate: '0.001',
+      tradeSidePolicy: 'longShort',
+      moneyManagement: { enabled: false },
       buyThreshold: '37.5',
       sellThreshold: '-42.5',
     });
@@ -53,6 +57,9 @@ describe('signals-backtests DTOs', () => {
     expect(typeof transformed.initialCash).toBe('number');
     expect(typeof transformed.feeRate).toBe('number');
     expect(typeof transformed.slippageRate).toBe('number');
+    expect(transformed.feeMode).toBe('fixed');
+    expect(transformed.feeFixed).toBe(100);
+    expect(transformed.tradeSidePolicy).toBe('longShort');
 
     const optimize = plainToInstance(OptimizeBacktestDto, {
       symbolId: 'sym',
@@ -60,7 +67,10 @@ describe('signals-backtests DTOs', () => {
       to: '2026-06-30',
       initialCash: '100000',
       feeRate: '0.001',
+      feeMode: 'rate',
+      feeFixed: '0',
       slippageRate: '0.001',
+      tradeSidePolicy: 'longOnly',
     });
     expect(optimize.symbolId).toBe('sym');
     expect(typeof optimize.initialCash).toBe('number');

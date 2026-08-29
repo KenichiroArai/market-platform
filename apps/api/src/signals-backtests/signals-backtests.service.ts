@@ -29,13 +29,17 @@ import {
   type ComputeBacktestResponse,
   type ComputeSignalRequest,
   type CreateSignalDefinitionRequest,
+  type FeeMode,
   type IndicatorCatalogId,
+  type MoneyManagementConfig,
+  type MoneyManagementStats,
   type OptimizeBacktestResponse,
   type ResolvedSignalRule,
   type SignalStrategyParams,
   type SignalDefinitionDto,
   type SignalStrategyType,
   type TradeSide,
+  type TradeSidePolicy,
   type TrendScoreThresholdParams,
 } from '@market/shared-types';
 import { Prisma } from '@market/database';
@@ -332,7 +336,11 @@ export class SignalsBacktestsService {
       to: dto.to,
       initialCash: dto.initialCash,
       feeRate: dto.feeRate,
+      feeMode: dto.feeMode ?? 'rate',
+      feeFixed: dto.feeFixed ?? 0,
       slippageRate: dto.slippageRate,
+      tradeSidePolicy: dto.tradeSidePolicy ?? 'longOnly',
+      moneyManagement: dto.moneyManagement ?? null,
     });
     const result = await this.callAnalysisBacktest(analysisRequest);
     return this.persistBacktestRun(userId, {
@@ -393,7 +401,11 @@ export class SignalsBacktestsService {
       to: dto.to,
       initialCash: dto.initialCash,
       feeRate: dto.feeRate,
+      feeMode: dto.feeMode ?? 'rate',
+      feeFixed: dto.feeFixed ?? 0,
       slippageRate: dto.slippageRate,
+      tradeSidePolicy: dto.tradeSidePolicy ?? 'longOnly',
+      moneyManagement: dto.moneyManagement ?? null,
     });
     const result = await this.callAnalysisBacktest(analysisRequest);
     return this.persistBacktestRun(userId, {
@@ -425,8 +437,14 @@ export class SignalsBacktestsService {
         fromDate: new Date(dto.from),
         toDate: new Date(dto.to),
         initialCash: dto.initialCash,
+        feeMode: this.toPrismaFeeMode(dto.feeMode ?? 'rate'),
         feeRate: dto.feeRate,
+        feeFixed: dto.feeFixed ?? 0,
         slippageRate: dto.slippageRate,
+        tradeSidePolicy: this.toPrismaTradeSidePolicy(dto.tradeSidePolicy ?? 'longOnly'),
+        moneyManagementJson: (dto.moneyManagement ?? null) as unknown as Prisma.InputJsonValue,
+        moneyManagementStatsJson: (result.summary.moneyManagement ??
+          null) as unknown as Prisma.InputJsonValue,
         finalEquity: result.summary.finalEquity,
         totalReturnRate: result.summary.totalReturnRate,
         maxDrawdownRate: result.summary.maxDrawdownRate,
@@ -459,6 +477,13 @@ export class SignalsBacktestsService {
                 null) as unknown as Prisma.InputJsonValue,
               exitScoreBreakdown: (trade.exitScoreBreakdown ??
                 null) as unknown as Prisma.InputJsonValue,
+              atr: trade.atr ?? null,
+              n: trade.n ?? null,
+              riskRate: trade.riskRate ?? null,
+              initialQuantity: trade.initialQuantity ?? null,
+              addCount: trade.addCount ?? null,
+              stopPrice: trade.stopPrice ?? null,
+              unitCount: trade.unitCount ?? null,
             }),
           ),
         },
@@ -510,7 +535,11 @@ export class SignalsBacktestsService {
         symbolId: dto.symbolId,
         initialCash: dto.initialCash,
         feeRate: dto.feeRate,
+        feeMode: dto.feeMode ?? 'rate',
+        feeFixed: dto.feeFixed ?? 0,
         slippageRate: dto.slippageRate,
+        tradeSidePolicy: dto.tradeSidePolicy ?? 'longOnly',
+        moneyManagement: dto.moneyManagement ?? null,
       });
       results.push({
         shortPeriod: pair.shortPeriod,
@@ -531,13 +560,21 @@ export class SignalsBacktestsService {
       to: string;
       initialCash: number;
       feeRate: number;
+      feeMode: 'rate' | 'fixed';
+      feeFixed: number;
       slippageRate: number;
+      tradeSidePolicy: 'longOnly' | 'longShort';
+      moneyManagement: Record<string, unknown> | null;
     },
   ): Promise<
     ComputeSignalRequest & {
       initialCash: number;
       feeRate: number;
+      feeMode: 'rate' | 'fixed';
+      feeFixed: number;
       slippageRate: number;
+      tradeSidePolicy: 'longOnly' | 'longShort';
+      moneyManagement: Record<string, unknown> | null;
       symbolId: string;
       rangeStartIndex?: number;
     }
@@ -560,7 +597,11 @@ export class SignalsBacktestsService {
       symbolId: run.symbolId,
       initialCash: run.initialCash,
       feeRate: run.feeRate,
+      feeMode: run.feeMode,
+      feeFixed: run.feeFixed,
       slippageRate: run.slippageRate,
+      tradeSidePolicy: run.tradeSidePolicy,
+      moneyManagement: run.moneyManagement,
     };
   }
 
@@ -575,13 +616,21 @@ export class SignalsBacktestsService {
       to: string;
       initialCash: number;
       feeRate: number;
+      feeMode: 'rate' | 'fixed';
+      feeFixed: number;
       slippageRate: number;
+      tradeSidePolicy: 'longOnly' | 'longShort';
+      moneyManagement: Record<string, unknown> | null;
     },
   ): Promise<
     ComputeSignalRequest & {
       initialCash: number;
       feeRate: number;
+      feeMode: 'rate' | 'fixed';
+      feeFixed: number;
       slippageRate: number;
+      tradeSidePolicy: 'longOnly' | 'longShort';
+      moneyManagement: Record<string, unknown> | null;
       symbolId: string;
       rangeStartIndex?: number;
     }
@@ -607,7 +656,11 @@ export class SignalsBacktestsService {
       symbolId: run.symbolId,
       initialCash: run.initialCash,
       feeRate: run.feeRate,
+      feeMode: run.feeMode,
+      feeFixed: run.feeFixed,
       slippageRate: run.slippageRate,
+      tradeSidePolicy: run.tradeSidePolicy,
+      moneyManagement: run.moneyManagement,
       rangeStartIndex,
     };
   }
@@ -616,7 +669,11 @@ export class SignalsBacktestsService {
     body: ComputeSignalRequest & {
       initialCash: number;
       feeRate: number;
+      feeMode?: 'rate' | 'fixed';
+      feeFixed?: number;
       slippageRate: number;
+      tradeSidePolicy?: 'longOnly' | 'longShort';
+      moneyManagement?: Record<string, unknown> | null;
       symbolId: string;
       rangeStartIndex?: number;
     },
@@ -634,7 +691,11 @@ export class SignalsBacktestsService {
           signal,
           initialCash: body.initialCash,
           feeRate: body.feeRate,
+          feeMode: body.feeMode ?? 'rate',
+          feeFixed: body.feeFixed ?? 0,
           slippageRate: body.slippageRate,
+          tradeSidePolicy: body.tradeSidePolicy ?? 'longOnly',
+          moneyManagement: body.moneyManagement ?? null,
           rangeStartIndex: body.rangeStartIndex ?? 0,
         }),
       });
@@ -704,6 +765,11 @@ export class SignalsBacktestsService {
         profitFactor: this.toNumber(row.profitFactor),
         buyHoldReturnRate: this.toNumber(row.buyHoldReturnRate),
         buyHoldFinalEquity: this.toNumber(row.buyHoldFinalEquity),
+        moneyManagement:
+          ((row as { moneyManagementStatsJson?: unknown }).moneyManagementStatsJson as
+            | MoneyManagementStats
+            | null
+            | undefined) ?? null,
       },
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),
@@ -722,8 +788,13 @@ export class SignalsBacktestsService {
       fromDate: Date;
       toDate: Date;
       initialCash: DecimalLike;
+      feeMode?: 'RATE' | 'FIXED';
       feeRate: DecimalLike;
+      feeFixed?: DecimalLike;
       slippageRate: DecimalLike;
+      tradeSidePolicy?: 'LONG_ONLY' | 'LONG_SHORT';
+      moneyManagementJson?: unknown;
+      moneyManagementStatsJson?: unknown;
       finalEquity: DecimalLike;
       totalReturnRate: DecimalLike;
       maxDrawdownRate: DecimalLike;
@@ -756,6 +827,13 @@ export class SignalsBacktestsService {
         exitScore?: number | null | DecimalLike;
         entryScoreBreakdown?: Prisma.JsonValue | null;
         exitScoreBreakdown?: Prisma.JsonValue | null;
+        atr?: number | null | DecimalLike;
+        n?: number | null | DecimalLike;
+        riskRate?: number | null | DecimalLike;
+        initialQuantity?: number | null | DecimalLike;
+        addCount?: number | null;
+        stopPrice?: number | null | DecimalLike;
+        unitCount?: number | null;
       }>;
       equityPoints: Array<{
         id: string;
@@ -781,8 +859,12 @@ export class SignalsBacktestsService {
       fromDate: row.fromDate.toISOString().slice(0, 10),
       toDate: row.toDate.toISOString().slice(0, 10),
       initialCash: this.toNumber(row.initialCash),
+      feeMode: this.fromPrismaFeeMode(row.feeMode ?? 'RATE'),
       feeRate: this.toNumber(row.feeRate),
+      feeFixed: row.feeFixed == null ? 0 : this.toNumber(row.feeFixed),
       slippageRate: this.toNumber(row.slippageRate),
+      tradeSidePolicy: this.fromPrismaTradeSidePolicy(row.tradeSidePolicy ?? 'LONG_ONLY'),
+      moneyManagement: (row.moneyManagementJson as MoneyManagementConfig | null) ?? null,
       summary: {
         finalEquity: this.toNumber(row.finalEquity),
         totalReturnRate: this.toNumber(row.totalReturnRate),
@@ -793,6 +875,7 @@ export class SignalsBacktestsService {
         profitFactor: this.toNumber(row.profitFactor),
         buyHoldReturnRate: this.toNumber(row.buyHoldReturnRate),
         buyHoldFinalEquity: this.toNumber(row.buyHoldFinalEquity),
+        moneyManagement: (row.moneyManagementStatsJson as MoneyManagementStats | null) ?? null,
       },
       trades: row.trades.map((trade) => ({
         id: trade.id,
@@ -815,6 +898,14 @@ export class SignalsBacktestsService {
         exitScore: trade.exitScore == null ? null : this.toNumber(trade.exitScore),
         entryScoreBreakdown: this.toScoreBreakdown(trade.entryScoreBreakdown),
         exitScoreBreakdown: this.toScoreBreakdown(trade.exitScoreBreakdown),
+        atr: trade.atr == null ? null : this.toNumber(trade.atr),
+        n: trade.n == null ? null : this.toNumber(trade.n),
+        riskRate: trade.riskRate == null ? null : this.toNumber(trade.riskRate),
+        initialQuantity:
+          trade.initialQuantity == null ? null : this.toNumber(trade.initialQuantity),
+        addCount: trade.addCount ?? null,
+        stopPrice: trade.stopPrice == null ? null : this.toNumber(trade.stopPrice),
+        unitCount: trade.unitCount ?? null,
       })),
       equityPoints: row.equityPoints.map((point) => ({
         id: point.id,
@@ -892,6 +983,22 @@ export class SignalsBacktestsService {
 
   private toPrismaTradeSide(value: TradeSide): 'BUY' | 'SELL' {
     return value === 'buy' ? 'BUY' : 'SELL';
+  }
+
+  private toPrismaFeeMode(value: FeeMode): 'RATE' | 'FIXED' {
+    return value === 'fixed' ? 'FIXED' : 'RATE';
+  }
+
+  private fromPrismaFeeMode(value: 'RATE' | 'FIXED'): FeeMode {
+    return value === 'FIXED' ? 'fixed' : 'rate';
+  }
+
+  private toPrismaTradeSidePolicy(value: TradeSidePolicy): 'LONG_ONLY' | 'LONG_SHORT' {
+    return value === 'longShort' ? 'LONG_SHORT' : 'LONG_ONLY';
+  }
+
+  private fromPrismaTradeSidePolicy(value: 'LONG_ONLY' | 'LONG_SHORT'): TradeSidePolicy {
+    return value === 'LONG_SHORT' ? 'longShort' : 'longOnly';
   }
 
   private toCreateSignalDefinitionRequest(

@@ -25,6 +25,49 @@ describe('BacktestRunConditions', () => {
     expect(screen.getByTestId('condition-slippage-rate')).toHaveTextContent('0.10%');
   });
 
+  it('shows fixed fee and trade side policy', () => {
+    render(
+      <BacktestRunConditions
+        strategyType="smaCross"
+        params={{ shortPeriod: 25, longPeriod: 75 }}
+        indicatorSetName={null}
+        fromDate="2026-01-01"
+        toDate="2026-06-30"
+        initialCash={100000}
+        feeMode="fixed"
+        feeRate={0}
+        feeFixed={500}
+        slippageRate={0}
+        tradeSidePolicy="longShort"
+        moneyManagementEnabled
+      />,
+    );
+    expect(screen.getByTestId('condition-fee-rate')).toHaveTextContent('固定');
+    expect(screen.getByTestId('condition-trade-side-policy')).toHaveTextContent('ショート');
+    expect(screen.getByTestId('condition-money-management')).toHaveTextContent('ON');
+  });
+
+  it('handles fixed fee with null amount', () => {
+    render(
+      <BacktestRunConditions
+        strategyType="smaCross"
+        params={{ shortPeriod: 25, longPeriod: 75 }}
+        indicatorSetName={null}
+        fromDate={null}
+        toDate={null}
+        initialCash={null}
+        feeMode="fixed"
+        feeRate={null}
+        feeFixed={null}
+        slippageRate={null}
+        tradeSidePolicy={null}
+        moneyManagementEnabled={false}
+      />,
+    );
+    expect(screen.getByTestId('condition-fee-rate')).toHaveTextContent('');
+    expect(screen.getByTestId('condition-money-management')).toHaveTextContent('OFF');
+  });
+
   it('leaves blanks when values are missing', () => {
     render(
       <BacktestRunConditions

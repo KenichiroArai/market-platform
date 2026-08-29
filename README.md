@@ -145,6 +145,7 @@ pnpm test
 - [ADR 008: テクニカル指標セット](docs/adr/008-indicator-sets.md)
 - [ADR 009: バックテスト結果の拡張と SMA 最適化](docs/adr/009-backtest-enrichment.md)
 - [ADR 013: 実行履歴の検索と論理削除](docs/adr/013-backtest-run-history-management.md)
+- [ADR 016: 資金管理（マネーマネージメント）](docs/adr/016-money-management.md)
 
 ## ライセンス
 

@@ -24,8 +24,13 @@ const backtestRunBase = {
   fromDate: new Date('2026-01-01'),
   toDate: new Date('2026-06-30'),
   initialCash: { toString: () => '100000' },
+  feeMode: 'RATE' as const,
   feeRate: { toString: () => '0.001' },
+  feeFixed: { toString: () => '0' },
   slippageRate: { toString: () => '0.001' },
+  tradeSidePolicy: 'LONG_ONLY' as const,
+  moneyManagementJson: null,
+  moneyManagementStatsJson: null,
   finalEquity: { toString: () => '110000' },
   totalReturnRate: { toString: () => '0.1' },
   maxDrawdownRate: { toString: () => '0.05' },
@@ -944,5 +949,86 @@ describe('SignalsBacktestsService', () => {
     expect(sellMapped.indicatorSetId).toBeNull();
     expect(sellMapped.strategyType).toBe('smaCross');
     expect(sellMapped.params).toEqual({ shortPeriod: 25, longPeriod: 75 });
+  });
+
+  it('maps feeMode fixed / longShort and rejects invalid score breakdown shapes', () => {
+    const mapped = (service as any).toBacktestRunDto({
+      ...backtestRunBase,
+      feeMode: 'FIXED',
+      feeFixed: { toString: () => '500' },
+      tradeSidePolicy: 'LONG_SHORT',
+      moneyManagementJson: { enabled: true, riskRate: 0.01 },
+      moneyManagementStatsJson: {
+        averageRiskRate: 0.01,
+        maxRiskRate: 0.01,
+        averageAtr: 1,
+        averageUnits: 1,
+        maxUnits: 1,
+        pyramidingSuccessRate: null,
+        averageRiskRateInDrawdown: null,
+      },
+      trades: [
+        {
+          id: 't_1',
+          backtestRunId: 'run_1',
+          symbolId: 'sym_1',
+          entryDate: new Date('2026-01-01'),
+          exitDate: new Date('2026-01-02'),
+          entryPrice: 1,
+          exitPrice: 1,
+          quantity: 1,
+          side: 'BUY',
+          grossPnl: 0,
+          feeAmount: 0,
+          slippageAmount: 0,
+          netPnl: 0,
+          entryReason: null,
+          exitReason: null,
+          entryScore: null,
+          exitScore: null,
+          entryScoreBreakdown: { groups: { trend: 1 }, indicators: { sma: 1 } },
+          exitScoreBreakdown: { groups: [], indicators: {} },
+          atr: { toString: () => '1.5' },
+          n: { toString: () => '1.5' },
+          riskRate: { toString: () => '0.01' },
+          initialQuantity: { toString: () => '10' },
+          addCount: 0,
+          stopPrice: { toString: () => '95' },
+          unitCount: 1,
+        },
+      ],
+      equityPoints: [],
+    });
+    expect(mapped.feeMode).toBe('fixed');
+    expect(mapped.feeFixed).toBe(500);
+    expect(mapped.tradeSidePolicy).toBe('longShort');
+
+    const mappedRate = (service as any).toBacktestRunDto({
+      ...backtestRunBase,
+      feeMode: 'RATE',
+      tradeSidePolicy: 'LONG_ONLY',
+      trades: [],
+      equityPoints: [],
+    });
+    expect(mappedRate.feeMode).toBe('rate');
+    expect(mappedRate.feeFixed).toBe(0);
+    expect(mappedRate.tradeSidePolicy).toBe('longOnly');
+    expect(mappedRate.moneyManagement).toBeNull();
+    expect(mapped.moneyManagement).toEqual({ enabled: true, riskRate: 0.01 });
+    expect(mapped.summary.moneyManagement?.averageRiskRate).toBe(0.01);
+    expect(mapped.trades[0].entryScoreBreakdown).toEqual({
+      groups: { trend: 1 },
+      indicators: { sma: 1 },
+    });
+    expect(mapped.trades[0].exitScoreBreakdown).toBeNull();
+    expect(mapped.trades[0].atr).toBe(1.5);
+    expect(mapped.trades[0].unitCount).toBe(1);
+
+    expect((service as any).toPrismaFeeMode('rate')).toBe('RATE');
+    expect((service as any).toPrismaFeeMode('fixed')).toBe('FIXED');
+    expect((service as any).fromPrismaFeeMode('RATE')).toBe('rate');
+    expect((service as any).toPrismaTradeSidePolicy('longOnly')).toBe('LONG_ONLY');
+    expect((service as any).toPrismaTradeSidePolicy('longShort')).toBe('LONG_SHORT');
+    expect((service as any).fromPrismaTradeSidePolicy('LONG_ONLY')).toBe('longOnly');
   });
 });

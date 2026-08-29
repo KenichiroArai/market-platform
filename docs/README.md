@@ -30,6 +30,7 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 | [adr/013-backtest-run-history-management.md](adr/013-backtest-run-history-management.md) | 実行履歴の検索と論理削除 |
 | [adr/014-indicator-set-config.md](adr/014-indicator-set-config.md) | 指標セットのパラメータ・スコア配点・閾値 |
 | [adr/015-backtest-result-analysis.md](adr/015-backtest-result-analysis.md) | バックテスト結果の分析しやすさ（スコア内訳・日次 ZIP） |
+| [adr/016-money-management.md](adr/016-money-management.md) | バックテスト資金管理・売買方針・手数料モード |
 
 ## ドキュメント方針
 

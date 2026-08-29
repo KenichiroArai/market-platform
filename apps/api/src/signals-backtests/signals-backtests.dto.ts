@@ -9,12 +9,21 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-import type { BacktestSignalMode, SignalStrategyType } from '@market/shared-types';
+import type {
+  BacktestSignalMode,
+  FeeMode,
+  SignalStrategyType,
+  TradeSidePolicy,
+} from '@market/shared-types';
 
 /** シグナル定義 CRUD 用（トレンドスコア戦略はバックテスト実行専用のため含めない）。 */
 const strategyTypes: SignalStrategyType[] = ['smaCross', 'rsiThreshold', 'macdCross'];
 
 const signalModes: BacktestSignalMode[] = ['indicatorSet', 'trendScore'];
+
+const feeModes: FeeMode[] = ['rate', 'fixed'];
+
+const tradeSidePolicies: TradeSidePolicy[] = ['longOnly', 'longShort'];
 
 const allStrategyTypes: SignalStrategyType[] = [
   'smaCross',
@@ -158,11 +167,39 @@ export class RunBacktestDto {
   @Min(0)
   feeRate!: number;
 
+  @ApiPropertyOptional({ enum: feeModes, default: 'rate', description: '手数料: rate=率 / fixed=固定額' })
+  @IsOptional()
+  @IsIn(feeModes)
+  feeMode?: FeeMode;
+
+  @ApiPropertyOptional({ example: 0, description: '固定手数料（銘柄通貨）。feeMode=fixed で使用。0 可。' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  feeFixed?: number;
+
   @ApiProperty({ example: 0.001 })
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   slippageRate!: number;
+
+  @ApiPropertyOptional({
+    enum: tradeSidePolicies,
+    default: 'longOnly',
+    description: 'longOnly=ロングのみ / longShort=ショートあり',
+  })
+  @IsOptional()
+  @IsIn(tradeSidePolicies)
+  tradeSidePolicy?: TradeSidePolicy;
+
+  @ApiPropertyOptional({
+    description: '資金管理設定。enabled=false または省略で従来パス。',
+  })
+  @IsOptional()
+  @IsObject()
+  moneyManagement?: Record<string, unknown> | null;
 
   @ApiPropertyOptional({
     example: 37.5,
@@ -209,9 +246,31 @@ export class OptimizeBacktestDto {
   @Min(0)
   feeRate!: number;
 
+  @ApiPropertyOptional({ enum: feeModes, default: 'rate' })
+  @IsOptional()
+  @IsIn(feeModes)
+  feeMode?: FeeMode;
+
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  feeFixed?: number;
+
   @ApiProperty({ example: 0.001 })
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   slippageRate!: number;
+
+  @ApiPropertyOptional({ enum: tradeSidePolicies, default: 'longOnly' })
+  @IsOptional()
+  @IsIn(tradeSidePolicies)
+  tradeSidePolicy?: TradeSidePolicy;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  moneyManagement?: Record<string, unknown> | null;
 }

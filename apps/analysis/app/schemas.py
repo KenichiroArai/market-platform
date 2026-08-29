@@ -37,6 +37,9 @@ IndicatorComputeType = Literal[
 ]
 SignalStrategyType = Literal["smaCross", "rsiThreshold", "macdCross", "trendScoreThreshold"]
 TradeSide = Literal["buy", "sell"]
+TradeSidePolicy = Literal["longOnly", "longShort"]
+FeeMode = Literal["rate", "fixed"]
+AtrKind = Literal["atr", "n"]
 
 
 class HealthResponse(BaseModel):
@@ -271,6 +274,25 @@ class BacktestTrade(BaseModel):
     exitScore: float | None = None
     entryScoreBreakdown: dict[str, Any] | None = None
     exitScoreBreakdown: dict[str, Any] | None = None
+    atr: float | None = None
+    n: float | None = None
+    riskRate: float | None = None
+    initialQuantity: float | None = None
+    addCount: int | None = None
+    stopPrice: float | None = None
+    unitCount: int | None = None
+
+
+class MoneyManagementStatsModel(BaseModel):
+    """資金管理統計（ADR 016）。"""
+
+    averageRiskRate: float | None = None
+    maxRiskRate: float | None = None
+    averageAtr: float | None = None
+    averageUnits: float | None = None
+    maxUnits: float | None = None
+    pyramidingSuccessRate: float | None = None
+    averageRiskRateInDrawdown: float | None = None
 
 
 class BacktestEquityPoint(BaseModel):
@@ -303,6 +325,7 @@ class BacktestSummary(BaseModel):
     profitFactor: float
     buyHoldReturnRate: float
     buyHoldFinalEquity: float
+    moneyManagement: MoneyManagementStatsModel | None = None
 
 
 class RunBacktestRequest(BaseModel):
@@ -317,7 +340,11 @@ class RunBacktestRequest(BaseModel):
     signal: SignalSpec
     initialCash: float = Field(gt=0)
     feeRate: float = Field(ge=0)
+    feeMode: FeeMode = "rate"
+    feeFixed: float = Field(default=0.0, ge=0)
     slippageRate: float = Field(ge=0)
+    tradeSidePolicy: TradeSidePolicy = "longOnly"
+    moneyManagement: dict[str, Any] | None = None
     rangeStartIndex: int = Field(default=0, ge=0)
 
 
@@ -336,7 +363,11 @@ class OptimizeBacktestRequest(BaseModel):
     bars: list[OhlcBar]
     initialCash: float = Field(gt=0)
     feeRate: float = Field(ge=0)
+    feeMode: FeeMode = "rate"
+    feeFixed: float = Field(default=0.0, ge=0)
     slippageRate: float = Field(ge=0)
+    tradeSidePolicy: TradeSidePolicy = "longOnly"
+    moneyManagement: dict[str, Any] | None = None
     strategyType: Literal["smaCross"] = "smaCross"
     shortMin: int = Field(default=5, ge=1)
     shortMax: int = Field(default=50, ge=1)

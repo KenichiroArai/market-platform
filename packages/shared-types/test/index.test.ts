@@ -43,6 +43,8 @@ import {
   backtestRunToListItem,
   formatTradeReason,
   formatDecisionScore,
+  formatTradeSidePolicyLabel,
+  formatFeeModeLabel,
   isBacktestRunDto,
   isBacktestRunListItemDto,
   isDeleteBacktestRunsResponse,
@@ -53,6 +55,12 @@ import {
   isSignalDefinitionDto,
   isSignalStrategyType,
   isBacktestSignalMode,
+  isTradeSidePolicy,
+  isFeeMode,
+  isAtrKind,
+  isMoneyManagementConfig,
+  isMoneyManagementStats,
+  DEFAULT_MONEY_MANAGEMENT,
   listCatalogSmaPairs,
   resolveSignalRule,
   resolveTrendScoreSignalRule,
@@ -235,8 +243,12 @@ describe('shared-types signals', () => {
     fromDate: '2026-01-01',
     toDate: '2026-06-30',
     initialCash: 100000,
+    feeMode: 'rate' as const,
     feeRate: 0.001,
+    feeFixed: 0,
     slippageRate: 0.001,
+    tradeSidePolicy: 'longOnly' as const,
+    moneyManagement: null,
     summary: {
       finalEquity: 110000,
       totalReturnRate: 0.1,
@@ -437,6 +449,7 @@ describe('shared-types backtest-display', () => {
   it('formats trade reason codes and rejects unknown', () => {
     expect(formatTradeReason('sma_golden_cross')).toBe('SMAゴールデンクロス');
     expect(formatTradeReason('force_close_end')).toBe('期間末強制決済');
+    expect(formatTradeReason('atr_stop_loss')).toBe('ATRストップロス');
     expect(formatTradeReason(null)).toBe('');
     expect(formatTradeReason(undefined)).toBe('');
     expect(formatTradeReason('')).toBe('');
@@ -1298,5 +1311,238 @@ describe('shared-types trend score', () => {
     expect(isScoredIndicatorId('nope')).toBe(false);
     expect(isTrendScoreGroupId('trend')).toBe(true);
     expect(isTrendScoreGroupId('nope')).toBe(false);
+  });
+});
+
+describe('shared-types money-management', () => {
+  it('validates config and helpers', () => {
+    expect(isTradeSidePolicy('longOnly')).toBe(true);
+    expect(isTradeSidePolicy('longShort')).toBe(true);
+    expect(isTradeSidePolicy('x')).toBe(false);
+    expect(isFeeMode('rate')).toBe(true);
+    expect(isFeeMode('fixed')).toBe(true);
+    expect(isFeeMode('x')).toBe(false);
+    expect(isAtrKind('atr')).toBe(true);
+    expect(isAtrKind('n')).toBe(true);
+    expect(isAtrKind('x')).toBe(false);
+    expect(formatTradeSidePolicyLabel('longOnly')).toBe('ロングのみ');
+    expect(formatTradeSidePolicyLabel('longShort')).toBe('売買（ショートあり）');
+    expect(formatFeeModeLabel('rate')).toBe('率（%）');
+    expect(formatFeeModeLabel('fixed')).toBe('固定額');
+    expect(isMoneyManagementConfig(DEFAULT_MONEY_MANAGEMENT)).toBe(true);
+    expect(isMoneyManagementConfig(null)).toBe(false);
+    expect(isMoneyManagementConfig('x')).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        correlation: { enabled: true, groups: [null] },
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        enabled: 1 as unknown as boolean,
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        atrPeriod: 'x' as unknown as number,
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        minQuantity: 'x' as unknown as number,
+      }),
+    ).toBe(false);
+    expect(
+      isBacktestSummaryDto({
+        finalEquity: 1,
+        totalReturnRate: 0,
+        maxDrawdownRate: 0,
+        totalTrades: 0,
+        winRate: 0,
+        sharpeRatio: 0,
+        profitFactor: 0,
+        buyHoldReturnRate: 0,
+        buyHoldFinalEquity: 1,
+        moneyManagement: { averageRiskRate: 'x' },
+      }),
+    ).toBe(false);
+    expect(
+      isBacktestSummaryDto({
+        finalEquity: 1,
+        totalReturnRate: 0,
+        maxDrawdownRate: 0,
+        totalTrades: 0,
+        winRate: 0,
+        sharpeRatio: 0,
+        profitFactor: 0,
+        buyHoldReturnRate: 0,
+        buyHoldFinalEquity: 1,
+        moneyManagement: null,
+      }),
+    ).toBe(true);
+    expect(
+      isBacktestRunDto({
+        id: 'r2',
+        userId: 'u',
+        indicatorSetId: null,
+        signalDefinitionId: null,
+        strategyType: 'smaCross',
+        params: { shortPeriod: 1, longPeriod: 2 },
+        symbolId: 's',
+        fromDate: '2026-01-01',
+        toDate: '2026-01-02',
+        initialCash: 1,
+        feeRate: 0,
+        slippageRate: 0,
+        moneyManagement: DEFAULT_MONEY_MANAGEMENT,
+        feeMode: 'rate',
+        feeFixed: 0,
+        tradeSidePolicy: 'longOnly',
+        summary: {
+          finalEquity: 1,
+          totalReturnRate: 0,
+          maxDrawdownRate: 0,
+          totalTrades: 0,
+          winRate: 0,
+          sharpeRatio: 0,
+          profitFactor: 0,
+          buyHoldReturnRate: 0,
+          buyHoldFinalEquity: 1,
+        },
+        trades: [],
+        equityPoints: [],
+        isActive: true,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }),
+    ).toBe(true);
+    expect(
+      isBacktestRunDto({
+        id: 'r3',
+        userId: 'u',
+        indicatorSetId: null,
+        signalDefinitionId: null,
+        strategyType: 'smaCross',
+        params: { shortPeriod: 1, longPeriod: 2 },
+        symbolId: 's',
+        fromDate: '2026-01-01',
+        toDate: '2026-01-02',
+        initialCash: 1,
+        feeRate: 0,
+        slippageRate: 0,
+        moneyManagement: { enabled: true },
+        summary: {
+          finalEquity: 1,
+          totalReturnRate: 0,
+          maxDrawdownRate: 0,
+          totalTrades: 0,
+          winRate: 0,
+          sharpeRatio: 0,
+          profitFactor: 0,
+          buyHoldReturnRate: 0,
+          buyHoldFinalEquity: 1,
+        },
+        trades: [],
+        equityPoints: [],
+        isActive: true,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        atrKind: 'bad',
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        maxQuantity: 'x',
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        pyramiding: null,
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        pyramiding: { enabled: true, stepAtrMultiple: 0.5 },
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        drawdown: null,
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        drawdown: { enabled: true, thresholdRate: 0.1 },
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        correlation: null,
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        correlation: { enabled: true, groups: 'x' },
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        correlation: {
+          enabled: true,
+          groups: [{ name: 'g', symbolIds: [1], maxUnits: 1, maxRisk: 0.1 }],
+        },
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        correlation: {
+          enabled: true,
+          groups: [{ name: 'g', symbolIds: ['s1'], maxUnits: 4, maxRisk: 0.04 }],
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isMoneyManagementStats({
+        averageRiskRate: 0.01,
+        maxRiskRate: 0.02,
+        averageAtr: 1,
+        averageUnits: 2,
+        maxUnits: 4,
+        pyramidingSuccessRate: 0.5,
+        averageRiskRateInDrawdown: null,
+      }),
+    ).toBe(true);
+    expect(isMoneyManagementStats(null)).toBe(false);
+    expect(isMoneyManagementStats({})).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        riskRate: 'x',
+      }),
+    ).toBe(false);
+    expect(
+      isMoneyManagementConfig({
+        ...DEFAULT_MONEY_MANAGEMENT,
+        allowFractionalQuantity: 'x',
+      }),
+    ).toBe(false);
   });
 });

@@ -20,10 +20,13 @@ import type {
   IndicatorDrawings,
   IndicatorSeriesPoint,
   IndicatorSetDto,
+  MoneyManagementConfig,
   OptimizeBacktestResultItem,
   SymbolDto,
+  TradeSidePolicy,
 } from '@market/shared-types';
 import {
+  DEFAULT_MONEY_MANAGEMENT,
   DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS,
   backtestRunToListItem,
   describeSignalRule,
@@ -43,12 +46,18 @@ import {
 import { BacktestRunSearchPanel } from '../../../components/backtest-run-search-panel';
 import { BacktestEquityChart } from '../../../components/backtest-equity-chart';
 import { BacktestEquityHelp } from '../../../components/backtest-equity-help';
+import {
+  BacktestMoneyManagementPanel,
+  type BacktestCostSettings,
+} from '../../../components/backtest-money-management-panel';
 import { BacktestOverviewStrip } from '../../../components/backtest-overview-strip';
 import { BacktestRunConditions } from '../../../components/backtest-run-conditions';
+import { TRADE_SIDE_POLICY_HELP } from '../../../components/backtest-money-management-help';
 import { BacktestSmaOptimizeHelp } from '../../../components/backtest-sma-optimize-help';
 import { BacktestSummaryCards } from '../../../components/backtest-summary-cards';
 import { BacktestTradesTable } from '../../../components/backtest-trades-table';
 import { BacktestDailyDataPanel } from '../../../components/backtest-daily-data-panel';
+import { FieldHelpIcon } from '../../../components/field-help-icon';
 import { downloadBacktestExportZip } from '../../../lib/backtest-export';
 import {
   BacktestWorkspaceTabs,
@@ -74,6 +83,13 @@ import { defaultChartFromDate, defaultChartToDate } from '../../../lib/chart-dat
 
 const DEFAULT_FEE = 0.001;
 const DEFAULT_SLIPPAGE = 0.001;
+
+const DEFAULT_COST: BacktestCostSettings = {
+  feeMode: 'rate',
+  feeRate: DEFAULT_FEE,
+  feeFixed: 0,
+  slippageRate: DEFAULT_SLIPPAGE,
+};
 
 /** URL の indicatorSetId が一覧にあればそれを、なければ先頭（または空）を返す。 */
 function resolveIndicatorSetId(
@@ -105,6 +121,12 @@ function BacktestsPageContent() {
   const [from, setFrom] = useState(() => defaultChartFromDate());
   const [to, setTo] = useState(() => defaultChartToDate());
   const [initialCash, setInitialCash] = useState(100000);
+  const [tradeSidePolicy, setTradeSidePolicy] = useState<TradeSidePolicy>('longOnly');
+  const [moneyManagement, setMoneyManagement] = useState<MoneyManagementConfig>({
+    ...DEFAULT_MONEY_MANAGEMENT,
+  });
+  const [costSettings, setCostSettings] = useState<BacktestCostSettings>({ ...DEFAULT_COST });
+  const [mmPanelOpen, setMmPanelOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chartError, setChartError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -369,8 +391,12 @@ function BacktestsPageContent() {
         from,
         to,
         initialCash,
-        feeRate: DEFAULT_FEE,
-        slippageRate: DEFAULT_SLIPPAGE,
+        feeMode: costSettings.feeMode,
+        feeRate: costSettings.feeRate,
+        feeFixed: costSettings.feeFixed,
+        slippageRate: costSettings.slippageRate,
+        tradeSidePolicy,
+        moneyManagement: moneyManagement.enabled ? moneyManagement : null,
         ...(signalMode === 'trendScore'
           ? (() => {
               const thresholds = resolveSignalThresholds({
@@ -408,8 +434,12 @@ function BacktestsPageContent() {
         from,
         to,
         initialCash,
-        feeRate: DEFAULT_FEE,
-        slippageRate: DEFAULT_SLIPPAGE,
+        feeMode: costSettings.feeMode,
+        feeRate: costSettings.feeRate,
+        feeFixed: costSettings.feeFixed,
+        slippageRate: costSettings.slippageRate,
+        tradeSidePolicy,
+        moneyManagement: moneyManagement.enabled ? moneyManagement : null,
       });
       setOptimizeResults(response.results);
       setActiveTab('setup');
@@ -561,6 +591,40 @@ function BacktestsPageContent() {
                       style={inputStyle}
                     />
                   </label>
+                  <button
+                    type="button"
+                    style={buttonStyle}
+                    data-testid="open-money-management"
+                    onClick={() => setMmPanelOpen(true)}
+                  >
+                    資金管理
+                    {moneyManagement.enabled ? '（ON）' : ''}
+                  </button>
+                </div>
+                <div style={formRowStyle}>
+                  <label style={labelStyle}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                      売買方針
+                      <FieldHelpIcon
+                        text={TRADE_SIDE_POLICY_HELP}
+                        ariaLabel="売買方針の説明"
+                        testId="trade-side-policy-help"
+                      />
+                    </span>
+                    <select
+                      value={tradeSidePolicy}
+                      data-testid="trade-side-policy"
+                      onChange={(e) =>
+                        setTradeSidePolicy(
+                          e.target.value === 'longShort' ? 'longShort' : 'longOnly',
+                        )
+                      }
+                      style={inputStyle}
+                    >
+                      <option value="longOnly">ロングのみ</option>
+                      <option value="longShort">売買（ショートあり）</option>
+                    </select>
+                  </label>
                 </div>
                 <div style={formRowStyle}>
                   <button type="submit" disabled={pending || !canRun} style={buttonStyle}>
@@ -661,6 +725,40 @@ function BacktestsPageContent() {
                 >
                   検索…
                 </button>
+                {selectedRun ? (
+                  <button
+                    type="button"
+                    style={buttonStyle}
+                    data-testid="restore-run-settings"
+                    onClick={() => {
+                      setSymbolId(selectedRun.symbolId);
+                      setFrom(selectedRun.fromDate);
+                      setTo(selectedRun.toDate);
+                      setInitialCash(selectedRun.initialCash);
+                      setTradeSidePolicy(selectedRun.tradeSidePolicy ?? 'longOnly');
+                      setCostSettings({
+                        feeMode: selectedRun.feeMode ?? 'rate',
+                        feeRate: selectedRun.feeRate,
+                        feeFixed: selectedRun.feeFixed ?? 0,
+                        slippageRate: selectedRun.slippageRate,
+                      });
+                      setMoneyManagement(
+                        selectedRun.moneyManagement ?? { ...DEFAULT_MONEY_MANAGEMENT },
+                      );
+                      if (selectedRun.indicatorSetId) {
+                        setIndicatorSetId(selectedRun.indicatorSetId);
+                      }
+                      setSignalMode(
+                        selectedRun.strategyType === 'trendScoreThreshold'
+                          ? 'trendScore'
+                          : 'indicatorSet',
+                      );
+                      setActiveTab('setup');
+                    }}
+                  >
+                    設定をフォームへ反映
+                  </button>
+                ) : null}
               </div>
 
               {detailLoading && selectedRunId && !selectedRun ? (
@@ -684,8 +782,12 @@ function BacktestsPageContent() {
                     fromDate={selectedRun.fromDate}
                     toDate={selectedRun.toDate}
                     initialCash={selectedRun.initialCash}
+                    feeMode={selectedRun.feeMode}
                     feeRate={selectedRun.feeRate}
+                    feeFixed={selectedRun.feeFixed}
                     slippageRate={selectedRun.slippageRate}
+                    tradeSidePolicy={selectedRun.tradeSidePolicy}
+                    moneyManagementEnabled={Boolean(selectedRun.moneyManagement?.enabled)}
                   />
 
                   <section>
@@ -749,6 +851,7 @@ function BacktestsPageContent() {
                     <BacktestTradesTable
                       trades={selectedRun.trades}
                       strategyType={selectedRun.strategyType}
+                      showMoneyManagement={Boolean(selectedRun.moneyManagement?.enabled)}
                     />
                   </section>
                 </>
@@ -832,6 +935,18 @@ function BacktestsPageContent() {
               setError(err instanceof ApiClientError ? err.message : '一覧の更新に失敗しました');
             });
           }}
+        />
+      ) : null}
+
+      {mmPanelOpen ? (
+        <BacktestMoneyManagementPanel
+          moneyManagement={moneyManagement}
+          cost={costSettings}
+          currency={selectedSymbol?.currency ?? null}
+          symbols={symbols}
+          onChangeMoneyManagement={setMoneyManagement}
+          onChangeCost={setCostSettings}
+          onClose={() => setMmPanelOpen(false)}
         />
       ) : null}
     </main>

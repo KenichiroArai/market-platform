@@ -20,6 +20,8 @@ from app.indicators.core import rsi as rsi_calc
 from app.indicators.core import sma as sma_calc
 from app.errors import register_exception_handlers
 from app.logging_middleware import RequestLoggingMiddleware
+from app.money_management.simulate import simulate_backtest
+from app.money_management.types import stats_to_dict
 from app.schemas import (
     BacktestEquityPoint,
     BacktestSummary,
@@ -31,6 +33,7 @@ from app.schemas import (
     ComputeSignalsRequest,
     ComputeSignalsResponse,
     HealthResponse,
+    MoneyManagementStatsModel,
     OptimizeBacktestRequest,
     OptimizeBacktestResponse,
     OptimizeBacktestResultItem,
@@ -129,34 +132,48 @@ def compute_signals(body: ComputeSignalsRequest) -> ComputeSignalsResponse:
     tags=["backtests"],
 )
 def run_backtest(body: RunBacktestRequest) -> RunBacktestResponse:
-    """ロング限定バックテストを実行する。エントリー/エグジットは終値ベース。"""
+    """バックテストを実行する。エントリー/エグジットは終値ベース（ストップは高安）。"""
     closes = [bar.close for bar in body.bars]
+    highs = [bar.high for bar in body.bars]
+    lows = [bar.low for bar in body.bars]
     dates = [bar.date for bar in body.bars]
     trade_start = min(max(0, body.rangeStartIndex), len(dates))
     points, decision_scores, score_breakdowns = _signals_and_scores(
         dates, closes, body.signal, bars=body.bars
     )
-    trades, equity_points = _simulate_long_only(
+    result = simulate_backtest(
         symbol_id=body.symbolId,
         dates=dates,
+        highs=highs,
+        lows=lows,
         closes=closes,
         signals=points,
         decision_scores=decision_scores,
         strategy_type=body.signal.strategyType,
         initial_cash=body.initialCash,
         fee_rate=body.feeRate,
+        fee_mode=body.feeMode,
+        fee_fixed=body.feeFixed,
         slippage_rate=body.slippageRate,
+        trade_side_policy=body.tradeSidePolicy,
+        money_management=body.moneyManagement,
         trade_start_index=trade_start,
         score_breakdowns=score_breakdowns,
+        entry_reason_fn=_entry_reason_code,
+        exit_reason_fn=_exit_reason_code,
+        score_breakdown_payload_fn=_score_breakdown_payload,
     )
     summary_closes = closes[trade_start:] if trade_start < len(closes) else closes
     summary = _build_backtest_summary(
         initial_cash=body.initialCash,
         closes=summary_closes,
-        trades=trades,
-        equity_points=equity_points,
+        trades=result.trades,
+        equity_points=result.equity_points,
+        mm_stats=result.mm_stats,
     )
-    return RunBacktestResponse(summary=summary, trades=trades, equityPoints=equity_points)
+    return RunBacktestResponse(
+        summary=summary, trades=result.trades, equityPoints=result.equity_points
+    )
 
 
 @app.post(
@@ -177,23 +194,33 @@ def optimize_backtest(body: OptimizeBacktestRequest) -> OptimizeBacktestResponse
             points, decision_scores, score_breakdowns = _signals_and_scores(
                 dates, closes, spec, bars=body.bars
             )
-            trades, equity_points = _simulate_long_only(
+            result = simulate_backtest(
                 symbol_id=body.symbolId,
                 dates=dates,
+                highs=[bar.high for bar in body.bars],
+                lows=[bar.low for bar in body.bars],
                 closes=closes,
                 signals=points,
                 decision_scores=decision_scores,
                 strategy_type=spec.strategyType,
                 initial_cash=body.initialCash,
                 fee_rate=body.feeRate,
+                fee_mode=body.feeMode,
+                fee_fixed=body.feeFixed,
                 slippage_rate=body.slippageRate,
+                trade_side_policy=body.tradeSidePolicy,
+                money_management=body.moneyManagement,
                 score_breakdowns=score_breakdowns,
+                entry_reason_fn=_entry_reason_code,
+                exit_reason_fn=_exit_reason_code,
+                score_breakdown_payload_fn=_score_breakdown_payload,
             )
             summary = _build_backtest_summary(
                 initial_cash=body.initialCash,
                 closes=closes,
-                trades=trades,
-                equity_points=equity_points,
+                trades=result.trades,
+                equity_points=result.equity_points,
+                mm_stats=result.mm_stats,
             )
             results.append(
                 OptimizeBacktestResultItem(shortPeriod=short, longPeriod=long, summary=summary)
@@ -363,167 +390,13 @@ def _decision_scores(dates: list[str], closes: list[float], spec: SignalSpec) ->
     return [None] * len(dates)
 
 
-def _simulate_long_only(
-    *,
-    symbol_id: str,
-    dates: list[str],
-    closes: list[float],
-    signals: list[SignalPoint],
-    decision_scores: list[float | None],
-    strategy_type: str,
-    initial_cash: float,
-    fee_rate: float,
-    slippage_rate: float,
-    trade_start_index: int = 0,
-    score_breakdowns: list[TrendScorePoint | None] | None = None,
-) -> tuple[list[BacktestTrade], list[BacktestEquityPoint]]:
-    """ロング限定の単純売買シミュレーション（全額投資・同時保有1ポジション）。
-
-    trade_start_index より前はウォームアップ専用（売買・エクイティ点を出さない）。
-    score_breakdowns はトレンドスコア内訳。未指定時は全日 None 扱い。
-    """
-    cash = initial_cash
-    quantity = 0.0
-    entry_price = 0.0
-    entry_date = ""
-    entry_reason = ""
-    entry_score: float | None = None
-    entry_breakdown: dict | None = None
-    entry_fee = 0.0
-    entry_slippage = 0.0
-    peak_equity = initial_cash
-    trades: list[BacktestTrade] = []
-    equity_points: list[BacktestEquityPoint] = []
-    # 呼び出し省略時も日付長に揃える（zip の長さ不一致を防ぐ）
-    breakdowns = score_breakdowns if score_breakdowns is not None else [None] * len(dates)
-
-    for index, (date, close, signal, score) in enumerate(
-        zip(dates, closes, signals, decision_scores, strict=True)
-    ):
-        if index < trade_start_index:
-            continue
-
-        if quantity == 0.0 and signal.buy:
-            fill_price = close * (1.0 + slippage_rate)
-            quantity = cash / fill_price if fill_price > 0 else 0.0
-            entry_fee = quantity * fill_price * fee_rate
-            entry_slippage = quantity * close * slippage_rate
-            cash -= quantity * fill_price + entry_fee
-            entry_price = fill_price
-            entry_date = date
-            entry_reason = _entry_reason_code(strategy_type)
-            entry_score = score
-            entry_breakdown = _score_breakdown_payload(breakdowns[index])
-        elif quantity > 0.0 and signal.sell:
-            fill_price = close * (1.0 - slippage_rate)
-            exit_fee = quantity * fill_price * fee_rate
-            exit_slippage = quantity * close * slippage_rate
-            proceeds = quantity * fill_price - exit_fee
-            cash += proceeds
-            gross_pnl = quantity * (fill_price - entry_price)
-            fee_amount = entry_fee + exit_fee
-            slippage_amount = entry_slippage + exit_slippage
-            net_pnl = gross_pnl - fee_amount
-            trades.append(
-                BacktestTrade(
-                    symbolId=symbol_id,
-                    entryDate=entry_date,
-                    exitDate=date,
-                    entryPrice=entry_price,
-                    exitPrice=fill_price,
-                    quantity=quantity,
-                    side="buy",
-                    grossPnl=gross_pnl,
-                    feeAmount=fee_amount,
-                    slippageAmount=slippage_amount,
-                    netPnl=net_pnl,
-                    entryReason=entry_reason,
-                    exitReason=_exit_reason_code(strategy_type),
-                    entryScore=entry_score,
-                    exitScore=score,
-                    entryScoreBreakdown=entry_breakdown,
-                    exitScoreBreakdown=_score_breakdown_payload(breakdowns[index]),
-                )
-            )
-            quantity = 0.0
-            entry_price = 0.0
-            entry_date = ""
-            entry_reason = ""
-            entry_score = None
-            entry_breakdown = None
-
-        position_value = quantity * close
-        equity = cash + position_value
-        peak_equity = max(peak_equity, equity)
-        drawdown_rate = 0.0 if peak_equity <= 0 else (peak_equity - equity) / peak_equity
-        equity_points.append(
-            BacktestEquityPoint(
-                date=date,
-                cash=cash,
-                positionValue=position_value,
-                equity=equity,
-                drawdownRate=drawdown_rate,
-                # 当日の判断スコア（戦略により None）
-                decisionScore=score,
-                scoreBreakdown=_score_breakdown_payload(breakdowns[index]),
-            )
-        )
-
-    if quantity > 0.0:
-        close = closes[-1]
-        date = dates[-1]
-        fill_price = close * (1.0 - slippage_rate)
-        exit_fee = quantity * fill_price * fee_rate
-        exit_slippage = quantity * close * slippage_rate
-        proceeds = quantity * fill_price - exit_fee
-        cash += proceeds
-        gross_pnl = quantity * (fill_price - entry_price)
-        fee_amount = entry_fee + exit_fee
-        slippage_amount = entry_slippage + exit_slippage
-        net_pnl = gross_pnl - fee_amount
-        trades.append(
-            BacktestTrade(
-                symbolId=symbol_id,
-                entryDate=entry_date,
-                exitDate=date,
-                entryPrice=entry_price,
-                exitPrice=fill_price,
-                quantity=quantity,
-                side="buy",
-                grossPnl=gross_pnl,
-                feeAmount=fee_amount,
-                slippageAmount=slippage_amount,
-                netPnl=net_pnl,
-                entryReason=entry_reason,
-                exitReason=_exit_reason_code(strategy_type, force_close=True),
-                entryScore=entry_score,
-                # 期間末強制決済はスコア判断ではない
-                exitScore=None,
-                entryScoreBreakdown=entry_breakdown,
-                exitScoreBreakdown=None,
-            )
-        )
-        quantity = 0.0
-        last = equity_points[-1]
-        equity_points[-1] = BacktestEquityPoint(
-            date=last.date,
-            cash=cash,
-            positionValue=0.0,
-            equity=cash,
-            drawdownRate=last.drawdownRate,
-            # 強制決済後も当日スコアは維持（ポジション価値だけ更新）
-            decisionScore=last.decisionScore,
-            scoreBreakdown=last.scoreBreakdown,
-        )
-    return trades, equity_points
-
-
 def _build_backtest_summary(
     *,
     initial_cash: float,
     closes: list[float],
     trades: list[BacktestTrade],
     equity_points: list[BacktestEquityPoint],
+    mm_stats=None,
 ) -> BacktestSummary:
     """トレードとエクイティカーブから集計値を算出する。"""
     final_equity = equity_points[-1].equity if equity_points else initial_cash
@@ -531,6 +404,9 @@ def _build_backtest_summary(
     win_count = len([trade for trade in trades if trade.netPnl > 0.0])
     win_rate = 0.0 if len(trades) == 0 else win_count / len(trades)
     buy_hold_final, buy_hold_return = _buy_hold_metrics(initial_cash=initial_cash, closes=closes)
+    mm_model = None
+    if mm_stats is not None:
+        mm_model = MoneyManagementStatsModel(**stats_to_dict(mm_stats))
     return BacktestSummary(
         finalEquity=final_equity,
         totalReturnRate=0.0 if initial_cash == 0 else (final_equity - initial_cash) / initial_cash,
@@ -541,6 +417,7 @@ def _build_backtest_summary(
         profitFactor=_profit_factor(trades),
         buyHoldReturnRate=buy_hold_return,
         buyHoldFinalEquity=buy_hold_final,
+        moneyManagement=mm_model,
     )
 
 

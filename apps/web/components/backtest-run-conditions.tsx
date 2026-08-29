@@ -9,8 +9,11 @@
 import type { CSSProperties } from 'react';
 import {
   formatStrategyLabel,
+  formatTradeSidePolicyLabel,
+  type FeeMode,
   type SignalStrategyParams,
   type SignalStrategyType,
+  type TradeSidePolicy,
 } from '@market/shared-types';
 
 export type BacktestRunConditionsProps = {
@@ -21,8 +24,12 @@ export type BacktestRunConditionsProps = {
   fromDate: string | null;
   toDate: string | null;
   initialCash: number | null;
+  feeMode?: FeeMode | null;
   feeRate: number | null;
+  feeFixed?: number | null;
   slippageRate: number | null;
+  tradeSidePolicy?: TradeSidePolicy | null;
+  moneyManagementEnabled?: boolean | null;
 };
 
 function pctRate(rate: number | null): string {
@@ -47,13 +54,23 @@ export function BacktestRunConditions({
   fromDate,
   toDate,
   initialCash,
+  feeMode,
   feeRate,
+  feeFixed,
   slippageRate,
+  tradeSidePolicy,
+  moneyManagementEnabled,
 }: BacktestRunConditionsProps) {
   const strategyLabel =
     strategyType && params ? formatStrategyLabel(strategyType, params) : '';
   const period =
     fromDate && toDate ? `${fromDate}〜${toDate}` : fromDate || toDate || '';
+  const feeLabel =
+    feeMode === 'fixed'
+      ? feeFixed == null
+        ? ''
+        : `固定 ${feeFixed.toLocaleString('ja-JP')}`
+      : pctRate(feeRate);
 
   return (
     <section
@@ -88,15 +105,27 @@ export function BacktestRunConditions({
           </dd>
         </div>
         <div style={rowStyle}>
-          <dt style={dtStyle}>手数料率</dt>
+          <dt style={dtStyle}>売買方針</dt>
+          <dd style={ddStyle} data-testid="condition-trade-side-policy">
+            {tradeSidePolicy ? formatTradeSidePolicyLabel(tradeSidePolicy) : ''}
+          </dd>
+        </div>
+        <div style={rowStyle}>
+          <dt style={dtStyle}>手数料</dt>
           <dd style={ddStyle} data-testid="condition-fee-rate">
-            {pctRate(feeRate)}
+            {feeLabel}
           </dd>
         </div>
         <div style={rowStyle}>
           <dt style={dtStyle}>スリッページ率</dt>
           <dd style={ddStyle} data-testid="condition-slippage-rate">
             {pctRate(slippageRate)}
+          </dd>
+        </div>
+        <div style={rowStyle}>
+          <dt style={dtStyle}>資金管理</dt>
+          <dd style={ddStyle} data-testid="condition-money-management">
+            {moneyManagementEnabled == null ? '' : moneyManagementEnabled ? 'ON' : 'OFF'}
           </dd>
         </div>
       </dl>

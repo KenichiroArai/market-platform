@@ -25,7 +25,8 @@ export type BacktestTradeReasonCode =
   | 'rsi_overbought'
   | 'score_cross_up'
   | 'score_cross_down'
-  | 'force_close_end';
+  | 'force_close_end'
+  | 'atr_stop_loss';
 
 const TRADE_REASON_LABELS: Record<BacktestTradeReasonCode, string> = {
   sma_golden_cross: 'SMAゴールデンクロス',
@@ -37,6 +38,7 @@ const TRADE_REASON_LABELS: Record<BacktestTradeReasonCode, string> = {
   score_cross_up: 'スコア上昇クロス',
   score_cross_down: 'スコア下降クロス',
   force_close_end: '期間末強制決済',
+  atr_stop_loss: 'ATRストップロス',
 };
 
 /**

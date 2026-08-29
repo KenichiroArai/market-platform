@@ -35,6 +35,23 @@ export function BacktestSummaryCards({ summary }: BacktestSummaryCardsProps) {
     { label: 'Profit Factor', value: num(summary.profitFactor, 3) },
   ];
 
+  const mm = summary.moneyManagement;
+  if (mm) {
+    const optPct = (v: number | null | undefined) =>
+      v == null ? '—' : pct(v);
+    const optNum = (v: number | null | undefined, d = 2) =>
+      v == null ? '—' : num(v, d);
+    cards.push(
+      { label: '平均リスク率', value: optPct(mm.averageRiskRate) },
+      { label: '最大リスク率', value: optPct(mm.maxRiskRate) },
+      { label: '平均ATR', value: optNum(mm.averageAtr) },
+      { label: '平均ユニット', value: optNum(mm.averageUnits, 2) },
+      { label: '最大ユニット', value: optNum(mm.maxUnits, 0) },
+      { label: 'ピラミッド成功率', value: optPct(mm.pyramidingSuccessRate) },
+      { label: 'DD時平均リスク', value: optPct(mm.averageRiskRateInDrawdown) },
+    );
+  }
+
   return (
     <div data-testid="summary-cards" style={gridStyle}>
       {cards.map((card) => (

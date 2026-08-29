@@ -4,6 +4,9 @@
  * 戦略定義 CRUD とバックテスト実行結果を web / api 間で同一契約で扱う。
  */
 
+import type { FeeMode, MoneyManagementConfig, MoneyManagementStats, TradeSidePolicy } from './money-management';
+import { isFeeMode, isMoneyManagementConfig, isMoneyManagementStats, isTradeSidePolicy } from './money-management';
+
 export type SignalStrategyType =
   | 'smaCross'
   | 'rsiThreshold'
@@ -99,6 +102,20 @@ export interface BacktestTradeDto {
   entryScoreBreakdown: BacktestScoreBreakdown | null;
   /** 売り時点のトレンドスコア内訳。強制決済・非トレンド・既存 Run は null。 */
   exitScoreBreakdown: BacktestScoreBreakdown | null;
+  /** エントリー時 ATR。MM 未使用・既存は null / 省略。 */
+  atr?: number | null;
+  /** エントリー時 N（タートルズ）。MM 未使用・既存は null / 省略。 */
+  n?: number | null;
+  /** 適用した実効リスク率。MM 未使用・既存は null / 省略。 */
+  riskRate?: number | null;
+  /** 初回エントリー数量。MM 未使用・既存は null / 省略。 */
+  initialQuantity?: number | null;
+  /** ピラミッド追加回数（初回除く）。MM 未使用・既存は null / 省略。 */
+  addCount?: number | null;
+  /** 決済時点のストップ価格。MM 未使用・既存は null / 省略。 */
+  stopPrice?: number | null;
+  /** 決済時点の保有ユニット数。MM 未使用・既存は null / 省略。 */
+  unitCount?: number | null;
 }
 
 export interface BacktestEquityPointDto {
@@ -127,6 +144,8 @@ export interface BacktestSummaryDto {
   profitFactor: number;
   buyHoldReturnRate: number;
   buyHoldFinalEquity: number;
+  /** 資金管理統計。MM OFF・既存 Run は null / 省略可。 */
+  moneyManagement?: MoneyManagementStats | null;
 }
 
 export interface BacktestRunDto {
@@ -143,8 +162,16 @@ export interface BacktestRunDto {
   fromDate: string;
   toDate: string;
   initialCash: number;
+  /** 手数料モード。既存 Run 互換のため省略可（省略時 rate）。 */
+  feeMode?: FeeMode;
   feeRate: number;
+  /** 固定手数料（銘柄通貨）。feeMode=fixed で使用。既存は 0 / 省略。 */
+  feeFixed?: number;
   slippageRate: number;
+  /** 売買方針。既存 Run 互換のため省略可（省略時 longOnly）。 */
+  tradeSidePolicy?: TradeSidePolicy;
+  /** 資金管理設定スナップショット。OFF / 既存は null / 省略。 */
+  moneyManagement?: MoneyManagementConfig | null;
   summary: BacktestSummaryDto;
   trades: BacktestTradeDto[];
   equityPoints: BacktestEquityPointDto[];
@@ -218,8 +245,16 @@ export interface RunBacktestRequest {
   from: string;
   to: string;
   initialCash: number;
+  /** 省略時 rate。 */
+  feeMode?: FeeMode;
   feeRate: number;
+  /** 固定手数料。省略時 0。 */
+  feeFixed?: number;
   slippageRate: number;
+  /** 省略時 longOnly。 */
+  tradeSidePolicy?: TradeSidePolicy;
+  /** 省略または enabled=false で従来パス。 */
+  moneyManagement?: MoneyManagementConfig | null;
   /** `trendScore` 時のみ。省略時は DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS。 */
   buyThreshold?: number;
   /** `trendScore` 時のみ。省略時は DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS。 */
@@ -253,6 +288,10 @@ export interface ComputeBacktestRequest extends ComputeSignalRequest {
   initialCash: number;
   feeRate: number;
   slippageRate: number;
+  feeMode?: FeeMode;
+  feeFixed?: number;
+  tradeSidePolicy?: TradeSidePolicy;
+  moneyManagement?: MoneyManagementConfig | null;
 }
 
 export interface ComputeBacktestResponse {
@@ -269,6 +308,10 @@ export interface OptimizeBacktestRequest {
   initialCash: number;
   feeRate: number;
   slippageRate: number;
+  feeMode?: FeeMode;
+  feeFixed?: number;
+  tradeSidePolicy?: TradeSidePolicy;
+  moneyManagement?: MoneyManagementConfig | null;
 }
 
 export interface OptimizeBacktestResultItem {
@@ -286,6 +329,10 @@ export function isBacktestSummaryDto(value: unknown): value is BacktestSummaryDt
     return false;
   }
   const record = value as Record<string, unknown>;
+  const mmStatsOk =
+    record.moneyManagement === undefined ||
+    record.moneyManagement === null ||
+    isMoneyManagementStats(record.moneyManagement);
   return (
     typeof record.finalEquity === 'number' &&
     typeof record.totalReturnRate === 'number' &&
@@ -295,7 +342,8 @@ export function isBacktestSummaryDto(value: unknown): value is BacktestSummaryDt
     typeof record.sharpeRatio === 'number' &&
     typeof record.profitFactor === 'number' &&
     typeof record.buyHoldReturnRate === 'number' &&
-    typeof record.buyHoldFinalEquity === 'number'
+    typeof record.buyHoldFinalEquity === 'number' &&
+    mmStatsOk
   );
 }
 
@@ -358,6 +406,14 @@ export function isBacktestRunDto(value: unknown): value is BacktestRunDto {
     record.indicatorSetId === null || typeof record.indicatorSetId === 'string';
   const signalDefinitionOk =
     record.signalDefinitionId === null || typeof record.signalDefinitionId === 'string';
+  const mmOk =
+    record.moneyManagement === null ||
+    record.moneyManagement === undefined ||
+    isMoneyManagementConfig(record.moneyManagement);
+  const feeModeOk = record.feeMode === undefined || isFeeMode(record.feeMode);
+  const policyOk =
+    record.tradeSidePolicy === undefined || isTradeSidePolicy(record.tradeSidePolicy);
+  const feeFixedOk = record.feeFixed === undefined || typeof record.feeFixed === 'number';
   return (
     typeof record.id === 'string' &&
     typeof record.userId === 'string' &&
@@ -370,6 +426,10 @@ export function isBacktestRunDto(value: unknown): value is BacktestRunDto {
     typeof record.initialCash === 'number' &&
     typeof record.feeRate === 'number' &&
     typeof record.slippageRate === 'number' &&
+    feeModeOk &&
+    feeFixedOk &&
+    policyOk &&
+    mmOk &&
     typeof record.isActive === 'boolean' &&
     typeof record.createdAt === 'string' &&
     typeof record.updatedAt === 'string' &&

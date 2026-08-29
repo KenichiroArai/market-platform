@@ -89,6 +89,49 @@ describe('BacktestSummaryCards', () => {
     expect(screen.getByText('10.00%')).toBeInTheDocument();
     expect(screen.getByText('Sharpe')).toBeInTheDocument();
   });
+
+  it('renders money management stats when present', () => {
+    render(
+      <BacktestSummaryCards
+        summary={{
+          ...summary,
+          moneyManagement: {
+            averageRiskRate: 0.01,
+            maxRiskRate: 0.02,
+            averageAtr: 1.5,
+            averageUnits: 2,
+            maxUnits: 4,
+            pyramidingSuccessRate: 0.5,
+            averageRiskRateInDrawdown: 0.005,
+          },
+        }}
+      />,
+    );
+    expect(screen.getByText('平均リスク率')).toBeInTheDocument();
+    expect(screen.getByText('ピラミッド成功率')).toBeInTheDocument();
+    expect(screen.getByText('DD時平均リスク')).toBeInTheDocument();
+    expect(screen.getByText('0.50%')).toBeInTheDocument();
+  });
+
+  it('renders em dash for null money management stats', () => {
+    render(
+      <BacktestSummaryCards
+        summary={{
+          ...summary,
+          moneyManagement: {
+            averageRiskRate: null,
+            maxRiskRate: null,
+            averageAtr: null,
+            averageUnits: null,
+            maxUnits: null,
+            pyramidingSuccessRate: null,
+            averageRiskRateInDrawdown: null,
+          },
+        }}
+      />,
+    );
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+  });
 });
 
 describe('BacktestTradesTable', () => {
@@ -106,6 +149,53 @@ describe('BacktestTradesTable', () => {
     expect(screen.getByText('買い判断')).toBeInTheDocument();
     expect(screen.getByTestId('trade-entry-reason-t_1')).toHaveTextContent('SMAゴールデンクロス');
     expect(screen.getByTestId('trade-exit-reason-t_1')).toHaveTextContent('SMAデッドクロス');
+  });
+
+  it('renders money management columns', () => {
+    render(
+      <BacktestTradesTable
+        showMoneyManagement
+        trades={[
+          {
+            ...trade,
+            side: 'sell',
+            atr: 1.25,
+            n: 1.25,
+            riskRate: 0.01,
+            initialQuantity: 10,
+            addCount: 1,
+            stopPrice: 95,
+            unitCount: 2,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText('ショート')).toBeInTheDocument();
+    expect(screen.getByText('ATR')).toBeInTheDocument();
+    expect(screen.getAllByText('1.25')).toHaveLength(2);
+    expect(screen.getByText('1.00%')).toBeInTheDocument();
+  });
+
+  it('renders empty money management cells when fields are null', () => {
+    render(
+      <BacktestTradesTable
+        showMoneyManagement
+        trades={[
+          {
+            ...trade,
+            atr: null,
+            n: null,
+            riskRate: null,
+            initialQuantity: null,
+            addCount: null,
+            stopPrice: null,
+            unitCount: null,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText('ロング')).toBeInTheDocument();
+    expect(screen.getByText('ATR')).toBeInTheDocument();
   });
 
   it('leaves reason cells blank when codes are null', () => {

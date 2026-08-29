@@ -147,8 +147,12 @@ const run = {
   fromDate: '2026-01-01',
   toDate: '2026-06-30',
   initialCash: 100000,
+  feeMode: 'rate' as const,
   feeRate: 0.001,
+  feeFixed: 0,
   slippageRate: 0.001,
+  tradeSidePolicy: 'longOnly' as const,
+  moneyManagement: null,
   summary: {
     finalEquity: 110000,
     totalReturnRate: 0.1,

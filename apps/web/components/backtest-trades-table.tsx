@@ -26,10 +26,16 @@ export type BacktestTradesTableProps = {
   trades: BacktestTradeDto[];
   /** 実行の戦略。スコア列の出し分けに使う。 */
   strategyType?: SignalStrategyType;
+  /** 資金管理列を表示する（MM ON の Run）。 */
+  showMoneyManagement?: boolean;
 };
 
 /** 約定一覧。entry/exit・判断・損益・スコアを表形式で表示する。 */
-export function BacktestTradesTable({ trades, strategyType }: BacktestTradesTableProps) {
+export function BacktestTradesTable({
+  trades,
+  strategyType,
+  showMoneyManagement = false,
+}: BacktestTradesTableProps) {
   if (trades.length === 0) {
     return <p style={messageStyle}>取引はありません</p>;
   }
@@ -45,7 +51,7 @@ export function BacktestTradesTable({ trades, strategyType }: BacktestTradesTabl
 
   const groupCols = showBreakdownColumns ? scoreGroupColumns() : [];
   const indicatorCols = showBreakdownColumns ? scoreIndicatorColumns() : [];
-  const wideTable = showScoreColumns || showBreakdownColumns;
+  const wideTable = showScoreColumns || showBreakdownColumns || showMoneyManagement;
 
   return (
     <div data-testid="trades-table" style={wrapStyle}>
@@ -57,8 +63,20 @@ export function BacktestTradesTable({ trades, strategyType }: BacktestTradesTabl
             <th style={thStyle}>エントリー価格</th>
             <th style={thStyle}>エグジット価格</th>
             <th style={thStyle}>数量</th>
+            <th style={thStyle}>方向</th>
             <th style={thStyle}>買い判断</th>
             <th style={thStyle}>売り判断</th>
+            {showMoneyManagement ? (
+              <>
+                <th style={thStyle}>ATR</th>
+                <th style={thStyle}>N</th>
+                <th style={thStyle}>リスク率</th>
+                <th style={thStyle}>初回数量</th>
+                <th style={thStyle}>追加回数</th>
+                <th style={thStyle}>ストップ</th>
+                <th style={thStyle}>ユニット</th>
+              </>
+            ) : null}
             {showScoreColumns ? (
               <>
                 <th style={thStyle}>エントリースコア</th>
@@ -92,12 +110,30 @@ export function BacktestTradesTable({ trades, strategyType }: BacktestTradesTabl
               <td style={tdStyle}>{trade.entryPrice.toFixed(2)}</td>
               <td style={tdStyle}>{trade.exitPrice.toFixed(2)}</td>
               <td style={tdStyle}>{trade.quantity.toFixed(4)}</td>
+              <td style={tdStyle}>{trade.side === 'sell' ? 'ショート' : 'ロング'}</td>
               <td style={tdStyle} data-testid={`trade-entry-reason-${trade.id}`}>
                 {formatTradeReason(trade.entryReason)}
               </td>
               <td style={tdStyle} data-testid={`trade-exit-reason-${trade.id}`}>
                 {formatTradeReason(trade.exitReason)}
               </td>
+              {showMoneyManagement ? (
+                <>
+                  <td style={tdStyle}>{trade.atr == null ? '' : trade.atr.toFixed(2)}</td>
+                  <td style={tdStyle}>{trade.n == null ? '' : trade.n.toFixed(2)}</td>
+                  <td style={tdStyle}>
+                    {trade.riskRate == null ? '' : `${(trade.riskRate * 100).toFixed(2)}%`}
+                  </td>
+                  <td style={tdStyle}>
+                    {trade.initialQuantity == null ? '' : trade.initialQuantity.toFixed(4)}
+                  </td>
+                  <td style={tdStyle}>{trade.addCount == null ? '' : trade.addCount}</td>
+                  <td style={tdStyle}>
+                    {trade.stopPrice == null ? '' : trade.stopPrice.toFixed(2)}
+                  </td>
+                  <td style={tdStyle}>{trade.unitCount == null ? '' : trade.unitCount}</td>
+                </>
+              ) : null}
               {showScoreColumns ? (
                 <>
                   <td style={tdStyle} data-testid={`trade-entry-score-${trade.id}`}>
