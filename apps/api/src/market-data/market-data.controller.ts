@@ -23,6 +23,7 @@ export class MarketDataController {
       symbolIds: dto.symbolIds,
       from: dto.from,
       to: dto.to,
+      forceRefresh: dto.forceRefresh !== false,
     });
   }
 }

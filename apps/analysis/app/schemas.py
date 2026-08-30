@@ -395,3 +395,85 @@ class OptimizeBacktestResponse(BaseModel):
     """POST /backtests/optimize の出力。totalReturnRate 降順。"""
 
     results: list[OptimizeBacktestResultItem]
+
+
+class EntryAdvicePositionModel(BaseModel):
+    """建玉スナップショット。"""
+
+    entryDate: str
+    entryPrice: float
+    units: int
+    isLong: bool
+
+
+class EntryAdviceMmModel(BaseModel):
+    """MM 助言。"""
+
+    atr: float | None = None
+    riskRate: float | None = None
+    unitQuantity: float | None = None
+    stopPrice: float | None = None
+
+
+class EntryAdvicePyramidLevelModel(BaseModel):
+    """ピラミッド水準。"""
+
+    unitIndex: int
+    price: float
+    reached: bool
+
+
+class EntryAdvicePredictedEntryModel(BaseModel):
+    """予測エントリー（参考値）。"""
+
+    triggerDate: str | None = None
+    triggerPrice: float | None = None
+    direction: Literal["long", "short"]
+    basis: str
+    note: str
+
+
+class EntryAdviceNewEntryModel(BaseModel):
+    """基準日で新規エントリーした場合の MM 助言。"""
+
+    entryPrice: float
+    isLong: bool
+    mm: EntryAdviceMmModel | None = None
+    pyramidLevels: list[EntryAdvicePyramidLevelModel] | None = None
+
+
+class EntryAdviceRequest(BaseModel):
+    """POST /analysis/entry-advice の入力。"""
+
+    symbolId: str
+    bars: list[OhlcBar]
+    signal: SignalSpec
+    baseDate: str
+    initialCash: float = Field(gt=0)
+    tradeSidePolicy: TradeSidePolicy = "longOnly"
+    moneyManagement: dict[str, Any] | None = None
+    groupWeights: dict[str, float] | None = None
+    indicatorParams: dict[str, dict[str, float]] | None = None
+
+
+class EntryAdviceResponse(BaseModel):
+    """POST /analysis/entry-advice の出力。"""
+
+    symbolId: str
+    baseDate: str
+    entryTiming: Literal["in_position", "entry_now", "wait", "no_rule"]
+    direction: Literal["long", "short"] | None = None
+    signalActive: bool
+    signalLabel: str
+    noRuleReason: str | None = None
+    position: EntryAdvicePositionModel | None = None
+    mm: EntryAdviceMmModel | None = None
+    pyramidLevels: list[EntryAdvicePyramidLevelModel] | None = None
+    predictedEntry: EntryAdvicePredictedEntryModel | None = None
+    scoreAtBase: float | None = None
+    buyThreshold: float | None = None
+    sellThreshold: float | None = None
+    scoreBreakdown: dict[str, Any] | None = None
+    rationale: str | None = None
+    entryReasonCode: str | None = None
+    newEntryFromBase: EntryAdviceNewEntryModel | None = None

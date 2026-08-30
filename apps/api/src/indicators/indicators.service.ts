@@ -12,14 +12,19 @@ import {
 import {
   API_ERROR_CODES,
   computeIndicatorLookback,
+  createEntryAdviceDto,
   createIndicatorsResponseDto,
   createTrendScoreResponseDto,
+  isEntryAdviceDto,
   parseGroupWeightsJson,
   parseIndicatorCatalogQuery,
   parseIndicatorParamOverridesJson,
+  resolvedRuleToAnalysisSignal,
+  resolveTrendScoreSignalRule,
   scoringCatalogIds,
   specsFromCatalogIds,
   type AnalysisOhlcBar,
+  type EntryAdviceDto,
   type IndicatorCatalogId,
   type IndicatorRequestSpec,
   type IndicatorsResponseDto,
@@ -164,6 +169,143 @@ export class IndicatorsService {
       symbolId,
       points: upstream.points.slice(rangeStartIndex),
     });
+  }
+
+  /**
+   * チャート分析向けエントリー助言（ADR 017）。
+   *
+   * 指標導出シグナル（未確定時はトレンドスコア閾値）と MM 設定で Analysis に委譲する。
+   */
+  async getEntryAdviceForSymbol(
+    symbolId: string,
+    query: {
+      from?: string;
+      to?: string;
+      interval?: '1d' | '1w';
+      indicators?: string;
+      indicatorParams?: string;
+      groupWeights?: string;
+      buyThreshold?: string;
+      sellThreshold?: string;
+      baseDate?: string;
+      initialCash?: string;
+      tradeSidePolicy?: 'longOnly' | 'longShort';
+      moneyManagement?: string;
+    },
+  ): Promise<EntryAdviceDto> {
+    const paramOverrides = this.parseIndicatorParamsQuery(query.indicatorParams);
+    const groupWeights = this.parseGroupWeightsQuery(query.groupWeights);
+    const buyThreshold = this.parseOptionalNumber(query.buyThreshold, 'buyThreshold');
+    const sellThreshold = this.parseOptionalNumber(query.sellThreshold, 'sellThreshold');
+    const rule = resolveTrendScoreSignalRule({
+      buyThreshold,
+      sellThreshold,
+    });
+    const signalSpec = resolvedRuleToAnalysisSignal(rule);
+
+    const scoreSpecs = specsFromCatalogIds(scoringCatalogIds(), paramOverrides);
+    const lookback = computeIndicatorLookback(scoreSpecs);
+    const interval = query.interval === '1w' ? '1w' : '1d';
+
+    const { bars, rangeStartIndex } = await this.pricesService.listWithLookback(
+      symbolId,
+      { from: query.from, to: query.to, lookback, interval },
+    );
+
+    if (bars.length === 0) {
+      throw new UnprocessableEntityException({
+        code: API_ERROR_CODES.INSUFFICIENT_PRICE_DATA,
+        message: 'Not enough daily prices for entry advice',
+        details: { barCount: 0 },
+      });
+    }
+
+    const initialCash = this.parsePositiveNumber(query.initialCash ?? '100000', 'initialCash');
+    const baseDate =
+      query.baseDate?.trim() || bars[bars.length - 1]?.date || bars[rangeStartIndex]?.date;
+    const moneyManagement = this.parseMoneyManagementQuery(query.moneyManagement);
+
+    const upstream = await this.postAnalysis<EntryAdviceDto>('/analysis/entry-advice', {
+      symbolId,
+      bars: bars.map((bar) => ({
+        date: bar.date,
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+        volume: bar.volume,
+      })),
+      signal: signalSpec,
+      baseDate,
+      initialCash,
+      tradeSidePolicy: query.tradeSidePolicy ?? 'longOnly',
+      moneyManagement,
+      ...(groupWeights ? { groupWeights } : {}),
+      ...(paramOverrides && Object.keys(paramOverrides).length > 0
+        ? { indicatorParams: paramOverrides }
+        : {}),
+    });
+
+    if (!isEntryAdviceDto(upstream)) {
+      throw new BadGatewayException({
+        code: API_ERROR_CODES.ANALYSIS_UPSTREAM_ERROR,
+        message: 'Invalid entry advice response from analysis',
+      });
+    }
+
+    return createEntryAdviceDto(upstream);
+  }
+
+  private parseOptionalNumber(raw: string | undefined, field: string): number | undefined {
+    if (!raw?.trim()) {
+      return undefined;
+    }
+    const value = Number(raw);
+    if (!Number.isFinite(value)) {
+      throw new UnprocessableEntityException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: `${field} must be a number`,
+      });
+    }
+    return value;
+  }
+
+  private parsePositiveNumber(raw: string, field: string): number {
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new UnprocessableEntityException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: `${field} must be a positive number`,
+      });
+    }
+    return value;
+  }
+
+  private parseMoneyManagementQuery(raw?: string): Record<string, unknown> | null {
+    if (!raw?.trim()) {
+      return null;
+    }
+    if (raw.length > 8192) {
+      throw new UnprocessableEntityException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: 'moneyManagement query is too long',
+      });
+    }
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed === null) {
+        return null;
+      }
+      if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('invalid');
+      }
+      return parsed as Record<string, unknown>;
+    } catch {
+      throw new UnprocessableEntityException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: 'Invalid moneyManagement JSON',
+      });
+    }
   }
 
   /**

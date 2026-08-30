@@ -14,19 +14,25 @@ import { Suspense, useEffect, useMemo, useState, type CSSProperties } from 'reac
 import type {
   ChartInterval,
   DailyPriceDto,
+  EntryAdviceDto,
+  EntryAdvicePriceLineDto,
   GroupWeights,
   IndicatorCatalogId,
   IndicatorDrawings,
   IndicatorParamOverrides,
   IndicatorSeriesPoint,
   IndicatorSetDto,
+  MoneyManagementConfig,
   SymbolDto,
+  TradeSidePolicy,
   TrendScorePoint,
   WatchlistDto,
 } from '@market/shared-types';
 import {
+  DEFAULT_MONEY_MANAGEMENT,
   DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS,
   computeCatalogIds,
+  entryAdvicePriceLines,
   resolveGroupWeights,
   resolveSignalThresholds,
 } from '@market/shared-types';
@@ -58,9 +64,15 @@ import {
   primePopoutWindow,
 } from '../../../components/popout-window';
 import { TrendScoreBreakdown } from '../../../components/trend-score-breakdown';
+import { ChartEntryAdvicePanel } from '../../../components/chart-entry-advice-panel';
+import {
+  BacktestMoneyManagementPanel,
+  type BacktestCostSettings,
+} from '../../../components/backtest-money-management-panel';
 import { WindowDisplayModeSwitch } from '../../../components/window-display-mode-switch';
 import {
   ApiClientError,
+  fetchEntryAdvice,
   fetchIndicatorSets,
   fetchSymbolIndicators,
   fetchSymbolPrices,
@@ -70,12 +82,21 @@ import {
 } from '../../../lib/api-client';
 import { backtestsHref, symbolsHref } from '../../../lib/app-routes';
 import { defaultChartFromDate, defaultChartToDate } from '../../../lib/chart-date-range';
+import { resolveDisplayCurrency } from '../../../lib/format-market-price';
 import { signalRulePreviewText } from '../../../lib/signal-rule-preview';
 import { snapBaseDate } from '../../../lib/snap-base-date';
 
 const INDICATOR_POPOUT = { name: 'chart-indicator-settings', width: 440, height: 800 } as const;
 const RECALL_POPOUT = { name: 'chart-indicator-set-picker', width: 440, height: 800 } as const;
 const SCORE_POPOUT = { name: 'chart-score-breakdown', width: 720, height: 800 } as const;
+const MM_POPOUT = { name: 'chart-money-management', width: 440, height: 720 } as const;
+
+const DEFAULT_COST: BacktestCostSettings = {
+  feeMode: 'rate',
+  feeRate: 0.001,
+  feeFixed: 0,
+  slippageRate: 0.001,
+};
 
 /** クエリ値が一覧にあればそれを、なければフォールバックを返す。 */
 function resolveQueryId(queryValue: string | null, ids: string[], fallback: string): string {
@@ -128,6 +149,16 @@ function ChartsPageContent() {
     DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS.sellThreshold,
   );
   const [draftSetName, setDraftSetName] = useState('');
+  const [initialCash, setInitialCash] = useState(100000);
+  const [tradeSidePolicy, setTradeSidePolicy] = useState<TradeSidePolicy>('longOnly');
+  const [moneyManagement, setMoneyManagement] = useState<MoneyManagementConfig>({
+    ...DEFAULT_MONEY_MANAGEMENT,
+  });
+  const [costSettings, setCostSettings] = useState<BacktestCostSettings>({ ...DEFAULT_COST });
+  const [mmUi, setMmUi] = useState<WindowUiState>('closed');
+  const [entryAdvice, setEntryAdvice] = useState<EntryAdviceDto | null>(null);
+  const [entryAdviceLoading, setEntryAdviceLoading] = useState(false);
+  const [entryAdviceError, setEntryAdviceError] = useState<string | null>(null);
 
   const scoreConfigValid = useMemo(
     () => isScoreConfigValid(groupWeights, buyThreshold, sellThreshold),
@@ -211,6 +242,17 @@ function ChartsPageContent() {
     setScoreUi(next);
   }
 
+  function toggleMmUi() {
+    const next = nextOpenToggle(mmUi, displayPreferred);
+    if (next === 'popout') {
+      primePopoutWindow(MM_POPOUT.name, {
+        width: MM_POPOUT.width,
+        height: MM_POPOUT.height,
+      });
+    }
+    setMmUi(next);
+  }
+
   /** ウィンドウ内切替: その窓だけ即時変更（共通 preferred は変えない）。 */
   function switchIndicatorDisplay(mode: WindowDisplayMode) {
     if (mode === 'popout') {
@@ -240,6 +282,16 @@ function ChartsPageContent() {
       });
     }
     setScoreUi(mode);
+  }
+
+  function switchMmDisplay(mode: WindowDisplayMode) {
+    if (mode === 'popout') {
+      primePopoutWindow(MM_POPOUT.name, {
+        width: MM_POPOUT.width,
+        height: MM_POPOUT.height,
+      });
+    }
+    setMmUi(mode);
   }
 
   /** 基準日入力をバー日付へスナップして反映する。 */
@@ -280,6 +332,26 @@ function ChartsPageContent() {
   );
 
   const baseDateInputValue = baseDate ?? scoredPoint?.date ?? '';
+
+  const adviceLines = useMemo(
+    () => (entryAdvice ? entryAdvicePriceLines(entryAdvice) : []),
+    [entryAdvice],
+  );
+
+  const selectedSymbol = useMemo(
+    () => symbols.find((s) => s.id === symbolId) ?? null,
+    [symbols, symbolId],
+  );
+
+  const displayCurrency = useMemo(
+    () =>
+      resolveDisplayCurrency({
+        currency: selectedSymbol?.currency,
+        market: selectedSymbol?.market,
+        ticker: selectedSymbol?.ticker,
+      }),
+    [selectedSymbol],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -425,6 +497,71 @@ function ChartsPageContent() {
     };
   }, [symbolId, from, to, interval, indicatorsQuery, indicatorParams, groupWeights, loading]);
 
+  useEffect(() => {
+    if (!symbolId || loading || chartLoading || prices.length === 0) {
+      return;
+    }
+    const adviceBaseDate = baseDateInputValue || prices[prices.length - 1]?.date;
+    if (!adviceBaseDate) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      setEntryAdviceLoading(true);
+      setEntryAdviceError(null);
+      try {
+        const advice = await fetchEntryAdvice(symbolId, {
+          from,
+          to,
+          interval,
+          indicators: indicatorsQuery,
+          indicatorParams,
+          groupWeights,
+          buyThreshold,
+          sellThreshold,
+          baseDate: adviceBaseDate,
+          initialCash,
+          tradeSidePolicy,
+          moneyManagement: moneyManagement.enabled ? moneyManagement : null,
+        });
+        if (!cancelled) {
+          setEntryAdvice(advice);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setEntryAdvice(null);
+          setEntryAdviceError(
+            err instanceof ApiClientError ? err.message : 'エントリー助言の取得に失敗しました',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setEntryAdviceLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    symbolId,
+    loading,
+    chartLoading,
+    prices,
+    from,
+    to,
+    interval,
+    indicatorsQuery,
+    indicatorParams,
+    groupWeights,
+    buyThreshold,
+    sellThreshold,
+    baseDateInputValue,
+    initialCash,
+    tradeSidePolicy,
+    moneyManagement,
+  ]);
+
   return (
     <main style={pageStyle}>
       <h1 style={{ fontSize: '1.75rem', margin: '0 0 0.5rem' }}>チャート分析</h1>
@@ -524,6 +661,18 @@ function ChartsPageContent() {
             />
           </label>
 
+          <label style={labelStyle}>
+            想定資産
+            <input
+              type="number"
+              min={1}
+              value={initialCash}
+              onChange={(e) => setInitialCash(Number(e.target.value))}
+              style={inputStyle}
+              data-testid="chart-initial-cash"
+            />
+          </label>
+
           <fieldset style={fieldsetStyle}>
             <legend>足種</legend>
             <label style={checkLabelStyle}>
@@ -583,6 +732,15 @@ function ChartsPageContent() {
           >
             スコア内訳
           </button>
+          <button
+            type="button"
+            style={buttonStyle}
+            data-testid="open-money-management"
+            aria-pressed={mmUi !== 'closed'}
+            onClick={toggleMmUi}
+          >
+            資金管理{moneyManagement.enabled ? '（ON）' : ''}
+          </button>
           <span style={countStyle} data-testid="enabled-indicator-count">
             選択中 {enabledIds.size} 件
           </span>
@@ -618,7 +776,15 @@ function ChartsPageContent() {
             trendScorePoints={trendScorePoints}
             baseDate={baseDate}
             onBarClick={setBaseDate}
+            advicePriceLines={adviceLines}
+            currency={displayCurrency}
             loading={chartLoading}
+          />
+          <ChartEntryAdvicePanel
+            advice={entryAdvice}
+            loading={entryAdviceLoading}
+            error={entryAdviceError}
+            currency={displayCurrency}
           />
         </section>
       ) : null}
@@ -802,6 +968,41 @@ function ChartsPageContent() {
         </PopoutWindow>
       ) : null}
 
+      {mmUi === 'modeless' ? (
+        <ModelessWindow title="資金管理" onClose={() => setMmUi('closed')}>
+          <BacktestMoneyManagementPanel
+            moneyManagement={moneyManagement}
+            cost={costSettings}
+            currency={displayCurrency}
+            symbols={symbols}
+            onChangeMoneyManagement={setMoneyManagement}
+            onChangeCost={setCostSettings}
+            onClose={() => setMmUi('closed')}
+          />
+        </ModelessWindow>
+      ) : null}
+
+      {mmUi === 'popout' ? (
+        <PopoutWindow
+          title="資金管理"
+          name={MM_POPOUT.name}
+          width={MM_POPOUT.width}
+          height={MM_POPOUT.height}
+          padded
+          onClose={() => setMmUi('closed')}
+        >
+          <BacktestMoneyManagementPanel
+            moneyManagement={moneyManagement}
+            cost={costSettings}
+            currency={displayCurrency}
+            symbols={symbols}
+            onChangeMoneyManagement={setMoneyManagement}
+            onChangeCost={setCostSettings}
+            onClose={() => setMmUi('closed')}
+          />
+        </PopoutWindow>
+      ) : null}
+
       {chartPopout ? (
         <PopoutWindow
           title="チャート分析（拡大）"
@@ -819,6 +1020,8 @@ function ChartsPageContent() {
               trendScorePoints={trendScorePoints}
               baseDate={baseDate}
               onBarClick={setBaseDate}
+              advicePriceLines={adviceLines}
+              currency={displayCurrency}
               loading={chartLoading}
             />
           )}
@@ -885,6 +1088,8 @@ function EnlargedAnalysisChart({
   trendScorePoints?: TrendScorePoint[];
   baseDate?: string | null;
   onBarClick?: (date: string) => void;
+  advicePriceLines?: EntryAdvicePriceLineDto[];
+  currency?: string | null;
   loading: boolean;
 }) {
   const height = computeAnalysisChartHeight(enabledIds);

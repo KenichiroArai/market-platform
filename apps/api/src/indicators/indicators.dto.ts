@@ -82,3 +82,67 @@ export class GetTrendScoreQueryDto {
   @IsString()
   indicatorParams?: string;
 }
+
+export class GetEntryAdviceQueryDto {
+  @ApiPropertyOptional({ example: '2026-01-01' })
+  @IsOptional()
+  @IsString()
+  from?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-30' })
+  @IsOptional()
+  @IsString()
+  to?: string;
+
+  @ApiPropertyOptional({ example: '1d', enum: ['1d', '1w'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['1d', '1w'])
+  interval?: '1d' | '1w';
+
+  @ApiPropertyOptional({ description: 'カタログ ID のカンマ区切り' })
+  @IsOptional()
+  @IsString()
+  indicators?: string;
+
+  @ApiPropertyOptional({ description: '指標パラメータ上書き JSON' })
+  @IsOptional()
+  @IsString()
+  indicatorParams?: string;
+
+  @ApiPropertyOptional({ description: '6 グループ配点 JSON' })
+  @IsOptional()
+  @IsString()
+  groupWeights?: string;
+
+  @ApiPropertyOptional({ example: '37.5' })
+  @IsOptional()
+  @IsString()
+  buyThreshold?: string;
+
+  @ApiPropertyOptional({ example: '-42.5' })
+  @IsOptional()
+  @IsString()
+  sellThreshold?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-15' })
+  @IsOptional()
+  @IsString()
+  baseDate?: string;
+
+  @ApiPropertyOptional({ example: '100000' })
+  @IsOptional()
+  @IsString()
+  initialCash?: string;
+
+  @ApiPropertyOptional({ example: 'longOnly', enum: ['longOnly', 'longShort'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['longOnly', 'longShort'])
+  tradeSidePolicy?: 'longOnly' | 'longShort';
+
+  @ApiPropertyOptional({ description: '資金管理設定 JSON' })
+  @IsOptional()
+  @IsString()
+  moneyManagement?: string;
+}

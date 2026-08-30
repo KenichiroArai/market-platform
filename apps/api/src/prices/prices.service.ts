@@ -229,9 +229,11 @@ export class PricesService {
   }
 
   /**
-   * 期間指定があるときだけ差分同期を先に走らせる。
-   * from/to の欠けは lookback〜今日で埋め、lookback 付き取得では from をさらに前倒しする。
+   * 期間指定があるときだけ同期を先に走らせる。
+   * 要求期間は forceRefresh で上書きし、同一キーは短時間スキップする（チャート多重取得対策）。
    */
+  private readonly coverageSyncedAt = new Map<string, number>();
+
   private async ensureCoverage(
     symbolId: string,
     range?: { from?: string; to?: string; extraLookbackDays?: number },
@@ -249,6 +251,19 @@ export class PricesService {
       return;
     }
 
-    await this.priceSyncService.syncPrices({ symbolIds: [symbolId], from, to });
+    const cacheKey = `${symbolId}:${from}:${to}`;
+    const now = Date.now();
+    const last = this.coverageSyncedAt.get(cacheKey) ?? 0;
+    if (now - last < 60_000) {
+      return;
+    }
+    this.coverageSyncedAt.set(cacheKey, now);
+
+    await this.priceSyncService.syncPrices({
+      symbolIds: [symbolId],
+      from,
+      to,
+      forceRefresh: true,
+    });
   }
 }

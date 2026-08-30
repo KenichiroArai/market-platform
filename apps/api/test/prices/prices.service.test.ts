@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+﻿import { NotFoundException } from '@nestjs/common';
 import { PriceSyncService } from '../../src/market-data/price-sync.service';
 import { PrismaService } from '../../src/prisma.service';
 import { PricesService } from '../../src/prices/prices.service';
@@ -55,6 +55,7 @@ describe('PricesService', () => {
       symbolIds: ['s1'],
       from: '2026-01-01',
       to: '2026-01-31',
+      forceRefresh: true,
     });
   });
 
@@ -301,7 +302,7 @@ describe('PricesService', () => {
 
   it('returns rangeStartIndex at end when no weekly bar meets from', async () => {
     symbolDelegate.findUnique.mockResolvedValue({ id: 's1' });
-    // prior only, and all dates are before from → after aggregation rangeStartIndex = length
+    // prior only, and all dates are before from 竊・after aggregation rangeStartIndex = length
     dailyPriceDelegate.findMany
       .mockResolvedValueOnce([
         {
@@ -337,6 +338,7 @@ describe('PricesService', () => {
       symbolIds: ['s1'],
       from: '2026-01-01',
       to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      forceRefresh: true,
     });
 
     (priceSyncService.syncPrices as jest.Mock).mockClear();
@@ -345,6 +347,7 @@ describe('PricesService', () => {
       symbolIds: ['s1'],
       from: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       to: '2099-12-31',
+      forceRefresh: true,
     });
 
     (priceSyncService.syncPrices as jest.Mock).mockClear();
@@ -365,6 +368,7 @@ describe('PricesService', () => {
       symbolIds: ['s1'],
       from: '2026-01-05',
       to: '2026-01-31',
+      forceRefresh: true,
     });
 
     (priceSyncService.syncPrices as jest.Mock).mockClear();
@@ -378,6 +382,17 @@ describe('PricesService', () => {
       symbolIds: ['s1'],
       from: '2026-01-03',
       to: '2026-01-31',
+      forceRefresh: true,
     });
+  });
+
+  it('skips duplicate ensureCoverage within 60 seconds', async () => {
+    symbolDelegate.findUnique.mockResolvedValue({ id: 's1' });
+    dailyPriceDelegate.findMany.mockResolvedValue([]);
+
+    await service.listBySymbolId('s1', { from: '2026-01-01', to: '2026-01-31' });
+    (priceSyncService.syncPrices as jest.Mock).mockClear();
+    await service.listBySymbolId('s1', { from: '2026-01-01', to: '2026-01-31' });
+    expect(priceSyncService.syncPrices).not.toHaveBeenCalled();
   });
 });

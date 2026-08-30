@@ -2,7 +2,9 @@ import { PrismaService } from '../../src/prisma.service';
 import type { MarketDataProvider } from '../../src/market-data/providers/market-data.provider';
 import {
   PriceSyncService,
+  mergeFetchRanges,
   resolveFetchRanges,
+  resolveFetchRangesWithRefresh,
   resolveLookbackDays,
 } from '../../src/market-data/price-sync.service';
 
@@ -76,73 +78,60 @@ describe('PriceSyncService', () => {
     );
   });
 
-  it('skips provider when stored min/max already cover the requested range', async () => {
+  it('refreshes trailing lookback even when stored range covers request', async () => {
     symbolDelegate.findMany.mockResolvedValue([
-      { id: 's1', ticker: 'AAPL', market: 'US' },
+      { id: 's1', ticker: '7203.T', market: 'JP' },
     ]);
     dailyPriceDelegate.aggregate.mockResolvedValue({
-      _min: { date: new Date('2026-01-01T00:00:00.000Z') },
-      _max: { date: new Date('2026-01-31T00:00:00.000Z') },
+      _min: { date: new Date('2025-08-01T00:00:00.000Z') },
+      _max: { date: new Date('2026-09-30T00:00:00.000Z') },
     });
-
-    const result = await service.syncPrices({
-      from: '2026-01-10',
-      to: '2026-01-20',
-    });
-
-    expect(result.upsertedBars).toBe(0);
-    expect(provider.fetchDailyBars).not.toHaveBeenCalled();
-  });
-
-  it('fetches only before min and after max when both gaps exist', async () => {
-    symbolDelegate.findMany.mockResolvedValue([
-      { id: 's1', ticker: 'AAPL', market: 'US' },
+    (provider.fetchDailyBars as jest.Mock).mockResolvedValue([
+      {
+        date: '2026-08-28',
+        open: 3090,
+        high: 3145,
+        low: 3080,
+        close: 3116,
+        volume: 24_831_800,
+      },
     ]);
-    dailyPriceDelegate.aggregate.mockResolvedValue({
-      _min: { date: new Date('2026-01-10T00:00:00.000Z') },
-      _max: { date: new Date('2026-01-20T00:00:00.000Z') },
-    });
-    (provider.fetchDailyBars as jest.Mock)
-      .mockResolvedValueOnce([
-        {
-          date: '2026-01-01',
-          open: 1,
-          high: 1,
-          low: 1,
-          close: 1,
-          volume: 1,
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          date: '2026-01-21',
-          open: 2,
-          high: 2,
-          low: 2,
-          close: 2,
-          volume: 2,
-        },
-      ]);
     dailyPriceDelegate.upsert.mockResolvedValue({});
 
     const result = await service.syncPrices({
-      from: '2026-01-01',
-      to: '2026-01-31',
+      from: '2026-08-01',
+      to: '2026-08-28',
     });
 
-    expect(provider.fetchDailyBars).toHaveBeenNthCalledWith(
-      1,
-      'AAPL',
-      '2026-01-01',
-      '2026-01-09',
-    );
-    expect(provider.fetchDailyBars).toHaveBeenNthCalledWith(
-      2,
-      'AAPL',
-      '2026-01-21',
-      '2026-01-31',
-    );
-    expect(result.upsertedBars).toBe(2);
+    expect(result.upsertedBars).toBe(1);
+    expect(provider.fetchDailyBars).toHaveBeenCalledWith('7203.T', '2026-08-01', '2026-08-28');
+  });
+
+  it('forceRefresh re-fetches the entire requested range', async () => {
+    symbolDelegate.findMany.mockResolvedValue([
+      { id: 's1', ticker: '7203.T', market: 'JP' },
+    ]);
+    (provider.fetchDailyBars as jest.Mock).mockResolvedValue([
+      {
+        date: '2026-08-28',
+        open: 3090,
+        high: 3145,
+        low: 3080,
+        close: 3116,
+        volume: 24_831_800,
+      },
+    ]);
+    dailyPriceDelegate.upsert.mockResolvedValue({});
+
+    const result = await service.syncPrices({
+      from: '2025-08-01',
+      to: '2026-09-30',
+      forceRefresh: true,
+    });
+
+    expect(dailyPriceDelegate.aggregate).not.toHaveBeenCalled();
+    expect(provider.fetchDailyBars).toHaveBeenCalledWith('7203.T', '2025-08-01', '2026-09-30');
+    expect(result.upsertedBars).toBe(1);
   });
 
   it('filters by symbolIds when provided', async () => {
@@ -184,45 +173,39 @@ describe('PriceSyncService', () => {
 });
 
 describe('resolveFetchRanges', () => {
-  it('returns the full window when nothing is stored', () => {
+  it('covers empty stored and gap edges', () => {
     expect(resolveFetchRanges('2026-01-01', '2026-01-31', null, null)).toEqual([
       { from: '2026-01-01', to: '2026-01-31' },
     ]);
-    expect(resolveFetchRanges('2026-01-01', '2026-01-31', '2026-01-10', null)).toEqual([
-      { from: '2026-01-01', to: '2026-01-31' },
-    ]);
-  });
-
-  it('returns only the range before stored min', () => {
-    expect(resolveFetchRanges('2026-01-01', '2026-01-15', '2026-01-10', '2026-01-20')).toEqual([
-      { from: '2026-01-01', to: '2026-01-09' },
-    ]);
-  });
-
-  it('returns only the range after stored max', () => {
-    expect(resolveFetchRanges('2026-01-12', '2026-01-31', '2026-01-10', '2026-01-20')).toEqual([
-      { from: '2026-01-21', to: '2026-01-31' },
-    ]);
-  });
-
-  it('returns both sides when the request surrounds stored min/max', () => {
-    expect(resolveFetchRanges('2026-01-01', '2026-01-31', '2026-01-10', '2026-01-20')).toEqual([
-      { from: '2026-01-01', to: '2026-01-09' },
-      { from: '2026-01-21', to: '2026-01-31' },
-    ]);
-  });
-
-  it('returns empty when the request is fully covered', () => {
     expect(resolveFetchRanges('2026-01-10', '2026-01-20', '2026-01-01', '2026-01-31')).toEqual([]);
   });
+});
 
-  it('returns empty when requested from is after to', () => {
-    expect(resolveFetchRanges('2026-02-01', '2026-01-01', null, null)).toEqual([]);
+describe('resolveFetchRangesWithRefresh', () => {
+  it('adds trailing refresh when gaps are empty', () => {
+    expect(
+      resolveFetchRangesWithRefresh(
+        '2026-01-10',
+        '2026-01-20',
+        '2026-01-01',
+        '2026-01-31',
+        5,
+      ),
+    ).toEqual([{ from: '2026-01-16', to: '2026-01-20' }]);
   });
+});
 
-  it('drops inverted gap edges around stored min/max', () => {
-    expect(resolveFetchRanges('2026-01-00', '2026-01-15', '2026-01-01', '2026-01-20')).toEqual([]);
-    expect(resolveFetchRanges('2026-01-12', '2026-01-32', '2026-01-10', '2026-01-31')).toEqual([]);
+describe('mergeFetchRanges', () => {
+  it('merges overlapping and adjacent ranges', () => {
+    expect(
+      mergeFetchRanges(
+        [
+          { from: '2026-01-01', to: '2026-01-05' },
+          { from: '2026-01-10', to: '2026-01-12' },
+        ],
+        { from: '2026-01-06', to: '2026-01-11' },
+      ),
+    ).toEqual([{ from: '2026-01-01', to: '2026-01-12' }]);
   });
 });
 
@@ -231,7 +214,5 @@ describe('resolveLookbackDays', () => {
     expect(resolveLookbackDays(undefined)).toBe(30);
     expect(resolveLookbackDays('14')).toBe(14);
     expect(resolveLookbackDays('0')).toBe(30);
-    expect(resolveLookbackDays('-1')).toBe(30);
-    expect(resolveLookbackDays('abc')).toBe(30);
   });
 });

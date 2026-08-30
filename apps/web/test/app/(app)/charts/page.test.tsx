@@ -12,6 +12,7 @@ import {
   fetchSymbolIndicators,
   fetchSymbolPrices,
   fetchSymbolTrendScore,
+  fetchEntryAdvice,
   fetchSymbols,
   fetchWatchlists,
 } from '../../../../lib/api-client';
@@ -23,6 +24,7 @@ jest.mock('../../../../lib/api-client', () => ({
   fetchSymbolPrices: jest.fn(),
   fetchSymbolIndicators: jest.fn(),
   fetchSymbolTrendScore: jest.fn(),
+  fetchEntryAdvice: jest.fn(),
   fetchIndicatorSets: jest.fn(),
   createIndicatorSet: jest.fn(),
   deleteIndicatorSet: jest.fn(),
@@ -182,6 +184,26 @@ describe('ChartsPage', () => {
         },
       ],
     });
+    (fetchEntryAdvice as jest.Mock).mockResolvedValue({
+      symbolId: 'sym_1',
+      baseDate: '2026-01-02',
+      entryTiming: 'wait',
+      direction: 'long',
+      signalActive: false,
+      signalLabel: 'トレンドスコア閾値',
+      noRuleReason: null,
+      position: null,
+      mm: null,
+      pyramidLevels: null,
+      predictedEntry: null,
+      scoreAtBase: 12,
+      buyThreshold: 37.5,
+      sellThreshold: -42.5,
+      scoreBreakdown: null,
+      rationale: '待機',
+      entryReasonCode: null,
+      newEntryFromBase: null,
+    });
     (fetchIndicatorSets as jest.Mock).mockResolvedValue([
       {
         id: 'set_1',
@@ -237,6 +259,21 @@ describe('ChartsPage', () => {
         interval: '1d',
         indicatorParams: {},
       }),
+    );
+    await waitFor(() =>
+      expect(fetchEntryAdvice).toHaveBeenCalledWith(
+        'sym_1',
+        expect.objectContaining({
+          from: expectedFrom,
+          to: expectedTo,
+          interval: '1d',
+          initialCash: 100000,
+          tradeSidePolicy: 'longOnly',
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('entry-advice-panel')).toBeInTheDocument(),
     );
   });
 

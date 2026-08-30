@@ -23,6 +23,7 @@ import {
   fetchSymbolPrices,
   fetchSymbolIndicators,
   fetchSymbolTrendScore,
+  fetchEntryAdvice,
   fetchSymbols,
   createSymbol,
   fetchWatchlists,
@@ -421,6 +422,57 @@ describe('api-client', () => {
     const invalid = okJson({ bad: true });
     await expect(
       fetchSymbolTrendScore('sym_1', {}, invalid as unknown as typeof fetch),
+    ).rejects.toBeInstanceOf(ApiClientError);
+  });
+
+  it('fetches entry advice', async () => {
+    const adviceResponse = {
+      symbolId: 'sym_1',
+      baseDate: '2026-01-10',
+      entryTiming: 'wait',
+      direction: 'long',
+      signalActive: false,
+      signalLabel: 'トレンドスコア閾値',
+      noRuleReason: null,
+      position: null,
+      mm: null,
+      pyramidLevels: null,
+      predictedEntry: null,
+      scoreAtBase: 10,
+      buyThreshold: 37.5,
+      sellThreshold: -42.5,
+      scoreBreakdown: null,
+      rationale: '待機',
+      entryReasonCode: null,
+      newEntryFromBase: null,
+    };
+    const full = okJson(adviceResponse);
+    await expect(
+      fetchEntryAdvice(
+        'sym_1',
+        {
+          from: '2026-01-01',
+          to: '2026-06-30',
+          interval: '1d',
+          buyThreshold: 37.5,
+          sellThreshold: -42.5,
+          baseDate: '2026-01-10',
+          initialCash: 100000,
+          tradeSidePolicy: 'longShort',
+          moneyManagement: { enabled: true, riskRate: 0.01 },
+        },
+        full as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual(adviceResponse);
+    const calledUrl = String(full.mock.calls[0]?.[0]);
+    expect(calledUrl).toContain('/symbols/sym_1/entry-advice?');
+    expect(calledUrl).toContain('initialCash=100000');
+    expect(calledUrl).toContain('tradeSidePolicy=longShort');
+    expect(calledUrl).toContain('moneyManagement=');
+
+    const invalid = okJson({ bad: true });
+    await expect(
+      fetchEntryAdvice('sym_1', {}, invalid as unknown as typeof fetch),
     ).rejects.toBeInstanceOf(ApiClientError);
   });
 

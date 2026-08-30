@@ -11,6 +11,7 @@ import {
   isBacktestRunListItemDto,
   isDeleteBacktestRunsResponse,
   isDailyPriceDto,
+  isEntryAdviceDto,
   isIndicatorSetDto,
   isIndicatorsResponseDto,
   isOptimizeBacktestResponse,
@@ -25,10 +26,12 @@ import {
   type DailyPriceDto,
   type IndicatorsResponseDto,
   type CreateIndicatorSetRequest,
+  type EntryAdviceDto,
   type GroupWeights,
   type IndicatorCatalogId,
   type IndicatorParamOverrides,
   type IndicatorSetDto,
+  type MoneyManagementConfig,
   type UpdateIndicatorSetRequest,
   type LoginRequest,
   type OptimizeBacktestRequest,
@@ -285,6 +288,71 @@ export async function fetchSymbolTrendScore(
   const result = await apiFetch<unknown>(path, { method: 'GET' }, fetchImpl);
   if (!isTrendScoreResponseDto(result)) {
     throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected trend score response', result);
+  }
+  return result;
+}
+
+/** GET /symbols/:id/entry-advice（ADR 017） */
+export async function fetchEntryAdvice(
+  symbolId: string,
+  query: {
+    from?: string;
+    to?: string;
+    interval?: ChartInterval;
+    indicators?: string;
+    indicatorParams?: IndicatorParamOverrides;
+    groupWeights?: GroupWeights;
+    buyThreshold?: number;
+    sellThreshold?: number;
+    baseDate?: string;
+    initialCash?: number;
+    tradeSidePolicy?: 'longOnly' | 'longShort';
+    moneyManagement?: MoneyManagementConfig | null;
+  } = {},
+  fetchImpl?: typeof fetch,
+): Promise<EntryAdviceDto> {
+  const params = new URLSearchParams();
+  if (query.from) {
+    params.set('from', query.from);
+  }
+  if (query.to) {
+    params.set('to', query.to);
+  }
+  if (query.interval) {
+    params.set('interval', query.interval);
+  }
+  if (query.indicators) {
+    params.set('indicators', query.indicators);
+  }
+  if (query.indicatorParams && Object.keys(query.indicatorParams).length > 0) {
+    params.set('indicatorParams', serializeIndicatorParamOverrides(query.indicatorParams));
+  }
+  if (query.groupWeights) {
+    params.set('groupWeights', serializeGroupWeights(query.groupWeights));
+  }
+  if (query.buyThreshold != null) {
+    params.set('buyThreshold', String(query.buyThreshold));
+  }
+  if (query.sellThreshold != null) {
+    params.set('sellThreshold', String(query.sellThreshold));
+  }
+  if (query.baseDate) {
+    params.set('baseDate', query.baseDate);
+  }
+  if (query.initialCash != null) {
+    params.set('initialCash', String(query.initialCash));
+  }
+  if (query.tradeSidePolicy) {
+    params.set('tradeSidePolicy', query.tradeSidePolicy);
+  }
+  if (query.moneyManagement) {
+    params.set('moneyManagement', JSON.stringify(query.moneyManagement));
+  }
+  const qs = params.toString();
+  const path = `/symbols/${encodeURIComponent(symbolId)}/entry-advice${qs ? `?${qs}` : ''}`;
+  const result = await apiFetch<unknown>(path, { method: 'GET' }, fetchImpl);
+  if (!isEntryAdviceDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected entry advice response', result);
   }
   return result;
 }

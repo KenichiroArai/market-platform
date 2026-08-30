@@ -30,6 +30,8 @@ from app.schemas import (
     ComputeIndicatorsResponse,
     ComputeTrendScoreRequest,
     ComputeTrendScoreResponse,
+    EntryAdviceRequest,
+    EntryAdviceResponse,
     ComputeSignalsRequest,
     ComputeSignalsResponse,
     HealthResponse,
@@ -111,6 +113,18 @@ def compute_trend_score_endpoint(body: ComputeTrendScoreRequest) -> ComputeTrend
         indicator_params=body.indicatorParams,
     )
     return ComputeTrendScoreResponse(points=points)
+
+
+@app.post(
+    "/analysis/entry-advice",
+    response_model=EntryAdviceResponse,
+    tags=["analysis"],
+)
+def entry_advice_endpoint(body: EntryAdviceRequest) -> EntryAdviceResponse:
+    """チャート分析向けエントリー助言（ADR 017）。"""
+    from app.money_management.entry_advice import compute_entry_advice
+
+    return compute_entry_advice(body)
 
 
 @app.post(
@@ -235,12 +249,19 @@ def _signals_and_scores(
     spec: SignalSpec,
     *,
     bars: list,
+    group_weights: dict[str, float] | None = None,
+    indicator_params: dict[str, dict[str, float]] | None = None,
 ) -> tuple[list[SignalPoint], list[float | None], list[TrendScorePoint | None]]:
     """シグナル・判断スコア・内訳を一度に組み立てる（トレンドスコアの二重計算を避ける）。"""
     if spec.strategyType == "trendScoreThreshold":
         assert spec.buyThreshold is not None and spec.sellThreshold is not None
         # 内訳付きポイントを保持し、スコア系列とシグナルに流用する
-        breakdowns = compute_trend_score(bars, range_start_index=0)
+        breakdowns = compute_trend_score(
+            bars,
+            range_start_index=0,
+            group_weights=group_weights,
+            indicator_params=indicator_params,
+        )
         score_series = [point.score for point in breakdowns]
         points = _score_threshold_signal_points(
             dates,

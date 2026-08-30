@@ -483,4 +483,93 @@ describe('IndicatorsService trend score', () => {
       service.getTrendScoreForSymbol('s1', { groupWeights: 'x'.repeat(513) }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
+
+  it('returns entry advice from analysis', async () => {
+    const bars = makeBars(30);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 5,
+    });
+    const upstream = {
+      symbolId: 's1',
+      baseDate: '2026-01-30',
+      entryTiming: 'wait',
+      direction: 'long',
+      signalActive: false,
+      signalLabel: 'トレンドスコア閾値',
+      noRuleReason: null,
+      position: null,
+      mm: null,
+      pyramidLevels: null,
+      predictedEntry: {
+        triggerDate: '2026-02-01',
+        triggerPrice: 20,
+        direction: 'long',
+        basis: '外挿',
+        note: '参考',
+      },
+      scoreAtBase: 10,
+      buyThreshold: 37.5,
+      sellThreshold: -42.5,
+      scoreBreakdown: null,
+      rationale: '待機',
+      entryReasonCode: null,
+      newEntryFromBase: null,
+    };
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => upstream,
+    }) as unknown as typeof fetch;
+
+    const result = await service.getEntryAdviceForSymbol('s1', {
+      buyThreshold: '37.5',
+      sellThreshold: '-42.5',
+      baseDate: '2026-01-30',
+      initialCash: '200000',
+      tradeSidePolicy: 'longShort',
+      moneyManagement: JSON.stringify({ enabled: true, riskRate: 0.01 }),
+    });
+    expect(result).toEqual(upstream);
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://analysis.test/analysis/entry-advice',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const body = String((global.fetch as jest.Mock).mock.calls[0]?.[1]?.body);
+    expect(body).toContain('"strategyType"');
+    expect(body).toContain('"initialCash":200000');
+    expect(body).toContain('"tradeSidePolicy":"longShort"');
+    expect(body).toContain('"moneyManagement"');
+  });
+
+  it('throws INSUFFICIENT_PRICE_DATA for entry advice when bars are empty', async () => {
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars: [],
+      rangeStartIndex: 0,
+    });
+    await expect(service.getEntryAdviceForSymbol('s1', {})).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
+  });
+
+  it('throws ANALYSIS_UPSTREAM_ERROR for invalid entry advice payload', async () => {
+    const bars = makeBars(10);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ bad: true }),
+    }) as unknown as typeof fetch;
+
+    await expect(service.getEntryAdviceForSymbol('s1', {})).rejects.toBeInstanceOf(
+      BadGatewayException,
+    );
+  });
+
+  it('rejects invalid moneyManagement query for entry advice', async () => {
+    await expect(
+      service.getEntryAdviceForSymbol('s1', { moneyManagement: 'not-json' }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
 });

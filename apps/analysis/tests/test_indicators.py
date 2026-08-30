@@ -347,7 +347,7 @@ def test_post_backtests_run_trend_score_with_range_start(monkeypatch: pytest.Mon
     """トレンドスコア戦略と rangeStartIndex でウォームアップをスキップする。"""
     from app.schemas import TrendScorePoint
 
-    def fake_compute_trend_score(bars, range_start_index=0):  # noqa: ANN001
+    def fake_compute_trend_score(bars, range_start_index=0, group_weights=None, indicator_params=None):  # noqa: ANN001
         # スコアを明示してクロスを起こす（lookback 1 本 + 表示 3 本）
         values = [0.0, 10.0, 50.0, -50.0]
         return [
@@ -408,7 +408,7 @@ def test_post_signals_trend_score(monkeypatch: pytest.MonkeyPatch) -> None:
     """POST /signals/compute がトレンドスコア戦略を扱う。"""
     from app.schemas import TrendScorePoint
 
-    def fake_compute_trend_score(bars, range_start_index=0):  # noqa: ANN001
+    def fake_compute_trend_score(bars, range_start_index=0, group_weights=None, indicator_params=None):  # noqa: ANN001
         values = [0.0, 50.0, -50.0]
         return [
             TrendScorePoint(date=bar.date, score=values[i], groups={}, indicators={})

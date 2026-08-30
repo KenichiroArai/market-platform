@@ -7,6 +7,7 @@ describe('IndicatorsController', () => {
   const indicatorsService = {
     getForSymbol: jest.fn(),
     getTrendScoreForSymbol: jest.fn(),
+    getEntryAdviceForSymbol: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -44,5 +45,34 @@ describe('IndicatorsController', () => {
       points: [],
     });
     expect(indicatorsService.getTrendScoreForSymbol).toHaveBeenCalledWith('s1', query);
+  });
+
+  it('delegates entry advice to IndicatorsService', async () => {
+    indicatorsService.getEntryAdviceForSymbol.mockResolvedValue({
+      symbolId: 's1',
+      baseDate: '2026-01-10',
+      entryTiming: 'wait',
+      direction: 'long',
+      signalActive: false,
+      signalLabel: 'test',
+      noRuleReason: null,
+      position: null,
+      mm: null,
+      pyramidLevels: null,
+      predictedEntry: null,
+      scoreAtBase: null,
+      buyThreshold: 37.5,
+      sellThreshold: -42.5,
+      scoreBreakdown: null,
+      rationale: null,
+      entryReasonCode: null,
+      newEntryFromBase: null,
+    });
+    const query = { baseDate: '2026-01-10', initialCash: '100000' };
+    await expect(controller.getEntryAdvice('s1', query)).resolves.toMatchObject({
+      symbolId: 's1',
+      entryTiming: 'wait',
+    });
+    expect(indicatorsService.getEntryAdviceForSymbol).toHaveBeenCalledWith('s1', query);
   });
 });

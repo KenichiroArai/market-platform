@@ -5,8 +5,8 @@
  */
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import type { IndicatorsResponseDto, TrendScoreResponseDto } from '@market/shared-types';
-import { GetIndicatorsQueryDto, GetTrendScoreQueryDto } from './indicators.dto';
+import type { EntryAdviceDto, IndicatorsResponseDto, TrendScoreResponseDto } from '@market/shared-types';
+import { GetEntryAdviceQueryDto, GetIndicatorsQueryDto, GetTrendScoreQueryDto } from './indicators.dto';
 import { IndicatorsService } from './indicators.service';
 
 @ApiTags('indicators')
@@ -33,5 +33,15 @@ export class IndicatorsController {
     @Query() query: GetTrendScoreQueryDto,
   ): Promise<TrendScoreResponseDto> {
     return this.indicatorsService.getTrendScoreForSymbol(symbolId, query);
+  }
+
+  /** エントリー助言（ADR 017）。 */
+  @Get(':symbolId/entry-advice')
+  @ApiOkResponse({ description: 'Entry timing and MM advice for chart analysis' })
+  getEntryAdvice(
+    @Param('symbolId') symbolId: string,
+    @Query() query: GetEntryAdviceQueryDto,
+  ): Promise<EntryAdviceDto> {
+    return this.indicatorsService.getEntryAdviceForSymbol(symbolId, query);
   }
 }

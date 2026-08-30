@@ -2,7 +2,7 @@
  * 価格取得ジョブのオーケストレーション。
  *
  * アクティブ銘柄（または指定 ID）を走査し、MarketDataProvider から日足を取得して upsert する。
- * 既に DailyPrice がある銘柄は min より前・max より後だけ取り、中間は再取得しない。
+ * 保存済み min〜max の外側（ギャップ）に加え、要求期間末尾の lookback 日は常に再取得して上書きする。
  * 1 銘柄の失敗で全体を落とさず、failures に理由を積む。
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -40,12 +40,13 @@ export class PriceSyncService {
   /**
    * 価格同期を実行する。
    * from/to 省略時は lookback〜今日（UTC）。symbolIds 省略時は isActive 全件。
-   * 各銘柄は保存済み min〜max の外側だけ取得する。
+   * forceRefresh 時は要求期間全体を再取得して上書きする。
    */
   async syncPrices(options?: {
     symbolIds?: string[];
     from?: string;
     to?: string;
+    forceRefresh?: boolean;
   }): Promise<PriceSyncJobResult> {
     const lookbackDays = resolveLookbackDays(process.env.MARKET_DATA_LOOKBACK_DAYS);
     const from = options?.from ?? lookbackFromDate(lookbackDays);
@@ -63,7 +64,14 @@ export class PriceSyncService {
 
     for (const symbol of symbols) {
       try {
-        upsertedBars += await this.syncSymbol(symbol.id, symbol.ticker, from, to);
+        upsertedBars += await this.syncSymbol(
+          symbol.id,
+          symbol.ticker,
+          from,
+          to,
+          lookbackDays,
+          options?.forceRefresh === true,
+        );
       } catch (error: unknown) {
         const reason =
           error instanceof Error ? error.message : 'Unknown provider error';
@@ -80,23 +88,39 @@ export class PriceSyncService {
   }
 
   /**
-   * 1 銘柄について不足期間だけ日足を取り、upsert した本数を返す。
-   * カバー済みならプロバイダは呼ばない。
+   * 1 銘柄について不足期間と直近ウィンドウ（または全体）を取り、upsert した本数を返す。
    */
   private async syncSymbol(
     symbolId: string,
     ticker: string,
     from: string,
     to: string,
+    lookbackDays: number,
+    forceRefresh: boolean,
   ): Promise<number> {
-    const stored = await this.prismaService.prisma.dailyPrice.aggregate({
-      where: { symbolId },
-      _min: { date: true },
-      _max: { date: true },
-    });
-    const storedMin = stored._min.date ? formatDateOnly(stored._min.date) : null;
-    const storedMax = stored._max.date ? formatDateOnly(stored._max.date) : null;
-    const ranges = resolveFetchRanges(from, to, storedMin, storedMax);
+    if (from > to) {
+      return 0;
+    }
+
+    let ranges: FetchRange[];
+    if (forceRefresh) {
+      ranges = [{ from, to }];
+    } else {
+      const stored = await this.prismaService.prisma.dailyPrice.aggregate({
+        where: { symbolId },
+        _min: { date: true },
+        _max: { date: true },
+      });
+      const storedMin = stored._min.date ? formatDateOnly(stored._min.date) : null;
+      const storedMax = stored._max.date ? formatDateOnly(stored._max.date) : null;
+      ranges = resolveFetchRangesWithRefresh(
+        from,
+        to,
+        storedMin,
+        storedMax,
+        lookbackDays,
+      );
+    }
 
     let upserted = 0;
     for (const range of ranges) {
@@ -172,6 +196,48 @@ export function resolveFetchRanges(
     }
   }
   return ranges;
+}
+
+/**
+ * ギャップ埋めに加え、要求期間末尾の refreshDays を必ず再取得対象にする。
+ */
+export function resolveFetchRangesWithRefresh(
+  requestedFrom: string,
+  requestedTo: string,
+  storedMin: string | null,
+  storedMax: string | null,
+  refreshDays: number,
+): FetchRange[] {
+  const ranges = resolveFetchRanges(requestedFrom, requestedTo, storedMin, storedMax);
+  if (requestedFrom > requestedTo || refreshDays <= 0) {
+    return ranges;
+  }
+  const refreshStartCandidate = addDays(requestedTo, -(refreshDays - 1));
+  const refreshFrom =
+    refreshStartCandidate < requestedFrom ? requestedFrom : refreshStartCandidate;
+  return mergeFetchRanges(ranges, { from: refreshFrom, to: requestedTo });
+}
+
+/** 重複・隣接する期間をまとめる。 */
+export function mergeFetchRanges(ranges: FetchRange[], extra: FetchRange): FetchRange[] {
+  const all = [...ranges, extra].filter((r) => r.from <= r.to);
+  if (all.length === 0) {
+    return [];
+  }
+  all.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+  const merged: FetchRange[] = [{ ...all[0]! }];
+  for (let i = 1; i < all.length; i += 1) {
+    const current = all[i]!;
+    const last = merged[merged.length - 1]!;
+    if (current.from <= addDays(last.to, 1)) {
+      if (current.to > last.to) {
+        last.to = current.to;
+      }
+      continue;
+    }
+    merged.push({ ...current });
+  }
+  return merged;
 }
 
 /** MARKET_DATA_LOOKBACK_DAYS を正の整数に正規化する。 */

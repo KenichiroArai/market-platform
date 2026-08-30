@@ -18,6 +18,7 @@ import {
   trendScoreState,
   type BacktestTradeDto,
   type DailyPriceDto,
+  type EntryAdvicePriceLineDto,
   type IndicatorCatalogId,
   type IndicatorDrawings,
   type IndicatorSeriesPoint,
@@ -27,6 +28,7 @@ import {
 import {
   CandlestickSeries,
   ColorType,
+  CrosshairMode,
   createChart,
   createSeriesMarkers,
   HistogramSeries,
@@ -40,6 +42,7 @@ import {
 import { BaseDateMarkerPrimitive } from './base-date-marker-primitive';
 import { TrendBackgroundPrimitive } from './trend-background-primitive';
 import { IchimokuCloudPrimitive } from './ichimoku-cloud-primitive';
+import { formatMarketPrice, marketSeriesPriceFormat } from '../lib/format-market-price';
 
 export type AnalysisChartProps = {
   prices: DailyPriceDto[];
@@ -53,6 +56,10 @@ export type AnalysisChartProps = {
   onBarClick?: (date: string) => void;
   /** バックテスト売買マーカー。未指定時は出さない。 */
   trades?: BacktestTradeDto[];
+  /** エントリー助言の価格線（ストップ・ピラミッド・予測）。 */
+  advicePriceLines?: EntryAdvicePriceLineDto[];
+  /** 銘柄通貨（JPY 等）。価格軸・ツールチップ表示に使用。 */
+  currency?: string | null;
   loading?: boolean;
   height?: number;
 };
@@ -260,12 +267,17 @@ export function AnalysisChart({
   baseDate = null,
   onBarClick,
   trades = EMPTY_TRADES,
+  advicePriceLines = [],
+  currency = null,
   loading = false,
   height,
 }: AnalysisChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
   const onBarClickRef = useRef(onBarClick);
   onBarClickRef.current = onBarClick;
+  const currencyRef = useRef(currency);
+  currencyRef.current = currency;
   /** 基準日縦線。クリックで日付だけ差し替え、チャート再生成はしない。 */
   const baseDateMarkerRef = useRef<BaseDateMarkerPrimitive | null>(null);
   const chartHeight = height ?? computeAnalysisChartHeight(enabledIds);
@@ -296,6 +308,54 @@ export function AnalysisChart({
       }
     };
 
+    const handleCrosshairMove = (param: MouseEventParams) => {
+      const el = tooltipRef.current;
+      if (!el) {
+        return;
+      }
+      if (!param.time || param.point === undefined) {
+        el.style.display = 'none';
+        return;
+      }
+      const date = chartTimeToDateString(param.time);
+      if (date === null) {
+        el.style.display = 'none';
+        return;
+      }
+      const priceRow = prices.find((row) => row.date === date);
+      const scoreRow = trendScorePoints.find((row) => row.date === date);
+      const indRow = indicatorPoints.find((row) => row.date === date);
+      const parts: string[] = [date];
+      if (priceRow) {
+        parts.push(
+          `終値 ${formatMarketPrice(priceRow.close, currencyRef.current)}`,
+          `高 ${formatMarketPrice(priceRow.high, currencyRef.current)}`,
+          `安 ${formatMarketPrice(priceRow.low, currencyRef.current)}`,
+        );
+      }
+      if (scoreRow?.score != null) {
+        parts.push(`スコア ${Math.round(scoreRow.score)}`);
+      }
+      for (const def of INDICATOR_CATALOG) {
+        if (!enabledIds.has(def.id) || def.pane === 'none') {
+          continue;
+        }
+        const series = def.series[0];
+        if (!series || !indRow) {
+          continue;
+        }
+        const value = indRow.values[series.key];
+        if (typeof value === 'number') {
+          parts.push(`${series.label}: ${value.toLocaleString(undefined, { maximumFractionDigits: 4 })}`);
+        }
+      }
+      el.textContent = parts.join(' | ');
+      el.style.display = 'block';
+      const maxLeft = Math.max(container.clientWidth - 320, 8);
+      el.style.left = `${Math.min(param.point.x + 12, maxLeft)}px`;
+      el.style.top = `${Math.max(param.point.y - 48, 8)}px`;
+    };
+
     const buildChart = (width: number) => {
       if (disposed || chart || width < MIN_CHART_WIDTH) {
         return;
@@ -314,7 +374,10 @@ export function AnalysisChart({
         },
         rightPriceScale: { borderVisible: false },
         timeScale: { borderVisible: false },
+        crosshair: { mode: CrosshairMode.Normal },
       });
+
+      const priceFmt = marketSeriesPriceFormat(currencyRef.current);
 
       const candles = chart.addSeries(
         CandlestickSeries,
@@ -324,6 +387,7 @@ export function AnalysisChart({
           borderVisible: false,
           wickUpColor: UP_COLOR,
           wickDownColor: DOWN_COLOR,
+          ...(priceFmt ? { priceFormat: priceFmt } : {}),
         },
         0,
       ) as ISeriesApi<'Candlestick'> & {
@@ -362,6 +426,14 @@ export function AnalysisChart({
         }
       }
 
+      for (const line of advicePriceLines) {
+        candles.createPriceLine?.({
+          price: line.price,
+          color: line.color,
+          title: line.title,
+        });
+      }
+
       for (const def of INDICATOR_CATALOG) {
         if (!enabledIds.has(def.id) || def.pane !== 'overlay') {
           continue;
@@ -374,6 +446,7 @@ export function AnalysisChart({
               lineWidth: (series.style === 'dots' ? 1 : 2) as 1 | 2,
               title: series.label,
               priceLineVisible: false,
+              ...(priceFmt ? { priceFormat: priceFmt } : {}),
             },
             0,
           );
@@ -435,6 +508,7 @@ export function AnalysisChart({
 
       chart.timeScale().fitContent();
       chart.subscribeClick(handleClick);
+      chart.subscribeCrosshairMove(handleCrosshairMove);
       // ポップアウト直後の canvas クリアを拾うため強制再描画
       chart.resize(width, chartHeight, true);
     };
@@ -485,6 +559,7 @@ export function AnalysisChart({
       view.removeEventListener('resize', syncSize);
       if (chart) {
         chart.unsubscribeClick(handleClick);
+        chart.unsubscribeCrosshairMove(handleCrosshairMove);
         chart.remove();
       }
       baseDateMarkerRef.current = null;
@@ -498,9 +573,11 @@ export function AnalysisChart({
     drawings,
     trendScorePoints,
     trades,
+    advicePriceLines,
     loading,
     chartHeight,
     volumeOn,
+    currency,
   ]);
 
   // 基準日だけ差し替え（ズーム位置を保つ）
@@ -532,6 +609,11 @@ export function AnalysisChart({
         </p>
       ) : null}
       <div style={{ ...chartOverlayRootStyle, height: chartHeight }}>
+        <div
+          ref={tooltipRef}
+          data-testid="chart-crosshair-tooltip"
+          style={crosshairTooltipStyle}
+        />
         <div
           data-testid="analysis-chart"
           ref={containerRef}
@@ -565,6 +647,19 @@ const chartOverlayRootStyle: CSSProperties = {
   overflow: 'hidden',
 };
 const chartWrapStyle: CSSProperties = { width: '100%' };
+const crosshairTooltipStyle: CSSProperties = {
+  position: 'absolute',
+  zIndex: 5,
+  display: 'none',
+  maxWidth: '320px',
+  padding: '0.35rem 0.5rem',
+  fontSize: '0.78rem',
+  lineHeight: 1.35,
+  borderRadius: 4,
+  background: 'rgba(8, 20, 32, 0.92)',
+  border: '1px solid rgba(232, 238, 245, 0.2)',
+  pointerEvents: 'none',
+};
 
 export function isOverlayEnabled(
   enabledIds: Set<IndicatorCatalogId>,

@@ -5,7 +5,7 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 ## 読み方
 
 1. まず [アーキテクチャ概要](architecture/overview.md) で構成・責務・基盤（Turborepo / pnpm / Docker）を把握する
-2. [開発ロードマップ](roadmap/README.md) で実装の優先順位を確認する（現行: [v0.3.0](roadmap/v0/v0.3/v0.3.0.md)）
+2. [開発ロードマップ](roadmap/README.md) で実装の優先順位を確認する（現行: [v0.5.0](roadmap/v0/v0.5/v0.5.0.md)）
 3. 個別の重要な意思決定は `adr/` の ADR を参照する
 
 ## 目次
@@ -31,6 +31,7 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 | [adr/014-indicator-set-config.md](adr/014-indicator-set-config.md) | 指標セットのパラメータ・スコア配点・閾値 |
 | [adr/015-backtest-result-analysis.md](adr/015-backtest-result-analysis.md) | バックテスト結果の分析しやすさ（スコア内訳・日次 ZIP） |
 | [adr/016-money-management.md](adr/016-money-management.md) | バックテスト資金管理・売買方針・手数料モード |
+| [adr/017-chart-analysis-money-management.md](adr/017-chart-analysis-money-management.md) | チャート分析への資金管理とエントリー助言 |
 
 ## ドキュメント方針
 
