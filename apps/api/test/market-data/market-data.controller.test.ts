@@ -32,6 +32,25 @@ describe('MarketDataController', () => {
       symbolIds: ['s1'],
       from: '2026-01-01',
       to: '2026-01-02',
+      forceRefresh: true,
+    });
+  });
+
+  it('passes forceRefresh false when explicitly disabled', async () => {
+    const result = { processedSymbols: 0, upsertedBars: 0, failures: [] };
+    priceSyncService.syncPrices.mockResolvedValue(result);
+
+    await expect(
+      controller.syncPrices({
+        symbolIds: ['s1'],
+        forceRefresh: false,
+      }),
+    ).resolves.toEqual(result);
+    expect(priceSyncService.syncPrices).toHaveBeenCalledWith({
+      symbolIds: ['s1'],
+      from: undefined,
+      to: undefined,
+      forceRefresh: false,
     });
   });
 });

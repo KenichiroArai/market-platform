@@ -438,6 +438,89 @@ describe('AnalysisChart', () => {
     );
   });
 
+  it('draws advice price lines on the candle series', () => {
+    const createPriceLine = jest.fn();
+    const api = chartApi(createPriceLine);
+    (createChart as jest.Mock).mockReturnValue(api);
+    render(
+      <AnalysisChart
+        prices={[price]}
+        indicatorPoints={points}
+        advicePriceLines={[
+          { price: 95, color: '#ff8a80', title: 'Stop' },
+          { price: 110, color: '#90caf9', title: 'Target' },
+        ]}
+      />,
+    );
+    expect(createPriceLine).toHaveBeenCalledWith(
+      expect.objectContaining({ price: 95, title: 'Stop' }),
+    );
+    expect(createPriceLine).toHaveBeenCalledWith(
+      expect.objectContaining({ price: 110, title: 'Target' }),
+    );
+  });
+
+  it('updates the crosshair tooltip from chart move events', () => {
+    const api = chartApi();
+    (createChart as jest.Mock).mockReturnValue(api);
+    let crosshairHandler:
+      | ((param: { time?: Time; point?: { x: number; y: number } }) => void)
+      | undefined;
+    lwcMocks.mockSubscribeCrosshairMove.mockImplementation(
+      (handler: (param: { time?: Time; point?: { x: number; y: number } }) => void) => {
+        crosshairHandler = handler;
+      },
+    );
+
+    const { unmount } = render(
+      <AnalysisChart
+        prices={[price, downPrice]}
+        indicatorPoints={points}
+        enabledIds={new Set(['sma25', 'volume', 'rsi'])}
+        currency="JPY"
+        trendScorePoints={[
+          {
+            date: '2026-01-02',
+            score: 40,
+            groups: {
+              trend: 10,
+              momentum: null,
+              oscillator: null,
+              volatility: null,
+              volume: null,
+              cycle: null,
+            },
+            indicators: {},
+          },
+        ]}
+      />,
+    );
+
+    const tooltip = screen.getByTestId('chart-crosshair-tooltip');
+    act(() => {
+      crosshairHandler?.({ time: undefined, point: { x: 10, y: 10 } });
+    });
+    expect(tooltip).toHaveStyle({ display: 'none' });
+
+    act(() => {
+      crosshairHandler?.({ time: {} as Time, point: { x: 10, y: 10 } });
+    });
+    expect(tooltip).toHaveStyle({ display: 'none' });
+
+    act(() => {
+      crosshairHandler?.({ time: '2026-01-02' as Time, point: { x: 40, y: 60 } });
+    });
+    expect(tooltip).toHaveStyle({ display: 'block' });
+    expect(tooltip.textContent).toContain('2026-01-02');
+    expect(tooltip.textContent).toContain('終値');
+    expect(tooltip.textContent).toContain('スコア 40');
+
+    unmount();
+    act(() => {
+      crosshairHandler?.({ time: '2026-01-02' as Time, point: { x: 10, y: 10 } });
+    });
+  });
+
   it('uses baseDate for the score label and notifies onBarClick', () => {
     const onBarClick = jest.fn();
     const api = chartApi();

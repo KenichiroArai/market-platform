@@ -541,6 +541,90 @@ describe('IndicatorsService trend score', () => {
     expect(body).toContain('"moneyManagement"');
   });
 
+  it('passes weekly interval, groupWeights and indicatorParams for entry advice', async () => {
+    const bars = makeBars(10);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    const upstream = {
+      symbolId: 's1',
+      baseDate: '2026-01-10',
+      entryTiming: 'wait',
+      direction: null,
+      signalActive: false,
+      signalLabel: 'test',
+      noRuleReason: null,
+      position: null,
+      mm: null,
+      pyramidLevels: null,
+      predictedEntry: null,
+      scoreAtBase: null,
+      buyThreshold: 37.5,
+      sellThreshold: -42.5,
+      scoreBreakdown: null,
+      rationale: null,
+      entryReasonCode: null,
+      newEntryFromBase: null,
+    };
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => upstream,
+    }) as unknown as typeof fetch;
+
+    await service.getEntryAdviceForSymbol('s1', {
+      interval: '1w',
+      groupWeights: JSON.stringify(TREND_SCORE_GROUP_WEIGHTS),
+      indicatorParams: JSON.stringify({ sma25: { period: 30 } }),
+    });
+    expect(pricesService.listWithLookback).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({ interval: '1w' }),
+    );
+    const body = String((global.fetch as jest.Mock).mock.calls[0]?.[1]?.body);
+    expect(body).toContain('"groupWeights"');
+    expect(body).toContain('"indicatorParams"');
+  });
+
+  it('falls back to rangeStartIndex date when baseDate and last bar date are empty', async () => {
+    const bars = makeBars(3);
+    bars[bars.length - 1] = { ...bars[bars.length - 1]!, date: '' };
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    const upstream = {
+      symbolId: 's1',
+      baseDate: bars[0]!.date,
+      entryTiming: 'wait',
+      direction: null,
+      signalActive: false,
+      signalLabel: 'test',
+      noRuleReason: null,
+      position: null,
+      mm: null,
+      pyramidLevels: null,
+      predictedEntry: null,
+      scoreAtBase: null,
+      buyThreshold: 37.5,
+      sellThreshold: -42.5,
+      scoreBreakdown: null,
+      rationale: null,
+      entryReasonCode: null,
+      newEntryFromBase: null,
+    };
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => upstream,
+    }) as unknown as typeof fetch;
+
+    await service.getEntryAdviceForSymbol('s1', { baseDate: '   ' });
+    const body = JSON.parse(String((global.fetch as jest.Mock).mock.calls[0]?.[1]?.body)) as {
+      baseDate: string;
+    };
+    expect(body.baseDate).toBe(bars[0]!.date);
+  });
+
   it('throws INSUFFICIENT_PRICE_DATA for entry advice when bars are empty', async () => {
     (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
       bars: [],
@@ -617,12 +701,22 @@ describe('IndicatorsService trend score', () => {
       riskRate: '0.01',
       stopMethod: 'atr_x2',
       takeProfitMethod: 'rr_target',
+      interval: '1w',
+      groupWeights: JSON.stringify(TREND_SCORE_GROUP_WEIGHTS),
+      indicatorParams: JSON.stringify({ sma25: { period: 30 } }),
     });
     expect(result.symbolId).toBe('s1');
+    expect(pricesService.listWithLookback).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({ interval: '1w' }),
+    );
     expect(global.fetch).toHaveBeenCalledWith(
       'http://analysis.test/analysis/trade-plan',
       expect.objectContaining({ method: 'POST' }),
     );
+    const body = String((global.fetch as jest.Mock).mock.calls[0]?.[1]?.body);
+    expect(body).toContain('"groupWeights"');
+    expect(body).toContain('"indicatorParams"');
   });
 
   it('throws INSUFFICIENT_PRICE_DATA for trade plan when bars are empty', async () => {
@@ -660,5 +754,140 @@ describe('IndicatorsService trend score', () => {
     await expect(service.getTradePlanForSymbol('s1', {})).rejects.toBeInstanceOf(
       BadGatewayException,
     );
+  });
+
+  it('rejects non-numeric buyThreshold for trade plan', async () => {
+    const bars = makeBars(5);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    await expect(
+      service.getTradePlanForSymbol('s1', { buyThreshold: 'NaN' }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('rejects non-positive equity for trade plan', async () => {
+    const bars = makeBars(5);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    await expect(
+      service.getTradePlanForSymbol('s1', { equity: '0' }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('rejects oversized moneyManagement query', async () => {
+    const bars = makeBars(5);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    await expect(
+      service.getTradePlanForSymbol('s1', { moneyManagement: 'x'.repeat(8193) }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('accepts null moneyManagement JSON as null config', async () => {
+    const bars = makeBars(10);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    const upstream = {
+      symbolId: 's1',
+      baseDate: '2026-01-10',
+      judgment: {
+        level: 'buy',
+        score: 70,
+        stars: 4,
+        label: 'やや買い',
+        factors: [],
+      },
+      entry: {
+        currentPrice: 100,
+        recommendedPrice: 98,
+        side: 'long',
+        rationale: '押し目',
+      },
+      stopLossCandidates: [],
+      takeProfitCandidates: [],
+      recommendedStop: null,
+      recommendedTarget: null,
+      riskReward: null,
+      position: null,
+      riskRating: { level: 'low', stars: 1, atrPercent: 1, notes: [] },
+      buyReasons: [],
+      sellReasons: [],
+      overallScore: 70,
+      summaryLabel: 'やや買い / 総合 70 点',
+    };
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => upstream,
+    }) as unknown as typeof fetch;
+
+    await expect(
+      service.getTradePlanForSymbol('s1', { moneyManagement: 'null' }),
+    ).resolves.toMatchObject({ symbolId: 's1' });
+  });
+
+  it('rejects moneyManagement JSON that is not an object', async () => {
+    const bars = makeBars(5);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    await expect(
+      service.getTradePlanForSymbol('s1', { moneyManagement: '[1,2]' }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('falls back to rangeStartIndex date for trade plan when last bar date is empty', async () => {
+    const bars = makeBars(3);
+    bars[bars.length - 1] = { ...bars[bars.length - 1]!, date: '' };
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    const upstream = {
+      symbolId: 's1',
+      baseDate: bars[0]!.date,
+      judgment: {
+        level: 'buy',
+        score: 70,
+        stars: 4,
+        label: 'やや買い',
+        factors: [],
+      },
+      entry: {
+        currentPrice: 100,
+        recommendedPrice: 98,
+        side: 'long',
+        rationale: '押し目',
+      },
+      stopLossCandidates: [],
+      takeProfitCandidates: [],
+      recommendedStop: null,
+      recommendedTarget: null,
+      riskReward: null,
+      position: null,
+      riskRating: { level: 'low', stars: 1, atrPercent: 1, notes: [] },
+      buyReasons: [],
+      sellReasons: [],
+      overallScore: 70,
+      summaryLabel: 'やや買い / 総合 70 点',
+    };
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => upstream,
+    }) as unknown as typeof fetch;
+
+    await service.getTradePlanForSymbol('s1', {});
+    const body = JSON.parse(String((global.fetch as jest.Mock).mock.calls[0]?.[1]?.body)) as {
+      baseDate: string;
+    };
+    expect(body.baseDate).toBe(bars[0]!.date);
   });
 });

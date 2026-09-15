@@ -853,4 +853,112 @@ describe('ChartsPage', () => {
     );
     expect(fetchIndicatorSets).toHaveBeenCalledTimes(2);
   });
+
+  it('opens money management as popout when preferred mode is popout', async () => {
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('open-money-management')).toBeInTheDocument());
+    const preferred = screen.getByTestId('display-preferred-mode');
+    fireEvent.click(
+      preferred.querySelector('input[type="radio"][value="popout"]') as HTMLInputElement,
+    );
+    fireEvent.click(screen.getByTestId('open-money-management'));
+    expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', '資金管理');
+    expect(screen.getByTestId('money-management-panel')).toBeInTheDocument();
+  });
+
+  it('opens money management in modeless and popout modes', async () => {
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('open-money-management')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('open-money-management'));
+    expect(screen.getByTestId('money-management-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('open-money-management')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByTestId('mm-enabled'));
+    await waitFor(() =>
+      expect(screen.getByTestId('open-money-management')).toHaveTextContent('資金管理（ON）'),
+    );
+    await waitFor(() =>
+      expect(fetchEntryAdvice).toHaveBeenCalledWith(
+        'sym_1',
+        expect.objectContaining({
+          moneyManagement: expect.objectContaining({ enabled: true }),
+        }),
+      ),
+    );
+
+    const mmInWindow = screen.getByTestId('mm-in-window-mode');
+    fireEvent.click(
+      mmInWindow.querySelector('input[type="radio"][value="popout"]') as HTMLInputElement,
+    );
+    expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', '資金管理');
+    expect(screen.getByTestId('money-management-panel')).toBeInTheDocument();
+
+    const mmPopoutSwitch = screen.getByTestId('mm-in-window-mode');
+    fireEvent.click(
+      mmPopoutSwitch.querySelector('input[type="radio"][value="modeless"]') as HTMLInputElement,
+    );
+    expect(screen.getByTestId('modeless-window')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('modeless-close'));
+    expect(screen.queryByTestId('money-management-panel')).not.toBeInTheDocument();
+
+    const preferred = screen.getByTestId('display-preferred-mode');
+    fireEvent.click(
+      preferred.querySelector('input[type="radio"][value="popout"]') as HTMLInputElement,
+    );
+    fireEvent.click(screen.getByTestId('open-money-management'));
+    expect(screen.getByTestId('popout-stub')).toHaveAttribute('data-title', '資金管理');
+    fireEvent.click(screen.getByTestId('popout-stub-close'));
+  });
+
+  it('updates initial cash and surfaces entry advice errors', async () => {
+    (fetchEntryAdvice as jest.Mock).mockRejectedValue(new ApiClientError(500, 'X', '助言失敗'));
+    render(<ChartsPage />);
+    await waitFor(() => expect(screen.getByTestId('chart-initial-cash')).toBeInTheDocument());
+    fireEvent.change(screen.getByTestId('chart-initial-cash'), { target: { value: '250000' } });
+    await waitFor(() =>
+      expect(fetchEntryAdvice).toHaveBeenCalledWith(
+        'sym_1',
+        expect.objectContaining({ initialCash: 250000 }),
+      ),
+    );
+    await waitFor(() => expect(screen.getByTestId('entry-advice-error')).toHaveTextContent('助言失敗'));
+  });
+
+  it('shows fallback entry advice error for unknown failures', async () => {
+    (fetchEntryAdvice as jest.Mock).mockRejectedValue(new Error('network'));
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('entry-advice-error')).toHaveTextContent(
+        'エントリー助言の取得に失敗しました',
+      ),
+    );
+  });
+
+  it('skips entry advice when price dates are empty', async () => {
+    (fetchSymbolPrices as jest.Mock).mockResolvedValue([
+      {
+        id: 'p1',
+        symbolId: 'sym_1',
+        date: '',
+        open: 1,
+        high: 2,
+        low: 1,
+        close: 1.5,
+        volume: 10,
+        createdAt: '',
+        updatedAt: '',
+      },
+    ]);
+    (fetchSymbolTrendScore as jest.Mock).mockResolvedValue({
+      symbolId: 'sym_1',
+      points: [],
+    });
+    render(<ChartsPage />);
+    await waitFor(() =>
+      expect(screen.getByTestId('analysis-chart-stub')).toHaveTextContent('ready'),
+    );
+    await waitFor(() => expect(screen.getByTestId('chart-panel')).toBeInTheDocument());
+    expect(fetchEntryAdvice).not.toHaveBeenCalled();
+  });
 });

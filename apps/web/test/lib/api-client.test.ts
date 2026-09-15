@@ -24,6 +24,7 @@ import {
   fetchSymbolIndicators,
   fetchSymbolTrendScore,
   fetchEntryAdvice,
+  fetchTradePlan,
   fetchSymbols,
   createSymbol,
   fetchWatchlists,
@@ -470,10 +471,159 @@ describe('api-client', () => {
     expect(calledUrl).toContain('tradeSidePolicy=longShort');
     expect(calledUrl).toContain('moneyManagement=');
 
+    const withIndicators = okJson(adviceResponse);
+    await expect(
+      fetchEntryAdvice(
+        'sym_1',
+        {
+          indicators: 'sma25,rsi',
+          indicatorParams: { sma25: { period: 30 } },
+          groupWeights: {
+            trend: 40,
+            momentum: 20,
+            oscillator: 10,
+            volatility: 10,
+            volume: 10,
+            cycle: 10,
+          },
+        },
+        withIndicators as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual(adviceResponse);
+    const indicatorUrl = String(withIndicators.mock.calls[0]?.[0]);
+    expect(indicatorUrl).toContain('indicators=sma25%2Crsi');
+    expect(indicatorUrl).toContain('indicatorParams=');
+    expect(indicatorUrl).toContain('groupWeights=');
+
     const invalid = okJson({ bad: true });
     await expect(
       fetchEntryAdvice('sym_1', {}, invalid as unknown as typeof fetch),
     ).rejects.toBeInstanceOf(ApiClientError);
+
+    const defaults = okJson(adviceResponse);
+    await expect(
+      fetchEntryAdvice('sym_1', undefined, defaults as unknown as typeof fetch),
+    ).resolves.toEqual(adviceResponse);
+  });
+
+  it('fetches trade plans with query params', async () => {
+    const tradePlan = {
+      symbolId: 'sym_1',
+      baseDate: '2026-06-15',
+      judgment: {
+        level: 'buy',
+        score: 68,
+        stars: 4,
+        label: 'やや買い',
+        factors: [
+          { id: 'trend_score', label: 'トレンドスコア', contribution: 10, note: 'スコア 20' },
+        ],
+      },
+      entry: {
+        currentPrice: 100,
+        recommendedPrice: 98,
+        side: 'long',
+        rationale: '押し目',
+      },
+      stopLossCandidates: [
+        {
+          method: 'atr_x2',
+          label: 'ATR×2',
+          price: 94,
+          rationale: 'ATR',
+          recommended: true,
+        },
+      ],
+      takeProfitCandidates: [
+        {
+          method: 'rr_target',
+          label: 'RR 2',
+          price: 110,
+          rationale: 'RR',
+          recommended: true,
+        },
+      ],
+      recommendedStop: {
+        method: 'atr_x2',
+        label: 'ATR×2',
+        price: 94,
+        rationale: 'ATR',
+        recommended: true,
+      },
+      recommendedTarget: {
+        method: 'rr_target',
+        label: 'RR 2',
+        price: 110,
+        rationale: 'RR',
+        recommended: true,
+      },
+      riskReward: { entry: 98, stop: 94, target: 110, riskReward: 3 },
+      position: {
+        recommendedShares: 100,
+        maxShares: 1000,
+        requiredCapital: 9800,
+        maxLoss: 400,
+        equity: 100000,
+        riskRate: 0.01,
+      },
+      riskRating: {
+        level: 'medium',
+        stars: 3,
+        atrPercent: 2.1,
+        notes: ['ATR% は中程度'],
+      },
+      buyReasons: ['MACD 正'],
+      sellReasons: [],
+      overallScore: 72,
+      summaryLabel: 'やや買い / 総合 72 点',
+    };
+    const full = okJson(tradePlan);
+    await expect(
+      fetchTradePlan(
+        'sym_1',
+        {
+          from: '2026-01-01',
+          to: '2026-06-30',
+          interval: '1d',
+          indicatorParams: { sma25: { period: 30 } },
+          groupWeights: {
+            trend: 40,
+            momentum: 20,
+            oscillator: 10,
+            volatility: 10,
+            volume: 10,
+            cycle: 10,
+          },
+          buyThreshold: 37.5,
+          sellThreshold: -42.5,
+          baseDate: '2026-06-15',
+          equity: 1_000_000,
+          riskRate: 0.01,
+          moneyManagement: { enabled: true, riskRate: 0.01 },
+          stopMethod: 'atr_x2',
+          takeProfitMethod: 'rr_target',
+        },
+        full as unknown as typeof fetch,
+      ),
+    ).resolves.toEqual(tradePlan);
+    const calledUrl = String(full.mock.calls[0]?.[0]);
+    expect(calledUrl).toContain('/symbols/sym_1/trade-plan?');
+    expect(calledUrl).toContain('equity=1000000');
+    expect(calledUrl).toContain('stopMethod=atr_x2');
+    expect(calledUrl).toContain('takeProfitMethod=rr_target');
+    expect(calledUrl).toContain('indicatorParams=');
+    expect(calledUrl).toContain('groupWeights=');
+    expect(calledUrl).toContain('moneyManagement=');
+
+    const invalid = okJson({ bad: true });
+    await expect(
+      fetchTradePlan('sym_1', {}, invalid as unknown as typeof fetch),
+    ).rejects.toBeInstanceOf(ApiClientError);
+
+    const defaults = okJson(tradePlan);
+    await expect(
+      fetchTradePlan('sym_1', undefined, defaults as unknown as typeof fetch),
+    ).resolves.toEqual(tradePlan);
   });
 
   it('creates and mutates watchlists', async () => {

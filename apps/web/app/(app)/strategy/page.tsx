@@ -58,9 +58,6 @@ export default function StrategyPage() {
   }, []);
 
   const loadPlan = useCallback(async () => {
-    if (!symbolId) {
-      return;
-    }
     setLoading(true);
     setError(null);
     try {

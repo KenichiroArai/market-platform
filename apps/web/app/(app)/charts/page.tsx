@@ -969,16 +969,25 @@ function ChartsPageContent() {
       ) : null}
 
       {mmUi === 'modeless' ? (
-        <ModelessWindow title="資金管理" onClose={() => setMmUi('closed')}>
-          <BacktestMoneyManagementPanel
-            moneyManagement={moneyManagement}
-            cost={costSettings}
-            currency={displayCurrency}
-            symbols={symbols}
-            onChangeMoneyManagement={setMoneyManagement}
-            onChangeCost={setCostSettings}
-            onClose={() => setMmUi('closed')}
-          />
+        <ModelessWindow title="資金管理" onClose={() => setMmUi('closed')} width={560} initialX={72}>
+          <div style={windowBodyStyle}>
+            <WindowDisplayModeSwitch
+              name="mm-in-window"
+              value="modeless"
+              onChange={switchMmDisplay}
+              testId="mm-in-window-mode"
+              legend="このウィンドウの表示"
+            />
+            <BacktestMoneyManagementPanel
+              embedded
+              moneyManagement={moneyManagement}
+              cost={costSettings}
+              currency={displayCurrency}
+              symbols={symbols}
+              onChangeMoneyManagement={setMoneyManagement}
+              onChangeCost={setCostSettings}
+            />
+          </div>
         </ModelessWindow>
       ) : null}
 
@@ -991,15 +1000,24 @@ function ChartsPageContent() {
           padded
           onClose={() => setMmUi('closed')}
         >
-          <BacktestMoneyManagementPanel
-            moneyManagement={moneyManagement}
-            cost={costSettings}
-            currency={displayCurrency}
-            symbols={symbols}
-            onChangeMoneyManagement={setMoneyManagement}
-            onChangeCost={setCostSettings}
-            onClose={() => setMmUi('closed')}
-          />
+          <div style={windowBodyStyle}>
+            <WindowDisplayModeSwitch
+              name="mm-in-window"
+              value="popout"
+              onChange={switchMmDisplay}
+              testId="mm-in-window-mode"
+              legend="このウィンドウの表示"
+            />
+            <BacktestMoneyManagementPanel
+              embedded
+              moneyManagement={moneyManagement}
+              cost={costSettings}
+              currency={displayCurrency}
+              symbols={symbols}
+              onChangeMoneyManagement={setMoneyManagement}
+              onChangeCost={setCostSettings}
+            />
+          </div>
         </PopoutWindow>
       ) : null}
 

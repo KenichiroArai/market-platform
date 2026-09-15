@@ -134,6 +134,42 @@ describe('PriceSyncService', () => {
     expect(result.upsertedBars).toBe(1);
   });
 
+  it('skips symbols when from is after to', async () => {
+    symbolDelegate.findMany.mockResolvedValue([
+      { id: 's1', ticker: 'AAPL', market: 'US' },
+    ]);
+    const result = await service.syncPrices({
+      from: '2026-02-01',
+      to: '2026-01-01',
+      forceRefresh: true,
+    });
+    expect(result.upsertedBars).toBe(0);
+    expect(provider.fetchDailyBars).not.toHaveBeenCalled();
+  });
+
+  it('fills gaps before and after stored range', async () => {
+    symbolDelegate.findMany.mockResolvedValue([
+      { id: 's1', ticker: 'AAPL', market: 'US' },
+    ]);
+    dailyPriceDelegate.aggregate.mockResolvedValue({
+      _min: { date: new Date('2026-01-10T00:00:00.000Z') },
+      _max: { date: new Date('2026-01-20T00:00:00.000Z') },
+    });
+    (provider.fetchDailyBars as jest.Mock).mockResolvedValue([]);
+    dailyPriceDelegate.upsert.mockResolvedValue({});
+    process.env.MARKET_DATA_LOOKBACK_DAYS = '1';
+
+    await service.syncPrices({
+      from: '2026-01-01',
+      to: '2026-01-31',
+      forceRefresh: false,
+    });
+
+    // lookback=1 なら末尾1日の refresh と前後ギャップがマージされ、連続レンジになる
+    expect(provider.fetchDailyBars).toHaveBeenCalledWith('AAPL', '2026-01-01', '2026-01-09');
+    expect(provider.fetchDailyBars).toHaveBeenCalledWith('AAPL', '2026-01-21', '2026-01-31');
+  });
+
   it('filters by symbolIds when provided', async () => {
     symbolDelegate.findMany.mockResolvedValue([]);
     await service.syncPrices({ symbolIds: ['s1', 's2'] });
@@ -178,6 +214,13 @@ describe('resolveFetchRanges', () => {
       { from: '2026-01-01', to: '2026-01-31' },
     ]);
     expect(resolveFetchRanges('2026-01-10', '2026-01-20', '2026-01-01', '2026-01-31')).toEqual([]);
+    expect(resolveFetchRanges('2026-02-01', '2026-01-01', '2026-01-01', '2026-01-31')).toEqual([]);
+    expect(resolveFetchRanges('2026-01-01', '2026-01-05', '2026-01-10', '2026-01-20')).toEqual([
+      { from: '2026-01-01', to: '2026-01-09' },
+    ]);
+    expect(resolveFetchRanges('2026-01-25', '2026-01-31', '2026-01-10', '2026-01-20')).toEqual([
+      { from: '2026-01-21', to: '2026-01-31' },
+    ]);
   });
 });
 
@@ -193,6 +236,24 @@ describe('resolveFetchRangesWithRefresh', () => {
       ),
     ).toEqual([{ from: '2026-01-16', to: '2026-01-20' }]);
   });
+
+  it('returns gap ranges unchanged when refreshDays is non-positive or inverted', () => {
+    expect(
+      resolveFetchRangesWithRefresh(
+        '2026-01-01',
+        '2026-01-31',
+        '2026-01-10',
+        '2026-01-20',
+        0,
+      ),
+    ).toEqual([
+      { from: '2026-01-01', to: '2026-01-09' },
+      { from: '2026-01-21', to: '2026-01-31' },
+    ]);
+    expect(
+      resolveFetchRangesWithRefresh('2026-02-01', '2026-01-01', null, null, 5),
+    ).toEqual([]);
+  });
 });
 
 describe('mergeFetchRanges', () => {
@@ -206,6 +267,24 @@ describe('mergeFetchRanges', () => {
         { from: '2026-01-06', to: '2026-01-11' },
       ),
     ).toEqual([{ from: '2026-01-01', to: '2026-01-12' }]);
+  });
+
+  it('keeps disjoint ranges and drops inverted extras', () => {
+    expect(
+      mergeFetchRanges([{ from: '2026-01-01', to: '2026-01-05' }], {
+        from: '2026-01-10',
+        to: '2026-01-12',
+      }),
+    ).toEqual([
+      { from: '2026-01-01', to: '2026-01-05' },
+      { from: '2026-01-10', to: '2026-01-12' },
+    ]);
+    expect(
+      mergeFetchRanges([{ from: '2026-01-10', to: '2026-01-01' }], {
+        from: '2026-02-01',
+        to: '2026-01-01',
+      }),
+    ).toEqual([]);
   });
 });
 

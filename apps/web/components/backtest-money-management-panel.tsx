@@ -31,7 +31,10 @@ export type BacktestMoneyManagementPanelProps = {
   symbols: SymbolDto[];
   onChangeMoneyManagement: (next: MoneyManagementConfig) => void;
   onChangeCost: (next: BacktestCostSettings) => void;
-  onClose: () => void;
+  /** embedded でないとき必須。閉じるボタンから呼ばれる。 */
+  onClose?: () => void;
+  /** true のとき外枠の ModelessWindow を出さず中身だけ描画する（チャート側の窓管理用）。 */
+  embedded?: boolean;
 };
 
 type TabId = 'basic' | 'cost' | 'pyramid' | 'drawdown' | 'correlation';
@@ -121,6 +124,7 @@ export function BacktestMoneyManagementPanel({
   onChangeMoneyManagement,
   onChangeCost,
   onClose,
+  embedded = false,
 }: BacktestMoneyManagementPanelProps) {
   const [tab, setTab] = useState<TabId>('basic');
   const mm = moneyManagement;
@@ -129,8 +133,7 @@ export function BacktestMoneyManagementPanel({
     onChangeMoneyManagement({ ...mm, ...partial });
   };
 
-  return (
-    <ModelessWindow title="資金管理" onClose={onClose} width={560} initialX={72} initialY={96}>
+  const body = (
       <div data-testid="money-management-panel">
         <div style={tabRowStyle} role="tablist">
           {TABS.map((t) => (
@@ -571,6 +574,15 @@ export function BacktestMoneyManagementPanel({
           </div>
         ) : null}
       </div>
+  );
+
+  if (embedded) {
+    return body;
+  }
+
+  return (
+    <ModelessWindow title="資金管理" onClose={onClose!} width={560} initialX={72} initialY={96}>
+      {body}
     </ModelessWindow>
   );
 }
