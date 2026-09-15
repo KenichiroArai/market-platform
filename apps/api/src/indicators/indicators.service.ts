@@ -14,8 +14,10 @@ import {
   computeIndicatorLookback,
   createEntryAdviceDto,
   createIndicatorsResponseDto,
+  createTradePlanDto,
   createTrendScoreResponseDto,
   isEntryAdviceDto,
+  isTradePlanDto,
   parseGroupWeightsJson,
   parseIndicatorCatalogQuery,
   parseIndicatorParamOverridesJson,
@@ -28,6 +30,7 @@ import {
   type IndicatorCatalogId,
   type IndicatorRequestSpec,
   type IndicatorsResponseDto,
+  type TradePlanDto,
   type TrendScoreResponseDto,
 } from '@market/shared-types';
 import { PricesService } from '../prices/prices.service';
@@ -254,6 +257,101 @@ export class IndicatorsService {
     }
 
     return createEntryAdviceDto(upstream);
+  }
+
+  /**
+   * トレードプラン（ADR 018）。
+   *
+   * 判定・損切／利確・ポジションサイズを Analysis Strategy 層に委譲する。
+   */
+  async getTradePlanForSymbol(
+    symbolId: string,
+    query: {
+      from?: string;
+      to?: string;
+      interval?: '1d' | '1w';
+      indicatorParams?: string;
+      groupWeights?: string;
+      buyThreshold?: string;
+      sellThreshold?: string;
+      baseDate?: string;
+      equity?: string;
+      riskRate?: string;
+      moneyManagement?: string;
+      stopMethod?: string;
+      takeProfitMethod?: string;
+    },
+  ): Promise<TradePlanDto> {
+    const paramOverrides = this.parseIndicatorParamsQuery(query.indicatorParams);
+    const groupWeights = this.parseGroupWeightsQuery(query.groupWeights);
+    const buyThreshold = this.parseOptionalNumber(query.buyThreshold, 'buyThreshold');
+    const sellThreshold = this.parseOptionalNumber(query.sellThreshold, 'sellThreshold');
+    const rule = resolveTrendScoreSignalRule({
+      buyThreshold,
+      sellThreshold,
+    });
+    const signalSpec = resolvedRuleToAnalysisSignal(rule);
+
+    const scoreSpecs = specsFromCatalogIds(scoringCatalogIds(), paramOverrides);
+    const lookback = Math.max(computeIndicatorLookback(scoreSpecs), 60);
+    const interval = query.interval === '1w' ? '1w' : '1d';
+
+    const { bars, rangeStartIndex } = await this.pricesService.listWithLookback(
+      symbolId,
+      { from: query.from, to: query.to, lookback, interval },
+    );
+
+    if (bars.length === 0) {
+      throw new UnprocessableEntityException({
+        code: API_ERROR_CODES.INSUFFICIENT_PRICE_DATA,
+        message: 'Not enough daily prices for trade plan',
+        details: { barCount: 0 },
+      });
+    }
+
+    const equity = this.parsePositiveNumber(query.equity ?? '1000000', 'equity');
+    const riskRate = this.parseOptionalNumber(query.riskRate, 'riskRate') ?? 0.01;
+    if (riskRate <= 0 || riskRate > 1) {
+      throw new UnprocessableEntityException({
+        code: API_ERROR_CODES.VALIDATION_FAILED,
+        message: 'riskRate must be between 0 and 1',
+      });
+    }
+    const baseDate =
+      query.baseDate?.trim() || bars[bars.length - 1]?.date || bars[rangeStartIndex]?.date;
+    const moneyManagement = this.parseMoneyManagementQuery(query.moneyManagement);
+
+    const upstream = await this.postAnalysis<TradePlanDto>('/analysis/trade-plan', {
+      symbolId,
+      bars: bars.map((bar) => ({
+        date: bar.date,
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+        volume: bar.volume,
+      })),
+      signal: signalSpec,
+      baseDate,
+      equity,
+      riskRate,
+      moneyManagement,
+      ...(query.stopMethod ? { stopMethod: query.stopMethod } : {}),
+      ...(query.takeProfitMethod ? { takeProfitMethod: query.takeProfitMethod } : {}),
+      ...(groupWeights ? { groupWeights } : {}),
+      ...(paramOverrides && Object.keys(paramOverrides).length > 0
+        ? { indicatorParams: paramOverrides }
+        : {}),
+    });
+
+    if (!isTradePlanDto(upstream)) {
+      throw new BadGatewayException({
+        code: API_ERROR_CODES.ANALYSIS_UPSTREAM_ERROR,
+        message: 'Invalid trade plan response from analysis',
+      });
+    }
+
+    return createTradePlanDto(upstream);
   }
 
   private parseOptionalNumber(raw: string | undefined, field: string): number | undefined {

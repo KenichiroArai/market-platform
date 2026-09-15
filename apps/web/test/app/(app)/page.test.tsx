@@ -44,7 +44,8 @@ describe('HomePage', () => {
       'href',
       '/watchlists',
     );
-    expect(screen.getByRole('link', { name: 'チャート分析' })).toHaveAttribute('href', '/charts');
+    expect(screen.getByRole('link', { name: '分析' })).toHaveAttribute('href', '/analysis');
+    expect(screen.getByRole('link', { name: '戦略' })).toHaveAttribute('href', '/strategy');
     expect(screen.getByRole('link', { name: 'バックテスト' })).toHaveAttribute('href', '/backtests');
     expect(screen.queryByRole('link', { name: 'ログイン' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '登録' })).not.toBeInTheDocument();

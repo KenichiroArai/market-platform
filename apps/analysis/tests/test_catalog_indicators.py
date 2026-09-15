@@ -214,6 +214,8 @@ def test_compute_series_catalog_and_drawings() -> None:
         IndicatorSpec(id="psy", type="psy", params={"period": 12}),
         IndicatorSpec(id="bb", type="bb", params={"period": 20, "stdDev": 2}),
         IndicatorSpec(id="atr", type="atr", params={"period": 14}),
+        IndicatorSpec(id="donchian", type="donchian", params={"period": 20}),
+        IndicatorSpec(id="adx", type="adx", params={"period": 14}),
         IndicatorSpec(id="stdev", type="stdev", params={"period": 20}),
         IndicatorSpec(
             id="keltner",

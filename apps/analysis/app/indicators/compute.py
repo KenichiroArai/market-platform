@@ -130,6 +130,18 @@ def _apply_spec(
         _write(points, "bbLower", lower)
     elif kind == "atr":
         _write(points, "atr", extras.atr(highs, lows, closes, int(params.get("period", 14))))
+    elif kind == "donchian":
+        upper, mid, lower = extras.donchian(highs, lows, int(params.get("period", 20)))
+        _write(points, "donchianUpper", upper)
+        _write(points, "donchianMiddle", mid)
+        _write(points, "donchianLower", lower)
+    elif kind == "adx":
+        adx_line, plus_di, minus_di = extras.adx(
+            highs, lows, closes, int(params.get("period", 14))
+        )
+        _write(points, "adx", adx_line)
+        _write(points, "plusDi", plus_di)
+        _write(points, "minusDi", minus_di)
     elif kind == "stdev":
         _write(points, "stdev", extras.stdev(closes, int(params.get("period", 20))))
     elif kind == "keltner":

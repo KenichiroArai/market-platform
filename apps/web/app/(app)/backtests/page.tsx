@@ -125,6 +125,8 @@ function BacktestsPageContent() {
   const [moneyManagement, setMoneyManagement] = useState<MoneyManagementConfig>({
     ...DEFAULT_MONEY_MANAGEMENT,
   });
+  const [exitStopMethod, setExitStopMethod] = useState('');
+  const [exitTakeProfitMethod, setExitTakeProfitMethod] = useState('');
   const [costSettings, setCostSettings] = useState<BacktestCostSettings>({ ...DEFAULT_COST });
   const [mmPanelOpen, setMmPanelOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -397,6 +399,13 @@ function BacktestsPageContent() {
         slippageRate: costSettings.slippageRate,
         tradeSidePolicy,
         moneyManagement: moneyManagement.enabled ? moneyManagement : null,
+        exitPolicy:
+          exitStopMethod || exitTakeProfitMethod
+            ? {
+                stopMethod: exitStopMethod || null,
+                takeProfitMethod: exitTakeProfitMethod || null,
+              }
+            : null,
         ...(signalMode === 'trendScore'
           ? (() => {
               const thresholds = resolveSignalThresholds({
@@ -623,6 +632,38 @@ function BacktestsPageContent() {
                     >
                       <option value="longOnly">ロングのみ</option>
                       <option value="longShort">売買（ショートあり）</option>
+                    </select>
+                  </label>
+                </div>
+                <div style={formRowStyle}>
+                  <label style={labelStyle}>
+                    損切方式（戦略）
+                    <select
+                      value={exitStopMethod}
+                      data-testid="exit-stop-method"
+                      onChange={(e) => setExitStopMethod(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">既定（MM ATR）</option>
+                      <option value="atr">ATR</option>
+                      <option value="atr_x2">ATR×2</option>
+                      <option value="recent_swing">直近スイング</option>
+                      <option value="donchian_lower">ドンチャン</option>
+                      <option value="ma">移動平均</option>
+                    </select>
+                  </label>
+                  <label style={labelStyle}>
+                    利確方式（戦略）
+                    <select
+                      value={exitTakeProfitMethod}
+                      data-testid="exit-take-profit-method"
+                      onChange={(e) => setExitTakeProfitMethod(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">なし</option>
+                      <option value="rr_target">RR目標</option>
+                      <option value="atr_multiple">ATR倍数</option>
+                      <option value="donchian_upper">ドンチャン</option>
                     </select>
                   </label>
                 </div>

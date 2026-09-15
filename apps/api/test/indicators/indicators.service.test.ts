@@ -572,4 +572,93 @@ describe('IndicatorsService trend score', () => {
       service.getEntryAdviceForSymbol('s1', { moneyManagement: 'not-json' }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
+
+  it('returns trade plan from analysis', async () => {
+    const bars = makeBars(30);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 5,
+    });
+    const upstream = {
+      symbolId: 's1',
+      baseDate: '2026-01-30',
+      judgment: {
+        level: 'buy',
+        score: 70,
+        stars: 4,
+        label: 'やや買い',
+        factors: [],
+      },
+      entry: {
+        currentPrice: 100,
+        recommendedPrice: 98,
+        side: 'long',
+        rationale: '押し目',
+      },
+      stopLossCandidates: [],
+      takeProfitCandidates: [],
+      recommendedStop: null,
+      recommendedTarget: null,
+      riskReward: null,
+      position: null,
+      riskRating: { level: 'low', stars: 1, atrPercent: 1, notes: [] },
+      buyReasons: [],
+      sellReasons: [],
+      overallScore: 70,
+      summaryLabel: 'やや買い / 総合 70 点',
+    };
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => upstream,
+    }) as unknown as typeof fetch;
+
+    const result = await service.getTradePlanForSymbol('s1', {
+      equity: '1000000',
+      riskRate: '0.01',
+      stopMethod: 'atr_x2',
+      takeProfitMethod: 'rr_target',
+    });
+    expect(result.symbolId).toBe('s1');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://analysis.test/analysis/trade-plan',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('throws INSUFFICIENT_PRICE_DATA for trade plan when bars are empty', async () => {
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars: [],
+      rangeStartIndex: 0,
+    });
+    await expect(service.getTradePlanForSymbol('s1', {})).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
+  });
+
+  it('rejects invalid riskRate for trade plan', async () => {
+    const bars = makeBars(5);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    await expect(
+      service.getTradePlanForSymbol('s1', { riskRate: '2' }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('throws ANALYSIS_UPSTREAM_ERROR for invalid trade plan payload', async () => {
+    const bars = makeBars(10);
+    (pricesService.listWithLookback as jest.Mock).mockResolvedValue({
+      bars,
+      rangeStartIndex: 0,
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ bad: true }),
+    }) as unknown as typeof fetch;
+
+    await expect(service.getTradePlanForSymbol('s1', {})).rejects.toBeInstanceOf(
+      BadGatewayException,
+    );
+  });
 });

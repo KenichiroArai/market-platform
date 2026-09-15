@@ -118,7 +118,9 @@ pnpm dev
 - 指標: `GET /symbols/:id/indicators?indicators=sma25,sma75,sma200,macd,rsi,bb,obv,ichimoku&from=&to=`
 - 内部計算: Analysis `POST /indicators` / `POST /trend-score`（Nest 経由。詳細は [ADR 004](docs/adr/004-technical-analysis.md) / [ADR 006](docs/adr/006-indicator-catalog.md) / [ADR 007](docs/adr/007-trend-score.md)）
 - トレンドスコア: `GET /symbols/:id/trend-score?from=&to=`（チャート背景。トグル非依存）
-- 画面: [http://localhost:3000/charts（チャート本画面](http://localhost:3000/charts（チャート本画面) + 指標はモードレス/別ウィンドウ + トレンド背景 + 指標セット保存/呼び出し）
+- エントリー助言: `GET /symbols/:id/entry-advice`（[ADR 017](docs/adr/017-chart-analysis-money-management.md)）
+- トレードプラン: `GET /symbols/:id/trade-plan`（[ADR 018](docs/adr/018-trade-strategy-plan.md)。画面 `/strategy`）
+- 画面: [http://localhost:3000/charts](http://localhost:3000/charts)（チャート） / [http://localhost:3000/analysis](http://localhost:3000/analysis)（分析ハブ） / [http://localhost:3000/strategy](http://localhost:3000/strategy)（戦略）
 - 指標セット: `GET|POST /indicator-sets` / `DELETE /indicator-sets/:id`（名前付きトグル。保存は指標設定ウィンドウ、呼び出しは独立ウィンドウ）
 
 `.env` に `JWT_SECRET` が必須です（`[.env.example](.env.example)` 参照）。市場データは `MARKET_DATA_PROVIDER`（`yahoo`|`stub`）で切替できます（[ADR 002](docs/adr/002-market-data-provider.md)）。
@@ -149,7 +151,8 @@ pnpm test
 - [ADR 008: テクニカル指標セット](docs/adr/008-indicator-sets.md)
 - [ADR 009: バックテスト結果の拡張と SMA 最適化](docs/adr/009-backtest-enrichment.md)
 - [ADR 013: 実行履歴の検索と論理削除](docs/adr/013-backtest-run-history-management.md)
-- [ADR 016: 資金管理（マネーマネージメント）](docs/adr/016-money-management.md)
+- [ADR 017: チャート分析 × MM](docs/adr/017-chart-analysis-money-management.md)
+- [ADR 018: 売買戦略・トレードプラン](docs/adr/018-trade-strategy-plan.md)
 
 
 

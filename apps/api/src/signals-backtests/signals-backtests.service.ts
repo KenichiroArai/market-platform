@@ -341,6 +341,7 @@ export class SignalsBacktestsService {
       slippageRate: dto.slippageRate,
       tradeSidePolicy: dto.tradeSidePolicy ?? 'longOnly',
       moneyManagement: dto.moneyManagement ?? null,
+      exitPolicy: dto.exitPolicy ?? null,
     });
     const result = await this.callAnalysisBacktest(analysisRequest);
     return this.persistBacktestRun(userId, {
@@ -406,6 +407,7 @@ export class SignalsBacktestsService {
       slippageRate: dto.slippageRate,
       tradeSidePolicy: dto.tradeSidePolicy ?? 'longOnly',
       moneyManagement: dto.moneyManagement ?? null,
+      exitPolicy: dto.exitPolicy ?? null,
     });
     const result = await this.callAnalysisBacktest(analysisRequest);
     return this.persistBacktestRun(userId, {
@@ -565,6 +567,7 @@ export class SignalsBacktestsService {
       slippageRate: number;
       tradeSidePolicy: 'longOnly' | 'longShort';
       moneyManagement: Record<string, unknown> | null;
+      exitPolicy?: Record<string, unknown> | null;
     },
   ): Promise<
     ComputeSignalRequest & {
@@ -575,6 +578,7 @@ export class SignalsBacktestsService {
       slippageRate: number;
       tradeSidePolicy: 'longOnly' | 'longShort';
       moneyManagement: Record<string, unknown> | null;
+      exitPolicy?: Record<string, unknown> | null;
       symbolId: string;
       rangeStartIndex?: number;
     }
@@ -602,6 +606,7 @@ export class SignalsBacktestsService {
       slippageRate: run.slippageRate,
       tradeSidePolicy: run.tradeSidePolicy,
       moneyManagement: run.moneyManagement,
+      exitPolicy: run.exitPolicy ?? null,
     };
   }
 
@@ -621,6 +626,7 @@ export class SignalsBacktestsService {
       slippageRate: number;
       tradeSidePolicy: 'longOnly' | 'longShort';
       moneyManagement: Record<string, unknown> | null;
+      exitPolicy?: Record<string, unknown> | null;
     },
   ): Promise<
     ComputeSignalRequest & {
@@ -631,6 +637,7 @@ export class SignalsBacktestsService {
       slippageRate: number;
       tradeSidePolicy: 'longOnly' | 'longShort';
       moneyManagement: Record<string, unknown> | null;
+      exitPolicy?: Record<string, unknown> | null;
       symbolId: string;
       rangeStartIndex?: number;
     }
@@ -661,6 +668,7 @@ export class SignalsBacktestsService {
       slippageRate: run.slippageRate,
       tradeSidePolicy: run.tradeSidePolicy,
       moneyManagement: run.moneyManagement,
+      exitPolicy: run.exitPolicy ?? null,
       rangeStartIndex,
     };
   }
@@ -674,6 +682,7 @@ export class SignalsBacktestsService {
       slippageRate: number;
       tradeSidePolicy?: 'longOnly' | 'longShort';
       moneyManagement?: Record<string, unknown> | null;
+      exitPolicy?: Record<string, unknown> | null;
       symbolId: string;
       rangeStartIndex?: number;
     },
@@ -697,6 +706,7 @@ export class SignalsBacktestsService {
           tradeSidePolicy: body.tradeSidePolicy ?? 'longOnly',
           moneyManagement: body.moneyManagement ?? null,
           rangeStartIndex: body.rangeStartIndex ?? 0,
+          exitPolicy: body.exitPolicy ?? null,
         }),
       });
     } catch (error) {

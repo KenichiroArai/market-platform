@@ -202,6 +202,13 @@ export class RunBacktestDto {
   moneyManagement?: Record<string, unknown> | null;
 
   @ApiPropertyOptional({
+    description: '損切／利確方針（ADR 018）。省略時は現状互換。',
+  })
+  @IsOptional()
+  @IsObject()
+  exitPolicy?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({
     example: 37.5,
     description: 'trendScore 時の買い閾値。省略時は 37.5（上昇トレンド境界）。',
   })

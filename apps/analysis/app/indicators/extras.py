@@ -184,6 +184,96 @@ def atr(
     return result
 
 
+def donchian(
+    highs: Sequence[float],
+    lows: Sequence[float],
+    period: int,
+) -> tuple[list[float | None], list[float | None], list[float | None]]:
+    """Donchian チャネル（上限=期間高値、下限=期間安値、中央=中点）。"""
+    _require_positive("period", period)
+    n = len(highs)
+    upper: list[float | None] = [None] * n
+    lower: list[float | None] = [None] * n
+    mid: list[float | None] = [None] * n
+    for i in range(period - 1, n):
+        hi = max(highs[i - period + 1 : i + 1])
+        lo = min(lows[i - period + 1 : i + 1])
+        upper[i] = float(hi)
+        lower[i] = float(lo)
+        mid[i] = (float(hi) + float(lo)) / 2.0
+    return upper, mid, lower
+
+
+def adx(
+    highs: Sequence[float],
+    lows: Sequence[float],
+    closes: Sequence[float],
+    period: int,
+) -> tuple[list[float | None], list[float | None], list[float | None]]:
+    """ADX / +DI / -DI（Wilder）。トレンド強度の目安。"""
+    _require_positive("period", period)
+    n = len(closes)
+    adx_out: list[float | None] = [None] * n
+    plus_di: list[float | None] = [None] * n
+    minus_di: list[float | None] = [None] * n
+    if n < period + 1:
+        return adx_out, plus_di, minus_di
+
+    tr_list = true_range(highs, lows, closes)
+    plus_dm: list[float] = [0.0] * n
+    minus_dm: list[float] = [0.0] * n
+    for i in range(1, n):
+        up = float(highs[i]) - float(highs[i - 1])
+        down = float(lows[i - 1]) - float(lows[i])
+        plus_dm[i] = up if up > down and up > 0 else 0.0
+        minus_dm[i] = down if down > up and down > 0 else 0.0
+
+    # 最初の Wilder 平滑（period 本の単純平均）
+    tr_smooth = sum(tr_list[1 : period + 1])
+    plus_smooth = sum(plus_dm[1 : period + 1])
+    minus_smooth = sum(minus_dm[1 : period + 1])
+    dx_values: list[float | None] = [None] * n
+
+    def _di_pair(tr_s: float, plus_s: float, minus_s: float) -> tuple[float, float, float]:
+        if tr_s <= 0:  # pragma: no cover — TR 平滑が 0 の防御
+            return 0.0, 0.0, 0.0
+        pdi = 100.0 * plus_s / tr_s
+        mdi = 100.0 * minus_s / tr_s
+        denom = pdi + mdi
+        dx = 0.0 if denom <= 0 else 100.0 * abs(pdi - mdi) / denom
+        return pdi, mdi, dx
+
+    pdi, mdi, dx = _di_pair(tr_smooth, plus_smooth, minus_smooth)
+    plus_di[period] = pdi
+    minus_di[period] = mdi
+    dx_values[period] = dx
+
+    for i in range(period + 1, n):
+        tr_smooth = tr_smooth - tr_smooth / period + tr_list[i]
+        plus_smooth = plus_smooth - plus_smooth / period + plus_dm[i]
+        minus_smooth = minus_smooth - minus_smooth / period + minus_dm[i]
+        pdi, mdi, dx = _di_pair(tr_smooth, plus_smooth, minus_smooth)
+        plus_di[i] = pdi
+        minus_di[i] = mdi
+        dx_values[i] = dx
+
+    # ADX は DX の Wilder 平滑（最初は period 本の DX 平均）
+    first_adx_idx = period * 2 - 1
+    if first_adx_idx >= n:  # pragma: no cover — 短系列で ADX 未確定
+        return adx_out, plus_di, minus_di
+    seed_dx = [v for v in dx_values[period : first_adx_idx + 1] if v is not None]
+    if len(seed_dx) < period:  # pragma: no cover — DX 不足
+        return adx_out, plus_di, minus_di
+    adx_smooth = sum(seed_dx) / period
+    adx_out[first_adx_idx] = adx_smooth
+    for i in range(first_adx_idx + 1, n):
+        if dx_values[i] is None:  # pragma: no cover
+            continue
+        adx_smooth = (adx_smooth * (period - 1) + float(dx_values[i])) / period
+        adx_out[i] = adx_smooth
+    return adx_out, plus_di, minus_di
+
+
 def stdev(closes: Sequence[float], period: int) -> list[float | None]:
     """終値のローリング標準偏差（ddof=0）。"""
     _require_positive("period", period)

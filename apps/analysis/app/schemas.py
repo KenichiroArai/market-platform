@@ -27,6 +27,8 @@ IndicatorComputeType = Literal[
     "psy",
     "bb",
     "atr",
+    "donchian",
+    "adx",
     "stdev",
     "keltner",
     "obv",
@@ -328,6 +330,15 @@ class BacktestSummary(BaseModel):
     moneyManagement: MoneyManagementStatsModel | None = None
 
 
+class ExitPolicyModel(BaseModel):
+    """バックテストの損切／利確方針（ADR 018）。"""
+
+    stopMethod: str | None = None
+    takeProfitMethod: str | None = None
+    atrTargetMultiple: float = 3.0
+    rrMultiple: float = 2.0
+
+
 class RunBacktestRequest(BaseModel):
     """POST /backtests/run の入力。
 
@@ -346,6 +357,7 @@ class RunBacktestRequest(BaseModel):
     tradeSidePolicy: TradeSidePolicy = "longOnly"
     moneyManagement: dict[str, Any] | None = None
     rangeStartIndex: int = Field(default=0, ge=0)
+    exitPolicy: ExitPolicyModel | None = None
 
 
 class RunBacktestResponse(BaseModel):
@@ -477,3 +489,106 @@ class EntryAdviceResponse(BaseModel):
     rationale: str | None = None
     entryReasonCode: str | None = None
     newEntryFromBase: EntryAdviceNewEntryModel | None = None
+
+
+class TradePlanJudgmentFactorModel(BaseModel):
+    """判定要因。"""
+
+    id: str
+    label: str
+    contribution: float
+    note: str
+
+
+class TradePlanJudgmentModel(BaseModel):
+    """エントリー判定。"""
+
+    level: Literal["strong_buy", "buy", "neutral", "sell", "strong_sell"]
+    score: float
+    stars: int
+    label: str
+    factors: list[TradePlanJudgmentFactorModel]
+
+
+class TradePlanEntryModel(BaseModel):
+    """推奨エントリー。"""
+
+    currentPrice: float
+    recommendedPrice: float
+    side: Literal["long", "short"]
+    rationale: str
+
+
+class TradePlanPriceLevelModel(BaseModel):
+    """損切・利確の価格候補。"""
+
+    method: str
+    label: str
+    price: float
+    rationale: str
+    recommended: bool = False
+
+
+class TradePlanRiskRewardModel(BaseModel):
+    """リスクリワード。"""
+
+    entry: float
+    stop: float
+    target: float
+    riskReward: float
+
+
+class TradePlanPositionModel(BaseModel):
+    """ポジションサイズ。"""
+
+    recommendedShares: float
+    maxShares: float
+    requiredCapital: float
+    maxLoss: float
+    equity: float
+    riskRate: float
+
+
+class TradePlanRiskRatingModel(BaseModel):
+    """リスク評価。"""
+
+    level: Literal["low", "medium", "high"]
+    stars: int
+    atrPercent: float | None = None
+    notes: list[str]
+
+
+class TradePlanRequest(BaseModel):
+    """POST /analysis/trade-plan の入力。"""
+
+    symbolId: str
+    bars: list[OhlcBar]
+    baseDate: str
+    equity: float = Field(gt=0)
+    riskRate: float = Field(default=0.01, gt=0, le=1)
+    signal: SignalSpec | None = None
+    moneyManagement: dict[str, Any] | None = None
+    groupWeights: dict[str, float] | None = None
+    indicatorParams: dict[str, dict[str, float]] | None = None
+    stopMethod: str | None = None
+    takeProfitMethod: str | None = None
+
+
+class TradePlanResponse(BaseModel):
+    """POST /analysis/trade-plan の出力。"""
+
+    symbolId: str
+    baseDate: str
+    judgment: TradePlanJudgmentModel
+    entry: TradePlanEntryModel
+    stopLossCandidates: list[TradePlanPriceLevelModel]
+    takeProfitCandidates: list[TradePlanPriceLevelModel]
+    recommendedStop: TradePlanPriceLevelModel | None = None
+    recommendedTarget: TradePlanPriceLevelModel | None = None
+    riskReward: TradePlanRiskRewardModel | None = None
+    position: TradePlanPositionModel | None = None
+    riskRating: TradePlanRiskRatingModel
+    buyReasons: list[str]
+    sellReasons: list[str]
+    overallScore: float
+    summaryLabel: str

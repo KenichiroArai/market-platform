@@ -26,7 +26,14 @@ export type BacktestTradeReasonCode =
   | 'score_cross_up'
   | 'score_cross_down'
   | 'force_close_end'
-  | 'atr_stop_loss';
+  | 'atr_stop_loss'
+  | 'take_profit'
+  | 'strategy_stop_atr'
+  | 'strategy_stop_atr_x2'
+  | 'strategy_stop_recent_swing'
+  | 'strategy_stop_approx_support'
+  | 'strategy_stop_donchian_lower'
+  | 'strategy_stop_ma';
 
 const TRADE_REASON_LABELS: Record<BacktestTradeReasonCode, string> = {
   sma_golden_cross: 'SMAゴールデンクロス',
@@ -39,6 +46,13 @@ const TRADE_REASON_LABELS: Record<BacktestTradeReasonCode, string> = {
   score_cross_down: 'スコア下降クロス',
   force_close_end: '期間末強制決済',
   atr_stop_loss: 'ATRストップロス',
+  take_profit: '利確',
+  strategy_stop_atr: '戦略損切(ATR)',
+  strategy_stop_atr_x2: '戦略損切(ATR×2)',
+  strategy_stop_recent_swing: '戦略損切(直近スイング)',
+  strategy_stop_approx_support: '戦略損切(近似サポート)',
+  strategy_stop_donchian_lower: '戦略損切(ドンチャン)',
+  strategy_stop_ma: '戦略損切(移動平均)',
 };
 
 /**

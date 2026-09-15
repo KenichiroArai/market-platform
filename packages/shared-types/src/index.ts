@@ -24,3 +24,4 @@ export * from './indicator-set';
 export * from './indicator-param-rules';
 export * from './indicator-score-config';
 export * from './entry-advice';
+export * from './trade-plan';

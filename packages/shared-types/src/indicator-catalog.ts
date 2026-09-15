@@ -41,6 +41,8 @@ export type IndicatorCatalogId =
   | 'psy'
   | 'bb'
   | 'atr'
+  | 'donchian'
+  | 'adx'
   | 'stdev'
   | 'keltner'
   | 'volume'
@@ -70,6 +72,8 @@ export type IndicatorComputeType =
   | 'psy'
   | 'bb'
   | 'atr'
+  | 'donchian'
+  | 'adx'
   | 'stdev'
   | 'keltner'
   | 'obv'
@@ -464,6 +468,50 @@ export const INDICATOR_CATALOG: IndicatorDefinition[] = [
     series: [{ key: 'atr', label: 'ATR', color: '#ffcc80', style: 'line' }],
   },
   {
+    id: 'donchian',
+    computeType: 'donchian',
+    categories: ['volatility', 'trend'],
+    scoreGroup: null,
+    nameJa: 'ドンチャンチャネル',
+    shortPurpose: '期間高安でブレイクアウト帯を描く',
+    description:
+      '直近 N 本（既定 20）の最高値・最安値とその中点です。上限ブレイクは買い、下限割れは売りの目安。損切・利確ラインの候補にも使います。',
+    pane: 'overlay',
+    recommended: false,
+    defaultEnabled: false,
+    disabled: false,
+    params: { period: 20 },
+    lookbackBars: 20,
+    futureBars: 0,
+    series: [
+      { key: 'donchianUpper', label: 'DC上', color: '#80cbc4', style: 'line' },
+      { key: 'donchianMiddle', label: 'DC中', color: '#80cbc4', style: 'line' },
+      { key: 'donchianLower', label: 'DC下', color: '#80cbc4', style: 'line' },
+    ],
+  },
+  {
+    id: 'adx',
+    computeType: 'adx',
+    categories: ['trend'],
+    scoreGroup: null,
+    nameJa: 'ADX',
+    shortPurpose: 'トレンドの強さを測る',
+    description:
+      'Average Directional Index（期間 14）。+DI / -DI と合わせて表示します。ADX が高いほどトレンドが強く、低いほどレンジ寄りです。方向そのものは DI の大小で読みます。',
+    pane: 'oscillator',
+    recommended: false,
+    defaultEnabled: false,
+    disabled: false,
+    params: { period: 14 },
+    lookbackBars: 28,
+    futureBars: 0,
+    series: [
+      { key: 'adx', label: 'ADX', color: '#ffab91', style: 'line' },
+      { key: 'plusDi', label: '+DI', color: '#81c784', style: 'line' },
+      { key: 'minusDi', label: '-DI', color: '#e57373', style: 'line' },
+    ],
+  },
+  {
     id: 'stdev',
     computeType: 'stdev',
     categories: ['volatility'],
@@ -648,6 +696,8 @@ const COMPUTE_TYPES: IndicatorComputeType[] = [
   'psy',
   'bb',
   'atr',
+  'donchian',
+  'adx',
   'stdev',
   'keltner',
   'obv',

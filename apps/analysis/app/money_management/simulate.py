@@ -41,6 +41,8 @@ class _OpenPosition:
     risk_rate: float | None
     stop_price: float | None
     dd_steps_at_entry: int = 0
+    target_price: float | None = None
+    stop_reason: str = "atr_stop_loss"
 
 
 @dataclass
@@ -72,8 +74,13 @@ def simulate_backtest(
     entry_reason_fn: Callable[..., str],
     exit_reason_fn: Callable[..., str],
     score_breakdown_payload_fn: Callable[[Any], dict | None],
+    exit_policy: dict | None = None,
 ) -> SimulateResult:
-    """汎用シミュレータ（ロング／ショート・MM 対応）。"""
+    """汎用シミュレータ（ロング／ショート・MM 対応）。
+
+    exit_policy があるとき Strategy の損切／利確方式を適用する（ADR 018）。
+    既定（None）は従来どおり ATR×stopMultiple ストップのみ。
+    """
     mm_cfg = (
         money_management
         if isinstance(money_management, MoneyManagementConfig)
@@ -84,6 +91,29 @@ def simulate_backtest(
     atr_series: list[float | None] = []
     if mm is not None:
         atr_series = mm.compute_atr_series(highs, lows, closes)
+
+    # Strategy 損切／利確用の補助系列（必要なときだけ計算）
+    policy = exit_policy or {}
+    stop_method = policy.get("stopMethod")
+    tp_method = policy.get("takeProfitMethod")
+    atr_target_mult = float(policy.get("atrTargetMultiple", 3.0))
+    rr_mult = float(policy.get("rrMultiple", 2.0))
+    need_strategy_levels = bool(stop_method) or (tp_method and tp_method != "none")
+
+    sma25_series: list[float | None] = []
+    dc_upper: list[float | None] = []
+    dc_lower: list[float | None] = []
+    atr14: list[float | None] = []
+    if need_strategy_levels:
+        from app.indicators.core import sma
+        from app.indicators.extras import atr as atr_calc
+        from app.indicators.extras import donchian
+
+        sma25_series = sma(closes, 25)
+        dc_upper, _, dc_lower = donchian(highs, lows, 20)
+        atr14 = atr_calc(highs, lows, closes, 14)
+        if not atr_series:
+            atr_series = atr14
 
     cash = initial_cash
     peak_equity = initial_cash
@@ -247,6 +277,26 @@ def simulate_backtest(
             stop = mm.stop_price(is_long=is_long, entry_price=fill, atr_value=atr_v)
             unit_qty = qty
 
+        target: float | None = None
+        stop_reason = "atr_stop_loss"
+        if need_strategy_levels:
+            stop, target, stop_reason = _resolve_exit_levels(
+                entry_price=fill,
+                is_long=is_long,
+                index=index,
+                atr_series=atr_series if atr_series else atr14,
+                highs=highs,
+                lows=lows,
+                sma25_series=sma25_series,
+                dc_upper=dc_upper,
+                dc_lower=dc_lower,
+                stop_method=stop_method,
+                tp_method=tp_method,
+                atr_target_mult=atr_target_mult,
+                rr_mult=rr_mult,
+                fallback_stop=stop,
+            )
+
         position = _OpenPosition(
             is_long=is_long,
             quantity=qty,
@@ -264,6 +314,8 @@ def simulate_backtest(
             risk_rate=risk,
             stop_price=stop,
             dd_steps_at_entry=dd_steps,
+            target_price=target,
+            stop_reason=stop_reason,
         )
 
     def try_pyramid(*, close: float, index: int) -> None:
@@ -312,8 +364,11 @@ def simulate_backtest(
         )
 
     def check_stop(*, high: float, low: float, date: str, index: int, score: float | None) -> bool:
-        if position is None or mm is None or position.stop_price is None:
-            return False  # pragma: no cover — 呼び出し元で保有・MM・ストップ前提
+        if position is None or position.stop_price is None:
+            return False
+        # 従来: MM ON のときのみストップ。exit_policy があるときは MM なしでも可。
+        if mm is None and not need_strategy_levels:  # pragma: no cover — 呼び出し条件と排他
+            return False
         hit = False
         fill = position.stop_price
         if position.is_long and low <= position.stop_price:
@@ -326,7 +381,30 @@ def simulate_backtest(
             date=date,
             fill_price=fill,
             close_for_slip=fill,
-            exit_reason="atr_stop_loss",
+            exit_reason=position.stop_reason,
+            exit_score=score,
+            exit_breakdown=score_breakdown_payload_fn(breakdowns[index]),
+        )
+        return True
+
+    def check_take_profit(
+        *, high: float, low: float, date: str, index: int, score: float | None
+    ) -> bool:
+        if position is None or position.target_price is None:
+            return False
+        hit = False
+        fill = position.target_price
+        if position.is_long and high >= position.target_price:
+            hit = True
+        elif (not position.is_long) and low <= position.target_price:  # pragma: no cover — ショート利確
+            hit = True
+        if not hit:  # pragma: no cover — 利確未到達
+            return False
+        close_position(
+            date=date,
+            fill_price=fill,
+            close_for_slip=fill,
+            exit_reason="take_profit",
             exit_score=score,
             exit_breakdown=score_breakdown_payload_fn(breakdowns[index]),
         )
@@ -341,8 +419,11 @@ def simulate_backtest(
         high = highs[index]
         low = lows[index]
 
-        if position is not None and mm is not None:
-            check_stop(high=high, low=low, date=date, index=index, score=score)
+        if position is not None and (mm is not None or need_strategy_levels):
+            if check_stop(high=high, low=low, date=date, index=index, score=score):
+                pass
+            elif check_take_profit(high=high, low=low, date=date, index=index, score=score):  # pragma: no cover
+                pass
 
         if position is None:
             if signal.buy:
@@ -460,3 +541,85 @@ def simulate_backtest(
         )
 
     return SimulateResult(trades=trades, equity_points=equity_points, mm_stats=stats)
+
+
+def _resolve_exit_levels(
+    *,
+    entry_price: float,
+    is_long: bool,
+    index: int,
+    atr_series: list[float | None],
+    highs: list[float],
+    lows: list[float],
+    sma25_series: list[float | None],
+    dc_upper: list[float | None],
+    dc_lower: list[float | None],
+    stop_method: str | None,
+    tp_method: str | None,
+    atr_target_mult: float,
+    rr_mult: float,
+    fallback_stop: float | None,
+) -> tuple[float | None, float | None, str]:
+    """Strategy の損切／利確を建玉時点で確定する。"""
+    from app.strategy.stop_loss import stop_price_for_method
+    from app.strategy.take_profit import target_price_for_method
+
+    atr_v = atr_series[index] if index < len(atr_series) else None
+    lookback = 10
+    start = max(0, index - lookback + 1)
+    recent_swing = min(lows[start : index + 1]) if is_long else max(highs[start : index + 1])
+    ma = sma25_series[index] if index < len(sma25_series) else None
+    dc_bound = (dc_lower[index] if is_long else dc_upper[index]) if index < len(dc_lower) else None
+
+    stop = fallback_stop
+    stop_reason = "atr_stop_loss"
+    if stop_method:
+        method = stop_method if stop_method in (
+            "atr",
+            "atr_x2",
+            "recent_swing",
+            "approx_support",
+            "donchian_lower",
+            "ma",
+        ) else "atr_x2"
+        computed = stop_price_for_method(
+            method=method,  # type: ignore[arg-type]
+            entry_price=entry_price,
+            is_long=is_long,
+            atr=atr_v,
+            recent_swing=recent_swing,
+            approx_support=recent_swing,
+            donchian_bound=dc_bound,
+            ma=ma,
+            atr_multiple=1.0 if method == "atr" else 2.0,
+        )
+        if computed is not None:
+            stop = computed
+            stop_reason = f"strategy_stop_{method}"
+
+    target = None
+    if tp_method and tp_method != "none":
+        method_tp = tp_method if tp_method in (
+            "atr_multiple",
+            "rr_target",
+            "approx_resistance",
+            "fibonacci",
+            "donchian_upper",
+            "none",
+        ) else "rr_target"
+        dc_tp = (dc_upper[index] if is_long else dc_lower[index]) if index < len(dc_upper) else None
+        swing_tp = max(highs[start : index + 1]) if is_long else min(lows[start : index + 1])
+        target = target_price_for_method(
+            method=method_tp,  # type: ignore[arg-type]
+            entry_price=entry_price,
+            stop_price=stop,
+            is_long=is_long,
+            atr=atr_v,
+            atr_target_multiple=atr_target_mult,
+            rr_multiple=rr_mult,
+            approx_resistance=swing_tp,
+            fib_level=None,
+            donchian_bound=dc_tp,
+        )
+
+    return stop, target, stop_reason

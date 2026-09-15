@@ -146,3 +146,72 @@ export class GetEntryAdviceQueryDto {
   @IsString()
   moneyManagement?: string;
 }
+
+/** トレードプラン（ADR 018）。 */
+export class GetTradePlanQueryDto {
+  @ApiPropertyOptional({ example: '2026-01-01' })
+  @IsOptional()
+  @IsString()
+  from?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-30' })
+  @IsOptional()
+  @IsString()
+  to?: string;
+
+  @ApiPropertyOptional({ example: '1d', enum: ['1d', '1w'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['1d', '1w'])
+  interval?: '1d' | '1w';
+
+  @ApiPropertyOptional({ description: '指標パラメータ上書き JSON' })
+  @IsOptional()
+  @IsString()
+  indicatorParams?: string;
+
+  @ApiPropertyOptional({ description: '6 グループ配点 JSON' })
+  @IsOptional()
+  @IsString()
+  groupWeights?: string;
+
+  @ApiPropertyOptional({ example: '37.5' })
+  @IsOptional()
+  @IsString()
+  buyThreshold?: string;
+
+  @ApiPropertyOptional({ example: '-42.5' })
+  @IsOptional()
+  @IsString()
+  sellThreshold?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-15' })
+  @IsOptional()
+  @IsString()
+  baseDate?: string;
+
+  @ApiPropertyOptional({ example: '1000000', description: '総資産（equity）' })
+  @IsOptional()
+  @IsString()
+  equity?: string;
+
+  @ApiPropertyOptional({ example: '0.01', description: '許容損失率' })
+  @IsOptional()
+  @IsString()
+  riskRate?: string;
+
+  @ApiPropertyOptional({ description: '資金管理設定 JSON' })
+  @IsOptional()
+  @IsString()
+  moneyManagement?: string;
+
+  @ApiPropertyOptional({ example: 'atr_x2', description: '推奨損切方式' })
+  @IsOptional()
+  @IsString()
+  stopMethod?: string;
+
+  @ApiPropertyOptional({ example: 'rr_target', description: '推奨利確方式' })
+  @IsOptional()
+  @IsString()
+  takeProfitMethod?: string;
+}

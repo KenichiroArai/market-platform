@@ -1087,6 +1087,8 @@ describe('shared-types indicator catalog', () => {
     expect(scoringCatalogIds()).not.toContain('elliott');
     expect(scoringCatalogIds()).toContain('volume');
     expect(INDICATOR_CATALOG.filter((item) => item.scoreGroup === null).map((item) => item.id)).toEqual([
+      'donchian',
+      'adx',
       'elliott',
     ]);
     const weightSum = Object.values(TREND_SCORE_GROUP_WEIGHTS).reduce((sum, value) => sum + value, 0);

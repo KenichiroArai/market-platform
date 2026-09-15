@@ -18,6 +18,7 @@ import {
   isPortfolioDto,
   isSignalDefinitionDto,
   isSymbolDto,
+  isTradePlanDto,
   isTrendScoreResponseDto,
   isWatchlistDto,
   type AuthTokenResponse,
@@ -48,6 +49,7 @@ import {
   type SignalStrategyType,
   type CreateSymbolRequest,
   type SymbolDto,
+  type TradePlanDto,
   type TrendScoreResponseDto,
   type WatchlistDto,
   serializeGroupWeights,
@@ -353,6 +355,75 @@ export async function fetchEntryAdvice(
   const result = await apiFetch<unknown>(path, { method: 'GET' }, fetchImpl);
   if (!isEntryAdviceDto(result)) {
     throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected entry advice response', result);
+  }
+  return result;
+}
+
+/** GET /symbols/:id/trade-plan（ADR 018） */
+export async function fetchTradePlan(
+  symbolId: string,
+  query: {
+    from?: string;
+    to?: string;
+    interval?: ChartInterval;
+    indicatorParams?: IndicatorParamOverrides;
+    groupWeights?: GroupWeights;
+    buyThreshold?: number;
+    sellThreshold?: number;
+    baseDate?: string;
+    equity?: number;
+    riskRate?: number;
+    moneyManagement?: MoneyManagementConfig | null;
+    stopMethod?: string;
+    takeProfitMethod?: string;
+  } = {},
+  fetchImpl?: typeof fetch,
+): Promise<TradePlanDto> {
+  const params = new URLSearchParams();
+  if (query.from) {
+    params.set('from', query.from);
+  }
+  if (query.to) {
+    params.set('to', query.to);
+  }
+  if (query.interval) {
+    params.set('interval', query.interval);
+  }
+  if (query.indicatorParams && Object.keys(query.indicatorParams).length > 0) {
+    params.set('indicatorParams', serializeIndicatorParamOverrides(query.indicatorParams));
+  }
+  if (query.groupWeights) {
+    params.set('groupWeights', serializeGroupWeights(query.groupWeights));
+  }
+  if (query.buyThreshold != null) {
+    params.set('buyThreshold', String(query.buyThreshold));
+  }
+  if (query.sellThreshold != null) {
+    params.set('sellThreshold', String(query.sellThreshold));
+  }
+  if (query.baseDate) {
+    params.set('baseDate', query.baseDate);
+  }
+  if (query.equity != null) {
+    params.set('equity', String(query.equity));
+  }
+  if (query.riskRate != null) {
+    params.set('riskRate', String(query.riskRate));
+  }
+  if (query.moneyManagement) {
+    params.set('moneyManagement', JSON.stringify(query.moneyManagement));
+  }
+  if (query.stopMethod) {
+    params.set('stopMethod', query.stopMethod);
+  }
+  if (query.takeProfitMethod) {
+    params.set('takeProfitMethod', query.takeProfitMethod);
+  }
+  const qs = params.toString();
+  const path = `/symbols/${encodeURIComponent(symbolId)}/trade-plan${qs ? `?${qs}` : ''}`;
+  const result = await apiFetch<unknown>(path, { method: 'GET' }, fetchImpl);
+  if (!isTradePlanDto(result)) {
+    throw new ApiClientError(500, 'INVALID_RESPONSE', 'Unexpected trade plan response', result);
   }
   return result;
 }

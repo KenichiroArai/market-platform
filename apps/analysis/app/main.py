@@ -43,6 +43,8 @@ from app.schemas import (
     RunBacktestResponse,
     SignalPoint,
     SignalSpec,
+    TradePlanRequest,
+    TradePlanResponse,
     TrendScorePoint,
 )
 from app.version import read_app_version
@@ -128,6 +130,18 @@ def entry_advice_endpoint(body: EntryAdviceRequest) -> EntryAdviceResponse:
 
 
 @app.post(
+    "/analysis/trade-plan",
+    response_model=TradePlanResponse,
+    tags=["analysis"],
+)
+def trade_plan_endpoint(body: TradePlanRequest) -> TradePlanResponse:
+    """売買戦略トレードプラン（ADR 018）。"""
+    from app.strategy.trade_plan import compute_trade_plan
+
+    return compute_trade_plan(body)
+
+
+@app.post(
     "/signals/compute",
     response_model=ComputeSignalsResponse,
     tags=["signals"],
@@ -176,6 +190,7 @@ def run_backtest(body: RunBacktestRequest) -> RunBacktestResponse:
         entry_reason_fn=_entry_reason_code,
         exit_reason_fn=_exit_reason_code,
         score_breakdown_payload_fn=_score_breakdown_payload,
+        exit_policy=body.exitPolicy.model_dump() if body.exitPolicy else None,
     )
     summary_closes = closes[trade_start:] if trade_start < len(closes) else closes
     summary = _build_backtest_summary(

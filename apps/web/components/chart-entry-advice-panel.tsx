@@ -49,6 +49,13 @@ export function ChartEntryAdvicePanel({
   return (
     <section style={panelStyle} data-testid="entry-advice-panel">
       <h3 style={titleStyle}>エントリー助言（トレンドスコア）</h3>
+      <p style={metaStyle}>
+        総合的な売買判断・資金管理は{' '}
+        <a href="/strategy" style={{ color: '#90caf9' }}>
+          戦略（トレードプラン）
+        </a>{' '}
+        を参照してください。
+      </p>
       <p style={metaStyle} data-testid="entry-advice-timing">
         {timingLabels[advice.entryTiming]}（基準日: {advice.baseDate}）
       </p>

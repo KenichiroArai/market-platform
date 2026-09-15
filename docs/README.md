@@ -32,6 +32,7 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 | [adr/015-backtest-result-analysis.md](adr/015-backtest-result-analysis.md) | バックテスト結果の分析しやすさ（スコア内訳・日次 ZIP） |
 | [adr/016-money-management.md](adr/016-money-management.md) | バックテスト資金管理・売買方針・手数料モード |
 | [adr/017-chart-analysis-money-management.md](adr/017-chart-analysis-money-management.md) | チャート分析への資金管理とエントリー助言 |
+| [adr/018-trade-strategy-plan.md](adr/018-trade-strategy-plan.md) | 売買戦略・トレードプランとバックテスト共通化 |
 
 ## ドキュメント方針
 

@@ -255,6 +255,13 @@ export interface RunBacktestRequest {
   tradeSidePolicy?: TradeSidePolicy;
   /** 省略または enabled=false で従来パス。 */
   moneyManagement?: MoneyManagementConfig | null;
+  /** 損切／利確方針（ADR 018）。省略時は現状互換（ATR ストップのみ）。 */
+  exitPolicy?: {
+    stopMethod?: string | null;
+    takeProfitMethod?: string | null;
+    atrTargetMultiple?: number;
+    rrMultiple?: number;
+  } | null;
   /** `trendScore` 時のみ。省略時は DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS。 */
   buyThreshold?: number;
   /** `trendScore` 時のみ。省略時は DEFAULT_TREND_SCORE_SIGNAL_THRESHOLDS。 */
