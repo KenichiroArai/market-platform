@@ -66,6 +66,10 @@ export type AnalysisChartProps = {
 
 /** 空の trades。毎レンダーで new すると effect が再走するためモジュール定数にする。 */
 const EMPTY_TRADES: BacktestTradeDto[] = [];
+/** 空の助言価格線。同上。 */
+const EMPTY_ADVICE_PRICE_LINES: EntryAdvicePriceLineDto[] = [];
+/** 空のトレンドスコア点。同上。 */
+const EMPTY_TREND_SCORE_POINTS: TrendScorePoint[] = [];
 
 const UP_COLOR = '#26a69a';
 const DOWN_COLOR = '#ef5350';
@@ -263,11 +267,11 @@ export function AnalysisChart({
   indicatorPoints,
   enabledIds = EMPTY_ENABLED_IDS,
   drawings,
-  trendScorePoints = [],
+  trendScorePoints = EMPTY_TREND_SCORE_POINTS,
   baseDate = null,
   onBarClick,
   trades = EMPTY_TRADES,
-  advicePriceLines = [],
+  advicePriceLines = EMPTY_ADVICE_PRICE_LINES,
   currency = null,
   loading = false,
   height,

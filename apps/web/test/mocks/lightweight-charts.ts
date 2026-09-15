@@ -3,6 +3,7 @@
  * 実パッケージは ESM 主体のため、テストではここに差し替える。
  */
 export const ColorType = { Solid: 'solid' };
+export const CrosshairMode = { Normal: 0, Magnet: 1, Hidden: 2, MagnetOHLC: 3 };
 export const CandlestickSeries = 'CandlestickSeries';
 export const LineSeries = 'LineSeries';
 export const HistogramSeries = 'HistogramSeries';
@@ -16,6 +17,8 @@ const mockSetHeight = jest.fn();
 const mockAttachPrimitive = jest.fn();
 const mockSubscribeClick = jest.fn();
 const mockUnsubscribeClick = jest.fn();
+const mockSubscribeCrosshairMove = jest.fn();
+const mockUnsubscribeCrosshairMove = jest.fn();
 const mockCreateSeriesMarkers = jest.fn();
 
 export const createSeriesMarkers = mockCreateSeriesMarkers;
@@ -33,6 +36,8 @@ export const createChart = jest.fn(() => ({
   remove: mockRemove,
   subscribeClick: mockSubscribeClick,
   unsubscribeClick: mockUnsubscribeClick,
+  subscribeCrosshairMove: mockSubscribeCrosshairMove,
+  unsubscribeCrosshairMove: mockUnsubscribeCrosshairMove,
 }));
 
 /** テストから呼び出し検証用に公開する内部モック */
@@ -46,5 +51,7 @@ export const __mocks = {
   mockAttachPrimitive,
   mockSubscribeClick,
   mockUnsubscribeClick,
+  mockSubscribeCrosshairMove,
+  mockUnsubscribeCrosshairMove,
   mockCreateSeriesMarkers,
 };

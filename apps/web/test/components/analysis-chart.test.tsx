@@ -94,6 +94,8 @@ function chartApi(createPriceLine = jest.fn()) {
     remove: lwcMocks.mockRemove,
     subscribeClick: lwcMocks.mockSubscribeClick,
     unsubscribeClick: lwcMocks.mockUnsubscribeClick,
+    subscribeCrosshairMove: lwcMocks.mockSubscribeCrosshairMove,
+    unsubscribeCrosshairMove: lwcMocks.mockUnsubscribeCrosshairMove,
   };
 }
 
@@ -528,6 +530,8 @@ describe('AnalysisChart', () => {
       remove: lwcMocks.mockRemove,
       subscribeClick: lwcMocks.mockSubscribeClick,
       unsubscribeClick: lwcMocks.mockUnsubscribeClick,
+      subscribeCrosshairMove: lwcMocks.mockSubscribeCrosshairMove,
+      unsubscribeCrosshairMove: lwcMocks.mockUnsubscribeCrosshairMove,
     };
     (createChart as jest.Mock).mockReturnValue(api);
     render(
@@ -559,6 +563,8 @@ describe('AnalysisChart', () => {
       remove: lwcMocks.mockRemove,
       subscribeClick: lwcMocks.mockSubscribeClick,
       unsubscribeClick: lwcMocks.mockUnsubscribeClick,
+      subscribeCrosshairMove: lwcMocks.mockSubscribeCrosshairMove,
+      unsubscribeCrosshairMove: lwcMocks.mockUnsubscribeCrosshairMove,
     };
     (createChart as jest.Mock).mockReturnValue(api);
 
@@ -598,6 +604,8 @@ describe('AnalysisChart', () => {
       remove: lwcMocks.mockRemove,
       subscribeClick: lwcMocks.mockSubscribeClick,
       unsubscribeClick: lwcMocks.mockUnsubscribeClick,
+      subscribeCrosshairMove: lwcMocks.mockSubscribeCrosshairMove,
+      unsubscribeCrosshairMove: lwcMocks.mockUnsubscribeCrosshairMove,
     };
     (createChart as jest.Mock).mockReturnValue(api);
 
@@ -694,6 +702,7 @@ describe('AnalysisChart', () => {
     expect(lwcMocks.mockResize).toHaveBeenCalled();
     unmount();
     expect(lwcMocks.mockUnsubscribeClick).toHaveBeenCalled();
+    expect(lwcMocks.mockUnsubscribeCrosshairMove).toHaveBeenCalled();
     expect(lwcMocks.mockRemove).toHaveBeenCalled();
   });
 
