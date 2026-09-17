@@ -35,6 +35,7 @@ import {
   resolveSignalThresholds,
   resolveTrendScoreSignalRule,
 } from '@market/shared-types';
+import { AnalysisWorkflowBar } from '../../../components/analysis-workflow-bar';
 import {
   AnalysisChart,
   computeAnalysisChartHeight,
@@ -105,6 +106,33 @@ function resolveIndicatorSetId(
   }
   return sets[0]?.id ?? '';
 }
+
+/** クエリの銘柄 ID が一覧にあればそれを、なければ先頭（または空）。 */
+function resolveSymbolId(queryValue: string | null, rows: SymbolDto[]): string {
+  if (queryValue && rows.some((row) => row.id === queryValue)) {
+    return queryValue;
+  }
+  return rows[0]?.id ?? '';
+}
+
+/** 正の有限数ならその値、でなければ null。 */
+function parsePositiveFinite(raw: string | null): number | null {
+  if (raw == null || raw === '') {
+    return null;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+const EXIT_STOP_METHODS = new Set([
+  'atr',
+  'atr_x2',
+  'recent_swing',
+  'donchian_lower',
+  'ma',
+]);
+
+const EXIT_TAKE_PROFIT_METHODS = new Set(['rr_target', 'atr_multiple', 'donchian_upper']);
 
 function BacktestsPageContent() {
   const searchParams = useSearchParams();
@@ -265,7 +293,35 @@ function BacktestsPageContent() {
           setRunList(runRows);
           setSymbols(symbolRows);
           setIndicatorSetId(resolveIndicatorSetId(searchParams.get('indicatorSetId'), setRows));
-          setSymbolId(symbolRows[0]?.id ?? '');
+          setSymbolId(resolveSymbolId(searchParams.get('symbolId'), symbolRows));
+          const queryFrom = searchParams.get('from');
+          const queryTo = searchParams.get('to');
+          if (queryFrom) {
+            setFrom(queryFrom);
+          }
+          if (queryTo) {
+            setTo(queryTo);
+          }
+          const queryStop = searchParams.get('stopMethod');
+          if (queryStop && EXIT_STOP_METHODS.has(queryStop)) {
+            setExitStopMethod(queryStop);
+          }
+          const queryTp = searchParams.get('takeProfitMethod');
+          if (queryTp && EXIT_TAKE_PROFIT_METHODS.has(queryTp)) {
+            setExitTakeProfitMethod(queryTp);
+          }
+          const queryEquity = parsePositiveFinite(searchParams.get('equity'));
+          if (queryEquity != null) {
+            setInitialCash(queryEquity);
+          }
+          const queryRisk = parsePositiveFinite(searchParams.get('riskRate'));
+          if (queryRisk != null) {
+            setMoneyManagement((prev) => ({
+              ...prev,
+              enabled: true,
+              riskRate: queryRisk,
+            }));
+          }
           setSelectedRunId(runRows[0]?.id ?? '');
         }
       } catch (err) {
@@ -605,23 +661,24 @@ function BacktestsPageContent() {
     }
   }
 
+  const workflowContext = {
+    symbolId,
+    from,
+    to,
+    indicatorSetId,
+    stopMethod: exitStopMethod || null,
+    takeProfitMethod: exitTakeProfitMethod || null,
+    equity: initialCash,
+    riskRate: moneyManagement.riskRate,
+  };
+
   return (
     <main style={pageStyle}>
+      <AnalysisWorkflowBar current="backtests" context={workflowContext} />
       <h1 style={titleStyle}>バックテスト</h1>
       <p style={leadStyle}>
         チャート分析と同系のトレンドスコア、または保存済み指標セット（SMA/MACD/RSI）で過去期間を検証します。
-        結果タブの「結果の読み取り」から再実行や{' '}
-        <Link href={strategyHref({ symbolId: symbolId || undefined })} style={inlineLinkStyle}>
-          戦略
-        </Link>
-        ／
-        <Link
-          href={chartsHref({ symbolId: symbolId || undefined, from, to })}
-          style={inlineLinkStyle}
-        >
-          チャート
-        </Link>
-        へ進めます。
+        結果タブの「結果の読み取り」や上のバーから、戦略／チャート／分析ハブへコンテキスト付きで進めます。
       </p>
 
       {loading ? <p style={{ opacity: 0.85 }}>読み込み中…</p> : null}
@@ -642,13 +699,13 @@ function BacktestsPageContent() {
               <p style={stepsStyle} data-testid="backtest-setup-steps">
                 1. 売買判断（トレンドスコア / 指標セット）を選ぶ → 2. 銘柄・期間・資金を指定 → 3.
                 実行。指標トグルの編集は
-                <Link href={chartsHref()} style={inlineLinkStyle}>
+                <Link href={chartsHref({ symbolId: symbolId || undefined, from, to })} style={inlineLinkStyle}>
                   チャート分析
                 </Link>
                 で行います。
               </p>
               <p style={{ margin: '0 0 0.75rem', opacity: 0.85 }}>
-                <Link href={chartsHref()} style={inlineLinkStyle}>
+                <Link href={chartsHref({ symbolId: symbolId || undefined, from, to })} style={inlineLinkStyle}>
                   指標を編集
                 </Link>
               </p>

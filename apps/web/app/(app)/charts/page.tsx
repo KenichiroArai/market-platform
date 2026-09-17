@@ -65,6 +65,7 @@ import {
 } from '../../../components/popout-window';
 import { TrendScoreBreakdown } from '../../../components/trend-score-breakdown';
 import { ChartEntryAdvicePanel } from '../../../components/chart-entry-advice-panel';
+import { AnalysisWorkflowBar } from '../../../components/analysis-workflow-bar';
 import {
   BacktestMoneyManagementPanel,
   type BacktestCostSettings,
@@ -562,8 +563,18 @@ function ChartsPageContent() {
     moneyManagement,
   ]);
 
+  const workflowContext = {
+    symbolId,
+    from,
+    to,
+    indicatorSetId: activeIndicatorSetId ?? undefined,
+    equity: initialCash,
+    riskRate: moneyManagement.riskRate,
+  };
+
   return (
     <main style={pageStyle}>
+      <AnalysisWorkflowBar current="charts" context={workflowContext} />
       <h1 style={{ fontSize: '1.75rem', margin: '0 0 0.5rem' }}>チャート分析</h1>
       <p style={{ margin: '0 0 1.25rem', opacity: 0.85, maxWidth: '46rem' }}>
         指標設定は本画面。保存セットをバックテストで利用できます。チャートは本画面に表示し、指標・セット呼び出し・スコア内訳は希望の表示（モードレス／別ウィンドウ）を画面で1つ選び各ボタンで開きます。拡大で全画面の別ウィンドウを開けます。初期表示はおすすめ構成です。背景色はトレンドスコアです。基準日は日付入力またはチャートクリックで変更できます。
@@ -827,6 +838,9 @@ function ChartsPageContent() {
             <SignalRulePanel
               preview={signalRulePreview}
               indicatorSetId={activeIndicatorSetId}
+              symbolId={symbolId}
+              from={from}
+              to={to}
             />
             <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
           </div>
@@ -878,6 +892,9 @@ function ChartsPageContent() {
             <SignalRulePanel
               preview={signalRulePreview}
               indicatorSetId={activeIndicatorSetId}
+              symbolId={symbolId}
+              from={from}
+              to={to}
             />
             <IndicatorCatalog enabledIds={enabledIds} onChange={setEnabledIds} />
           </div>
@@ -1068,9 +1085,15 @@ export default function ChartsPage() {
 function SignalRulePanel({
   preview,
   indicatorSetId,
+  symbolId,
+  from,
+  to,
 }: {
   preview: string;
   indicatorSetId: string | null;
+  symbolId: string;
+  from: string;
+  to: string;
 }) {
   return (
     <div style={signalRulePanelStyle} data-testid="signal-rule-panel">
@@ -1079,7 +1102,12 @@ function SignalRulePanel({
       </p>
       {indicatorSetId ? (
         <Link
-          href={backtestsHref({ indicatorSetId })}
+          href={backtestsHref({
+            indicatorSetId,
+            symbolId,
+            from,
+            to,
+          })}
           style={inlineLinkStyle}
           data-testid="backtest-with-set-link"
         >

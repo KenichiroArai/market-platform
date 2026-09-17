@@ -180,7 +180,9 @@ describe('BacktestsPage', () => {
     expect(screen.getByRole('heading', { name: 'バックテスト' })).toBeInTheDocument();
     expect(screen.getByTestId('backtest-setup-steps')).toBeInTheDocument();
     expect(screen.getByTestId('selected-set-rule-preview')).toHaveTextContent('バックテスト用');
-    expect(screen.getByRole('link', { name: '指標を編集' })).toHaveAttribute('href', '/charts');
+    expect(screen.getByRole('link', { name: '指標を編集' }).getAttribute('href')).toContain(
+      'symbolId=sym_1',
+    );
     expect(screen.getByTestId('selected-symbol-name')).toHaveTextContent('Apple');
     expect(screen.getByTestId('symbol-select')).toHaveTextContent('AAPL (US) — Apple');
 
@@ -263,6 +265,62 @@ describe('BacktestsPage', () => {
     expect(screen.getByTestId('backtest-overview-empty')).toHaveTextContent(
       'まだ実行結果がありません',
     );
+  });
+
+  it('applies symbol, period, exit, and MM from search params', async () => {
+    (useSearchParams as jest.Mock).mockReturnValue(
+      new URLSearchParams({
+        symbolId: 'sym_2',
+        from: '2026-01-01',
+        to: '2026-06-30',
+        stopMethod: 'atr',
+        takeProfitMethod: 'rr_target',
+        equity: '500000',
+        riskRate: '0.02',
+      }),
+    );
+    (fetchIndicatorSets as jest.Mock).mockResolvedValue([capableSet]);
+    (fetchBacktestRuns as jest.Mock).mockResolvedValue([]);
+    (fetchSymbols as jest.Mock).mockResolvedValue([
+      symbol,
+      { ...symbol, id: 'sym_2', ticker: 'MSFT', name: 'Microsoft' },
+    ]);
+
+    render(<BacktestsPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('symbol-select')).toHaveValue('sym_2');
+    });
+    expect(screen.getByLabelText('開始日')).toHaveValue('2026-01-01');
+    expect(screen.getByLabelText('終了日')).toHaveValue('2026-06-30');
+    expect(screen.getByTestId('exit-stop-method')).toHaveValue('atr');
+    expect(screen.getByTestId('exit-take-profit-method')).toHaveValue('rr_target');
+    expect(screen.getByLabelText('開始資金')).toHaveValue(500000);
+    expect(screen.getByTestId('analysis-workflow-bar')).toBeInTheDocument();
+    expect(screen.getByTestId('workflow-back-to-analysis').getAttribute('href')).toContain(
+      'symbolId=sym_2',
+    );
+    expect(screen.getByTestId('open-money-management')).toHaveTextContent('（ON）');
+  });
+
+  it('ignores invalid exit methods and non-positive equity/risk from query', async () => {
+    (useSearchParams as jest.Mock).mockReturnValue(
+      new URLSearchParams({
+        stopMethod: 'nope',
+        takeProfitMethod: 'nope',
+        equity: '-1',
+        riskRate: '0',
+      }),
+    );
+    (fetchIndicatorSets as jest.Mock).mockResolvedValue([capableSet]);
+    (fetchBacktestRuns as jest.Mock).mockResolvedValue([]);
+    (fetchSymbols as jest.Mock).mockResolvedValue([symbol]);
+
+    render(<BacktestsPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('symbol-select')).toHaveValue('sym_1');
+    });
+    expect(screen.getByTestId('exit-stop-method')).toHaveValue('');
+    expect(screen.getByTestId('exit-take-profit-method')).toHaveValue('');
   });
 
   it('shows ApiClientError on load failure', async () => {

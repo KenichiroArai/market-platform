@@ -2,7 +2,7 @@
  * 戦略（トレードプラン）画面 — ADR 018 / v0.5.0 Phase 2–3。
  *
  * 銘柄を選び、判定・Entry/Stop/Target・RR・株数・リスク・理由を一画面で表示する。
- * クエリ（symbolId / stopMethod 等）から初期値を引き継げる。
+ * クエリ（symbolId / from / to / stopMethod 等）から初期値を引き継げる。
  */
 'use client';
 
@@ -15,11 +15,11 @@ import {
   type TakeProfitMethod,
   type TradePlanDto,
 } from '@market/shared-types';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { AnalysisWorkflowBar } from '../../../components/analysis-workflow-bar';
 import { ApiClientError, fetchSymbols, fetchTradePlan } from '../../../lib/api-client';
-import { backtestsHref, chartsHref } from '../../../lib/app-routes';
+import { defaultChartFromDate, defaultChartToDate } from '../../../lib/chart-date-range';
 
 function stars(n: number): string {
   return '★'.repeat(Math.max(0, Math.min(5, n))) + '☆'.repeat(Math.max(0, 5 - n));
@@ -41,6 +41,8 @@ function StrategyPageContent() {
   const searchParams = useSearchParams();
   const [symbols, setSymbols] = useState<Array<{ id: string; ticker: string; name: string }>>([]);
   const [symbolId, setSymbolId] = useState('');
+  const [from, setFrom] = useState(() => searchParams.get('from') ?? defaultChartFromDate());
+  const [to, setTo] = useState(() => searchParams.get('to') ?? defaultChartToDate());
   const [equity, setEquity] = useState(() => searchParams.get('equity') ?? '1000000');
   const [riskRate, setRiskRate] = useState(() => searchParams.get('riskRate') ?? '0.01');
   const [stopMethod, setStopMethod] = useState<StopLossMethod | ''>(() => {
@@ -68,6 +70,10 @@ function StrategyPageContent() {
         } else if (list[0]) {
           setSymbolId(list[0].id);
         }
+        const queryFrom = searchParams.get('from');
+        const queryTo = searchParams.get('to');
+        if (queryFrom) setFrom(queryFrom);
+        if (queryTo) setTo(queryTo);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof ApiClientError ? e.message : '銘柄の取得に失敗しました');
@@ -100,19 +106,25 @@ function StrategyPageContent() {
     }
   }, [symbolId, equity, riskRate, stopMethod, takeProfitMethod]);
 
+  const equityNum = Number(equity);
+  const riskNum = Number(riskRate);
+  const workflowContext = {
+    symbolId,
+    from,
+    to,
+    stopMethod: stopMethod || null,
+    takeProfitMethod: takeProfitMethod || null,
+    equity: equityNum,
+    riskRate: riskNum,
+  };
+
   return (
     <main style={{ padding: '2rem 1.5rem', maxWidth: '52rem' }}>
+      <AnalysisWorkflowBar current="strategy" context={workflowContext} />
       <h1 style={{ fontSize: '1.75rem', margin: 0 }}>戦略</h1>
       <p style={{ marginTop: '0.75rem', lineHeight: 1.6, opacity: 0.85 }}>
-        分析結果から売買判定・損切／利確・資金管理までを一画面のトレードプランとして提示します。{' '}
-        <Link href={chartsHref({ symbolId: symbolId || undefined })} style={{ color: '#e8eef5' }}>
-          チャート
-        </Link>
-        ／
-        <Link href={backtestsHref({ symbolId: symbolId || undefined })} style={{ color: '#e8eef5' }}>
-          バックテスト
-        </Link>
-        へも進めます。
+        分析結果から売買判定・損切／利確・資金管理までを一画面のトレードプランとして提示します。
+        上のバーからチャート・バックテスト・分析ハブへコンテキスト付きで進めます。
       </p>
 
       <section style={formStyle} aria-label="トレードプラン条件">

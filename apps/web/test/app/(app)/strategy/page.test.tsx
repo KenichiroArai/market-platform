@@ -129,6 +129,8 @@ describe('StrategyPage', () => {
     useSearchParams.mockReturnValue(
       new URLSearchParams({
         symbolId: 'sym_2',
+        from: '2026-01-01',
+        to: '2026-06-30',
         stopMethod: 'atr',
         takeProfitMethod: 'fibonacci',
         equity: '500000',
@@ -145,6 +147,10 @@ describe('StrategyPage', () => {
     expect(screen.getByTestId('strategy-risk-rate')).toHaveValue(0.015);
     expect(screen.getByTestId('strategy-stop-method')).toHaveValue('atr');
     expect(screen.getByTestId('strategy-take-profit-method')).toHaveValue('fibonacci');
+    expect(screen.getByTestId('analysis-workflow-bar')).toBeInTheDocument();
+    expect(screen.getByTestId('workflow-next-backtests').getAttribute('href')).toContain(
+      'from=2026-01-01',
+    );
   });
 
   it('ignores invalid query method codes', async () => {
