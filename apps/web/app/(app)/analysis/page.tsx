@@ -1,18 +1,19 @@
 /**
- * 分析ハブ（v0.5.0 Ph2）。
+ * 分析ハブ（v0.5.0 Ph2 / Ph3）。
  *
- * 既存のチャート分析へ誘導し、将来の分析機能枠を示す。
+ * チャート・戦略・検証結果からの見直し導線を集約する。
  */
 import Link from 'next/link';
+import { backtestsHref, chartsHref, strategyHref } from '../../../lib/app-routes';
 
 const ANALYSIS_LINKS = [
   {
-    href: '/charts',
+    href: chartsHref(),
     label: 'チャート分析',
     description: 'テクニカル指標・トレンドスコア・エントリー助言',
   },
   {
-    href: '/strategy',
+    href: strategyHref(),
     label: '戦略（トレードプラン）',
     description: '売買判定・損切／利確・ポジションサイズ',
   },
@@ -51,6 +52,34 @@ export default function AnalysisHubPage() {
           </Link>
         ))}
       </nav>
+
+      <section
+        style={{
+          marginTop: '1.75rem',
+          padding: '1rem 1.1rem',
+          border: '1px solid rgba(232, 238, 245, 0.25)',
+          background: 'rgba(0, 0, 0, 0.15)',
+        }}
+        aria-label="検証結果から見直す"
+      >
+        <h2 style={{ fontSize: '1.05rem', margin: 0 }}>検証結果から見直す</h2>
+        <p style={{ marginTop: '0.5rem', lineHeight: 1.6, opacity: 0.8, fontSize: '0.9rem' }}>
+          バックテスト結果の「結果の読み取り」から、ルールベースの所見と再実行プリセット、戦略／チャートへの導線で次の一手につなげます。
+        </p>
+        <Link
+          href={backtestsHref()}
+          style={{
+            display: 'inline-block',
+            marginTop: '0.75rem',
+            color: '#e8eef5',
+            textDecoration: 'underline',
+          }}
+          data-testid="analysis-hub-backtests-link"
+        >
+          バックテストを開く
+        </Link>
+      </section>
+
       <section style={{ marginTop: '2rem' }}>
         <h2 style={{ fontSize: '1rem', fontWeight: 600, opacity: 0.7 }}>今後追加予定</h2>
         <ul style={{ marginTop: '0.5rem', opacity: 0.55, lineHeight: 1.7 }}>

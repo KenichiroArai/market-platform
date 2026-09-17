@@ -120,6 +120,45 @@ describe('StrategyPage', () => {
     jest.clearAllMocks();
     (fetchSymbols as jest.Mock).mockResolvedValue([symbol]);
     (fetchTradePlan as jest.Mock).mockResolvedValue(samplePlan);
+    const { useSearchParams } = require('../../../../test/mocks/next-navigation');
+    useSearchParams.mockReturnValue(new URLSearchParams());
+  });
+
+  it('applies query params for symbol and exit methods', async () => {
+    const { useSearchParams } = require('../../../../test/mocks/next-navigation');
+    useSearchParams.mockReturnValue(
+      new URLSearchParams({
+        symbolId: 'sym_2',
+        stopMethod: 'atr',
+        takeProfitMethod: 'fibonacci',
+        equity: '500000',
+        riskRate: '0.015',
+      }),
+    );
+    (fetchSymbols as jest.Mock).mockResolvedValue([
+      symbol,
+      { ...symbol, id: 'sym_2', ticker: 'MSFT', name: 'Microsoft' },
+    ]);
+    render(<StrategyPage />);
+    await waitFor(() => expect(screen.getByTestId('strategy-symbol')).toHaveValue('sym_2'));
+    expect(screen.getByTestId('strategy-equity')).toHaveValue(500000);
+    expect(screen.getByTestId('strategy-risk-rate')).toHaveValue(0.015);
+    expect(screen.getByTestId('strategy-stop-method')).toHaveValue('atr');
+    expect(screen.getByTestId('strategy-take-profit-method')).toHaveValue('fibonacci');
+  });
+
+  it('ignores invalid query method codes', async () => {
+    const { useSearchParams } = require('../../../../test/mocks/next-navigation');
+    useSearchParams.mockReturnValue(
+      new URLSearchParams({
+        stopMethod: 'not_a_method',
+        takeProfitMethod: 'also_bad',
+      }),
+    );
+    render(<StrategyPage />);
+    await waitFor(() => expect(screen.getByTestId('strategy-symbol')).toHaveValue('sym_1'));
+    expect(screen.getByTestId('strategy-stop-method')).toHaveValue('');
+    expect(screen.getByTestId('strategy-take-profit-method')).toHaveValue('rr_target');
   });
 
   it('loads symbols and displays a trade plan', async () => {

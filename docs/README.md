@@ -33,6 +33,7 @@ market-platform の設計ドキュメントです。ルート [README.md](../REA
 | [adr/016-money-management.md](adr/016-money-management.md) | バックテスト資金管理・売買方針・手数料モード |
 | [adr/017-chart-analysis-money-management.md](adr/017-chart-analysis-money-management.md) | チャート分析への資金管理とエントリー助言 |
 | [adr/018-trade-strategy-plan.md](adr/018-trade-strategy-plan.md) | 売買戦略・トレードプランとバックテスト共通化 |
+| [adr/019-analysis-strategy-feedback-loop.md](adr/019-analysis-strategy-feedback-loop.md) | 分析と戦略のコース補正ループ（インサイト・次アクション） |
 
 ## ドキュメント方針
 

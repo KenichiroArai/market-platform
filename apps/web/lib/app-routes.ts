@@ -59,3 +59,33 @@ export function backtestsHref(params: BacktestsHrefParams = {}): string {
   const qs = search.toString();
   return qs ? `/backtests?${qs}` : '/backtests';
 }
+
+export type StrategyHrefParams = {
+  symbolId?: string;
+  stopMethod?: string | null;
+  takeProfitMethod?: string | null;
+  equity?: number;
+  riskRate?: number;
+};
+
+/** 戦略（トレードプラン）画面への URL。銘柄・損切／利確などを引き継ぐ。 */
+export function strategyHref(params: StrategyHrefParams = {}): string {
+  const search = new URLSearchParams();
+  if (params.symbolId) {
+    search.set('symbolId', params.symbolId);
+  }
+  if (params.stopMethod) {
+    search.set('stopMethod', params.stopMethod);
+  }
+  if (params.takeProfitMethod) {
+    search.set('takeProfitMethod', params.takeProfitMethod);
+  }
+  if (params.equity != null && Number.isFinite(params.equity)) {
+    search.set('equity', String(params.equity));
+  }
+  if (params.riskRate != null && Number.isFinite(params.riskRate)) {
+    search.set('riskRate', String(params.riskRate));
+  }
+  const qs = search.toString();
+  return qs ? `/strategy?${qs}` : '/strategy';
+}

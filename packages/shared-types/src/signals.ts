@@ -172,6 +172,16 @@ export interface BacktestRunDto {
   tradeSidePolicy?: TradeSidePolicy;
   /** 資金管理設定スナップショット。OFF / 既存は null / 省略。 */
   moneyManagement?: MoneyManagementConfig | null;
+  /**
+   * 損切／利確方針スナップショット（ADR 019）。
+   * 未指定・既存 Run は null / 省略。
+   */
+  exitPolicy?: {
+    stopMethod?: string | null;
+    takeProfitMethod?: string | null;
+    atrTargetMultiple?: number;
+    rrMultiple?: number;
+  } | null;
   summary: BacktestSummaryDto;
   trades: BacktestTradeDto[];
   equityPoints: BacktestEquityPointDto[];

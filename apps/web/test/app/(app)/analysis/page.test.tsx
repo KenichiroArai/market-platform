@@ -13,6 +13,8 @@ describe('AnalysisHubPage', () => {
       'href',
       '/strategy',
     );
+    expect(screen.getByTestId('analysis-hub-backtests-link')).toHaveAttribute('href', '/backtests');
+    expect(screen.getByText('検証結果から見直す')).toBeInTheDocument();
     expect(screen.getByText('テクニカル分析（詳細）')).toBeInTheDocument();
     expect(screen.getByText('トレンド分析')).toBeInTheDocument();
     expect(screen.getByText('ファンダメンタル分析')).toBeInTheDocument();

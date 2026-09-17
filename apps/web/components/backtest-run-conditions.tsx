@@ -1,5 +1,5 @@
 /**
- * バックテスト結果タブの実行条件パネル（v0.3.0 Ph6）。
+ * バックテスト結果タブの実行条件パネル（v0.3.0 Ph6 / v0.5.0 Ph3）。
  *
  * 選択中 run のスナップショットから「何の条件でテストしたか」を示す。
  * データが無い項目は空欄。
@@ -10,9 +10,13 @@ import type { CSSProperties } from 'react';
 import {
   formatStrategyLabel,
   formatTradeSidePolicyLabel,
+  STOP_LOSS_METHOD_LABELS,
+  TAKE_PROFIT_METHOD_LABELS,
   type FeeMode,
   type SignalStrategyParams,
   type SignalStrategyType,
+  type StopLossMethod,
+  type TakeProfitMethod,
   type TradeSidePolicy,
 } from '@market/shared-types';
 
@@ -30,6 +34,11 @@ export type BacktestRunConditionsProps = {
   slippageRate: number | null;
   tradeSidePolicy?: TradeSidePolicy | null;
   moneyManagementEnabled?: boolean | null;
+  /** 損切／利確方針。未記録・既存 Run は null。 */
+  exitPolicy?: {
+    stopMethod?: string | null;
+    takeProfitMethod?: string | null;
+  } | null;
 };
 
 function pctRate(rate: number | null): string {
@@ -46,6 +55,24 @@ function cashLabel(value: number | null): string {
   return value.toLocaleString('ja-JP');
 }
 
+/** 損切／利確ラベル。未知コードはそのまま表示。 */
+function formatExitPolicyLabel(
+  exitPolicy: BacktestRunConditionsProps['exitPolicy'],
+): string {
+  if (exitPolicy == null) {
+    return '';
+  }
+  const stop = exitPolicy.stopMethod
+    ? (STOP_LOSS_METHOD_LABELS[exitPolicy.stopMethod as StopLossMethod] ??
+      exitPolicy.stopMethod)
+    : '既定';
+  const tp = exitPolicy.takeProfitMethod
+    ? (TAKE_PROFIT_METHOD_LABELS[exitPolicy.takeProfitMethod as TakeProfitMethod] ??
+      exitPolicy.takeProfitMethod)
+    : 'なし';
+  return `損切: ${stop} / 利確: ${tp}`;
+}
+
 /** 選択中 run の実行条件を表形式で描画する。 */
 export function BacktestRunConditions({
   strategyType,
@@ -60,6 +87,7 @@ export function BacktestRunConditions({
   slippageRate,
   tradeSidePolicy,
   moneyManagementEnabled,
+  exitPolicy,
 }: BacktestRunConditionsProps) {
   const strategyLabel =
     strategyType && params ? formatStrategyLabel(strategyType, params) : '';
@@ -126,6 +154,12 @@ export function BacktestRunConditions({
           <dt style={dtStyle}>資金管理</dt>
           <dd style={ddStyle} data-testid="condition-money-management">
             {moneyManagementEnabled == null ? '' : moneyManagementEnabled ? 'ON' : 'OFF'}
+          </dd>
+        </div>
+        <div style={rowStyle}>
+          <dt style={dtStyle}>損切／利確</dt>
+          <dd style={ddStyle} data-testid="condition-exit-policy">
+            {formatExitPolicyLabel(exitPolicy)}
           </dd>
         </div>
       </dl>

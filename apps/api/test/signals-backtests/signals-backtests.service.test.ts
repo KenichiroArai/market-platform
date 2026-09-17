@@ -31,6 +31,7 @@ const backtestRunBase = {
   tradeSidePolicy: 'LONG_ONLY' as const,
   moneyManagementJson: null,
   moneyManagementStatsJson: null,
+  exitPolicyJson: null,
   finalEquity: { toString: () => '110000' },
   totalReturnRate: { toString: () => '0.1' },
   maxDrawdownRate: { toString: () => '0.05' },
@@ -366,6 +367,7 @@ describe('SignalsBacktestsService', () => {
             signalDefinitionId: null,
             strategyType: 'SMA_CROSS',
             paramsJson: { shortPeriod: 25, longPeriod: 75 },
+            exitPolicyJson: null,
             trades: expect.objectContaining({
               create: expect.arrayContaining([
                 expect.objectContaining({
@@ -383,6 +385,49 @@ describe('SignalsBacktestsService', () => {
                 expect.objectContaining({ decisionScore: null, scoreBreakdown: null }),
               ]),
             }),
+          }),
+        }),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('persists exitPolicyJson when exitPolicy is provided', async () => {
+    prisma.indicatorSet.findFirst.mockResolvedValue(indicatorSetRow);
+    pricesService.listBySymbolId.mockResolvedValue([
+      { date: '2026-01-01', open: 1, high: 1, low: 1, close: 1, volume: 1 },
+    ]);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ summary: enrichedSummary, trades: [], equityPoints: [] }),
+    }) as any;
+    prisma.backtestRun.create.mockResolvedValue({
+      ...backtestRunBase,
+      exitPolicyJson: { stopMethod: 'atr_x2', takeProfitMethod: 'rr_target' },
+      trades: [],
+      equityPoints: [],
+    });
+    try {
+      await service.runBacktest('u_1', {
+        indicatorSetId: 'iset_1',
+        symbolId: 'sym_1',
+        from: '2026-01-01',
+        to: '2026-06-30',
+        initialCash: 100000,
+        feeRate: 0.001,
+        slippageRate: 0.001,
+        exitPolicy: { stopMethod: 'atr_x2', takeProfitMethod: 'rr_target', rrMultiple: 1.5 },
+      } as any);
+      expect(prisma.backtestRun.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            exitPolicyJson: {
+              stopMethod: 'atr_x2',
+              takeProfitMethod: 'rr_target',
+              rrMultiple: 1.5,
+            },
           }),
         }),
       );
@@ -967,6 +1012,7 @@ describe('SignalsBacktestsService', () => {
         pyramidingSuccessRate: null,
         averageRiskRateInDrawdown: null,
       },
+      exitPolicyJson: { stopMethod: 'atr', takeProfitMethod: 'rr_target', rrMultiple: 2 },
       trades: [
         {
           id: 't_1',
@@ -1015,6 +1061,11 @@ describe('SignalsBacktestsService', () => {
     expect(mappedRate.tradeSidePolicy).toBe('longOnly');
     expect(mappedRate.moneyManagement).toBeNull();
     expect(mapped.moneyManagement).toEqual({ enabled: true, riskRate: 0.01 });
+    expect(mapped.exitPolicy).toEqual({
+      stopMethod: 'atr',
+      takeProfitMethod: 'rr_target',
+      rrMultiple: 2,
+    });
     expect(mapped.summary.moneyManagement?.averageRiskRate).toBe(0.01);
     expect(mapped.trades[0].entryScoreBreakdown).toEqual({
       groups: { trend: 1 },

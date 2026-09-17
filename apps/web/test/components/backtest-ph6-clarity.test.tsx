@@ -68,6 +68,77 @@ describe('BacktestRunConditions', () => {
     expect(screen.getByTestId('condition-money-management')).toHaveTextContent('OFF');
   });
 
+  it('shows exit policy labels and unknown method codes', () => {
+    render(
+      <BacktestRunConditions
+        strategyType="smaCross"
+        params={{ shortPeriod: 25, longPeriod: 75 }}
+        indicatorSetName={null}
+        fromDate="2026-01-01"
+        toDate="2026-06-30"
+        initialCash={100000}
+        feeRate={0.001}
+        slippageRate={0.001}
+        exitPolicy={{ stopMethod: 'atr', takeProfitMethod: 'rr_target' }}
+      />,
+    );
+    expect(screen.getByTestId('condition-exit-policy')).toHaveTextContent('損切: ATR');
+    expect(screen.getByTestId('condition-exit-policy')).toHaveTextContent('利確: RR目標');
+  });
+
+  it('shows default exit labels and raw unknown codes', () => {
+    render(
+      <BacktestRunConditions
+        strategyType="smaCross"
+        params={{ shortPeriod: 25, longPeriod: 75 }}
+        indicatorSetName={null}
+        fromDate="2026-01-01"
+        toDate="2026-06-30"
+        initialCash={100000}
+        feeRate={0}
+        slippageRate={0}
+        exitPolicy={{ stopMethod: 'custom_stop', takeProfitMethod: 'custom_tp' }}
+      />,
+    );
+    expect(screen.getByTestId('condition-exit-policy')).toHaveTextContent('custom_stop');
+    expect(screen.getByTestId('condition-exit-policy')).toHaveTextContent('custom_tp');
+  });
+
+  it('leaves exit policy blank when null', () => {
+    render(
+      <BacktestRunConditions
+        strategyType="smaCross"
+        params={{ shortPeriod: 25, longPeriod: 75 }}
+        indicatorSetName={null}
+        fromDate="2026-01-01"
+        toDate="2026-06-30"
+        initialCash={100000}
+        feeRate={0}
+        slippageRate={0}
+        exitPolicy={null}
+      />,
+    );
+    expect(screen.getByTestId('condition-exit-policy')).toHaveTextContent('');
+  });
+
+  it('shows default exit labels when methods are empty', () => {
+    render(
+      <BacktestRunConditions
+        strategyType="smaCross"
+        params={{ shortPeriod: 25, longPeriod: 75 }}
+        indicatorSetName={null}
+        fromDate="2026-01-01"
+        toDate="2026-06-30"
+        initialCash={100000}
+        feeRate={0}
+        slippageRate={0}
+        exitPolicy={{ stopMethod: null, takeProfitMethod: null }}
+      />,
+    );
+    expect(screen.getByTestId('condition-exit-policy')).toHaveTextContent('損切: 既定');
+    expect(screen.getByTestId('condition-exit-policy')).toHaveTextContent('利確: なし');
+  });
+
   it('leaves blanks when values are missing', () => {
     render(
       <BacktestRunConditions

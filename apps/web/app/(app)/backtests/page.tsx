@@ -55,10 +55,12 @@ import { BacktestRunConditions } from '../../../components/backtest-run-conditio
 import { TRADE_SIDE_POLICY_HELP } from '../../../components/backtest-money-management-help';
 import { BacktestSmaOptimizeHelp } from '../../../components/backtest-sma-optimize-help';
 import { BacktestSummaryCards } from '../../../components/backtest-summary-cards';
+import { BacktestInsightsPanel } from '../../../components/backtest-insights-panel';
 import { BacktestTradesTable } from '../../../components/backtest-trades-table';
 import { BacktestDailyDataPanel } from '../../../components/backtest-daily-data-panel';
 import { FieldHelpIcon } from '../../../components/field-help-icon';
 import { downloadBacktestExportZip } from '../../../lib/backtest-export';
+import { deriveBacktestInsights } from '../../../lib/backtest-insights';
 import {
   BacktestWorkspaceTabs,
   type BacktestWorkspaceTabId,
@@ -78,8 +80,10 @@ import {
   optimizeBacktest,
   runBacktest,
 } from '../../../lib/api-client';
-import { chartsHref, symbolsHref } from '../../../lib/app-routes';
+import { chartsHref, strategyHref, symbolsHref } from '../../../lib/app-routes';
 import { defaultChartFromDate, defaultChartToDate } from '../../../lib/chart-date-range';
+import { useRouter } from 'next/navigation';
+import type { BacktestInsightAction } from '@market/shared-types';
 
 const DEFAULT_FEE = 0.001;
 const DEFAULT_SLIPPAGE = 0.001;
@@ -104,6 +108,7 @@ function resolveIndicatorSetId(
 
 function BacktestsPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [indicatorSets, setIndicatorSets] = useState<IndicatorSetDto[]>([]);
   const [runList, setRunList] = useState<BacktestRunListItemDto[]>([]);
   const [runDetails, setRunDetails] = useState<Record<string, BacktestRunDto>>({});
@@ -127,6 +132,10 @@ function BacktestsPageContent() {
   });
   const [exitStopMethod, setExitStopMethod] = useState('');
   const [exitTakeProfitMethod, setExitTakeProfitMethod] = useState('');
+  /** インサイトプリセット用の閾値上書き（null ならセット既定）。 */
+  const [buyThresholdOverride, setBuyThresholdOverride] = useState<number | null>(null);
+  const [sellThresholdOverride, setSellThresholdOverride] = useState<number | null>(null);
+  const [insightAppliedNote, setInsightAppliedNote] = useState<string | null>(null);
   const [costSettings, setCostSettings] = useState<BacktestCostSettings>({ ...DEFAULT_COST });
   const [mmPanelOpen, setMmPanelOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,6 +153,11 @@ function BacktestsPageContent() {
   const selectedRun = useMemo(
     () => (selectedRunId ? (runDetails[selectedRunId] ?? null) : null),
     [runDetails, selectedRunId],
+  );
+
+  const runInsights = useMemo(
+    () => (selectedRun ? deriveBacktestInsights(selectedRun).insights : []),
+    [selectedRun],
   );
 
   const refreshRunList = useCallback(async () => {
@@ -367,8 +381,8 @@ function BacktestsPageContent() {
     };
   }, [selectedRun, indicatorsQuery]);
 
-  async function onRunBacktest(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function onRunBacktest(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     if (!symbolId) {
       setError('銘柄を選択してください');
       return;
@@ -413,8 +427,8 @@ function BacktestsPageContent() {
                 sellThreshold: selectedSet?.sellThreshold,
               });
               return {
-                buyThreshold: thresholds.buyThreshold,
-                sellThreshold: thresholds.sellThreshold,
+                buyThreshold: buyThresholdOverride ?? thresholds.buyThreshold,
+                sellThreshold: sellThresholdOverride ?? thresholds.sellThreshold,
               };
             })()
           : {}),
@@ -427,6 +441,138 @@ function BacktestsPageContent() {
       setError(err instanceof ApiClientError ? err.message : 'バックテスト実行に失敗しました');
     } finally {
       setPending(false);
+    }
+  }
+
+  /**
+   * インサイトプリセットを明示値で再実行する。
+   * setState の非同期反映を待たず、パッチをリクエストに直接載せる。
+   */
+  async function runWithInsightPreset(action: BacktestInsightAction) {
+    if (!action.preset || !symbolId) {
+      return;
+    }
+    const patch = action.preset;
+    const nextStop =
+      patch.exitPolicy != null ? (patch.exitPolicy.stopMethod ?? '') : exitStopMethod;
+    const nextTp =
+      patch.exitPolicy != null
+        ? (patch.exitPolicy.takeProfitMethod ?? '')
+        : exitTakeProfitMethod;
+    const nextMm =
+      patch.moneyManagementRiskRate != null
+        ? {
+            ...moneyManagement,
+            enabled: true,
+            riskRate: patch.moneyManagementRiskRate,
+          }
+        : moneyManagement;
+    const nextMode =
+      patch.buyThreshold != null || patch.sellThreshold != null ? 'trendScore' : signalMode;
+
+    if (patch.exitPolicy) {
+      setExitStopMethod(nextStop);
+      setExitTakeProfitMethod(nextTp);
+    }
+    if (patch.buyThreshold != null) {
+      setBuyThresholdOverride(patch.buyThreshold);
+    }
+    if (patch.sellThreshold != null) {
+      setSellThresholdOverride(patch.sellThreshold);
+    }
+    if (patch.moneyManagementRiskRate != null) {
+      setMoneyManagement(nextMm);
+    }
+    if (nextMode !== signalMode) {
+      setSignalMode(nextMode);
+    }
+    setInsightAppliedNote(`プリセット適用: ${action.label}`);
+
+    if (nextMode === 'indicatorSet') {
+      if (!indicatorSetId || !canRunSelectedSet) {
+        setError('指標セットを選択してください');
+        return;
+      }
+    }
+
+    setError(null);
+    setPending(true);
+    try {
+      const thresholds = resolveSignalThresholds({
+        buyThreshold: selectedSet?.buyThreshold,
+        sellThreshold: selectedSet?.sellThreshold,
+      });
+      const created = await runBacktest({
+        signalMode: nextMode,
+        indicatorSetId: indicatorSetId || undefined,
+        symbolId,
+        from,
+        to,
+        initialCash,
+        feeMode: costSettings.feeMode,
+        feeRate: costSettings.feeRate,
+        feeFixed: costSettings.feeFixed,
+        slippageRate: costSettings.slippageRate,
+        tradeSidePolicy,
+        moneyManagement: nextMm.enabled ? nextMm : null,
+        exitPolicy:
+          nextStop || nextTp
+            ? {
+                stopMethod: nextStop || null,
+                takeProfitMethod: nextTp || null,
+                ...(patch.exitPolicy?.atrTargetMultiple != null
+                  ? { atrTargetMultiple: patch.exitPolicy.atrTargetMultiple }
+                  : {}),
+                ...(patch.exitPolicy?.rrMultiple != null
+                  ? { rrMultiple: patch.exitPolicy.rrMultiple }
+                  : {}),
+              }
+            : null,
+        ...(nextMode === 'trendScore'
+          ? {
+              buyThreshold: patch.buyThreshold ?? buyThresholdOverride ?? thresholds.buyThreshold,
+              sellThreshold:
+                patch.sellThreshold ?? sellThresholdOverride ?? thresholds.sellThreshold,
+            }
+          : {}),
+      });
+      setRunList((prev) => [backtestRunToListItem(created), ...prev]);
+      setRunDetails((prev) => ({ ...prev, [created.id]: created }));
+      setSelectedRunId(created.id);
+      setActiveTab('results');
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'バックテスト実行に失敗しました');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  /** インサイトの次アクション（プリセット再実行 / 戦略・チャート遷移）。 */
+  function onInsightAction(action: BacktestInsightAction) {
+    if (action.kind === 'open_strategy') {
+      router.push(
+        strategyHref({
+          symbolId: action.hrefHint?.symbolId ?? symbolId,
+          stopMethod: action.hrefHint?.stopMethod,
+          takeProfitMethod: action.hrefHint?.takeProfitMethod,
+          equity: action.hrefHint?.equity,
+          riskRate: action.hrefHint?.riskRate,
+        }),
+      );
+      return;
+    }
+    if (action.kind === 'open_charts') {
+      router.push(
+        chartsHref({
+          symbolId: action.hrefHint?.symbolId ?? symbolId,
+          from: action.hrefHint?.from ?? from,
+          to: action.hrefHint?.to ?? to,
+        }),
+      );
+      return;
+    }
+    if (action.kind === 'apply_run_preset') {
+      void runWithInsightPreset(action);
     }
   }
 
@@ -463,7 +609,19 @@ function BacktestsPageContent() {
     <main style={pageStyle}>
       <h1 style={titleStyle}>バックテスト</h1>
       <p style={leadStyle}>
-        チャート分析と同系のトレンドスコア、または保存済み指標セット（SMA/MACD/RSI）で過去期間を検証します。指標トグルの編集はチャート分析画面で行います。
+        チャート分析と同系のトレンドスコア、または保存済み指標セット（SMA/MACD/RSI）で過去期間を検証します。
+        結果タブの「結果の読み取り」から再実行や{' '}
+        <Link href={strategyHref({ symbolId: symbolId || undefined })} style={inlineLinkStyle}>
+          戦略
+        </Link>
+        ／
+        <Link
+          href={chartsHref({ symbolId: symbolId || undefined, from, to })}
+          style={inlineLinkStyle}
+        >
+          チャート
+        </Link>
+        へ進めます。
       </p>
 
       {loading ? <p style={{ opacity: 0.85 }}>読み込み中…</p> : null}
@@ -786,6 +944,8 @@ function BacktestsPageContent() {
                       setMoneyManagement(
                         selectedRun.moneyManagement ?? { ...DEFAULT_MONEY_MANAGEMENT },
                       );
+                      setExitStopMethod(selectedRun.exitPolicy?.stopMethod ?? '');
+                      setExitTakeProfitMethod(selectedRun.exitPolicy?.takeProfitMethod ?? '');
                       if (selectedRun.indicatorSetId) {
                         setIndicatorSetId(selectedRun.indicatorSetId);
                       }
@@ -829,12 +989,19 @@ function BacktestsPageContent() {
                     slippageRate={selectedRun.slippageRate}
                     tradeSidePolicy={selectedRun.tradeSidePolicy}
                     moneyManagementEnabled={Boolean(selectedRun.moneyManagement?.enabled)}
+                    exitPolicy={selectedRun.exitPolicy ?? null}
                   />
 
                   <section>
                     <h2 style={sectionTitleStyle}>結果サマリー</h2>
                     <BacktestSummaryCards summary={selectedRun.summary} />
                   </section>
+
+                  <BacktestInsightsPanel
+                    insights={runInsights}
+                    onAction={onInsightAction}
+                    appliedNote={insightAppliedNote}
+                  />
 
                   <section>
                     <h2 style={equityTitleRowStyle}>

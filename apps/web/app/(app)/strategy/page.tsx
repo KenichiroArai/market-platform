@@ -1,7 +1,8 @@
 /**
- * 戦略（トレードプラン）画面 — ADR 018 / v0.5.0 Phase 2。
+ * 戦略（トレードプラン）画面 — ADR 018 / v0.5.0 Phase 2–3。
  *
  * 銘柄を選び、判定・Entry/Stop/Target・RR・株数・リスク・理由を一画面で表示する。
+ * クエリ（symbolId / stopMethod 等）から初期値を引き継げる。
  */
 'use client';
 
@@ -14,8 +15,11 @@ import {
   type TakeProfitMethod,
   type TradePlanDto,
 } from '@market/shared-types';
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { ApiClientError, fetchSymbols, fetchTradePlan } from '../../../lib/api-client';
+import { backtestsHref, chartsHref } from '../../../lib/app-routes';
 
 function stars(n: number): string {
   return '★'.repeat(Math.max(0, Math.min(5, n))) + '☆'.repeat(Math.max(0, 5 - n));
@@ -25,13 +29,28 @@ function formatPrice(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-export default function StrategyPage() {
+function isStopMethod(value: string): value is StopLossMethod {
+  return value in STOP_LOSS_METHOD_LABELS;
+}
+
+function isTakeProfitMethod(value: string): value is TakeProfitMethod {
+  return value in TAKE_PROFIT_METHOD_LABELS;
+}
+
+function StrategyPageContent() {
+  const searchParams = useSearchParams();
   const [symbols, setSymbols] = useState<Array<{ id: string; ticker: string; name: string }>>([]);
   const [symbolId, setSymbolId] = useState('');
-  const [equity, setEquity] = useState('1000000');
-  const [riskRate, setRiskRate] = useState('0.01');
-  const [stopMethod, setStopMethod] = useState<StopLossMethod | ''>('');
-  const [takeProfitMethod, setTakeProfitMethod] = useState<TakeProfitMethod | ''>('rr_target');
+  const [equity, setEquity] = useState(() => searchParams.get('equity') ?? '1000000');
+  const [riskRate, setRiskRate] = useState(() => searchParams.get('riskRate') ?? '0.01');
+  const [stopMethod, setStopMethod] = useState<StopLossMethod | ''>(() => {
+    const q = searchParams.get('stopMethod');
+    return q && isStopMethod(q) ? q : '';
+  });
+  const [takeProfitMethod, setTakeProfitMethod] = useState<TakeProfitMethod | ''>(() => {
+    const q = searchParams.get('takeProfitMethod');
+    return q && isTakeProfitMethod(q) ? q : 'rr_target';
+  });
   const [plan, setPlan] = useState<TradePlanDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +62,10 @@ export default function StrategyPage() {
         const list = await fetchSymbols();
         if (cancelled) return;
         setSymbols(list.map((s) => ({ id: s.id, ticker: s.ticker, name: s.name })));
-        if (list[0]) {
+        const querySymbol = searchParams.get('symbolId');
+        if (querySymbol && list.some((s) => s.id === querySymbol)) {
+          setSymbolId(querySymbol);
+        } else if (list[0]) {
           setSymbolId(list[0].id);
         }
       } catch (e) {
@@ -55,7 +77,7 @@ export default function StrategyPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [searchParams]);
 
   const loadPlan = useCallback(async () => {
     setLoading(true);
@@ -82,7 +104,15 @@ export default function StrategyPage() {
     <main style={{ padding: '2rem 1.5rem', maxWidth: '52rem' }}>
       <h1 style={{ fontSize: '1.75rem', margin: 0 }}>戦略</h1>
       <p style={{ marginTop: '0.75rem', lineHeight: 1.6, opacity: 0.85 }}>
-        分析結果から売買判定・損切／利確・資金管理までを一画面のトレードプランとして提示します。
+        分析結果から売買判定・損切／利確・資金管理までを一画面のトレードプランとして提示します。{' '}
+        <Link href={chartsHref({ symbolId: symbolId || undefined })} style={{ color: '#e8eef5' }}>
+          チャート
+        </Link>
+        ／
+        <Link href={backtestsHref({ symbolId: symbolId || undefined })} style={{ color: '#e8eef5' }}>
+          バックテスト
+        </Link>
+        へも進めます。
       </p>
 
       <section style={formStyle} aria-label="トレードプラン条件">
@@ -128,6 +158,7 @@ export default function StrategyPage() {
             value={stopMethod}
             onChange={(e) => setStopMethod(e.target.value as StopLossMethod | '')}
             style={inputStyle}
+            data-testid="strategy-stop-method"
           >
             <option value="">自動推奨</option>
             {(Object.keys(STOP_LOSS_METHOD_LABELS) as StopLossMethod[]).map((k) => (
@@ -143,6 +174,7 @@ export default function StrategyPage() {
             value={takeProfitMethod}
             onChange={(e) => setTakeProfitMethod(e.target.value as TakeProfitMethod | '')}
             style={inputStyle}
+            data-testid="strategy-take-profit-method"
           >
             <option value="">自動推奨</option>
             {(Object.keys(TAKE_PROFIT_METHOD_LABELS) as TakeProfitMethod[]).map((k) => (
@@ -285,6 +317,15 @@ function TradePlanView({ plan }: { plan: TradePlanDto }) {
         </ul>
       </div>
     </section>
+  );
+}
+
+/** useSearchParams 用の Suspense 境界。 */
+export default function StrategyPage() {
+  return (
+    <Suspense fallback={<main style={{ padding: '2rem 1.5rem' }}>読み込み中…</main>}>
+      <StrategyPageContent />
+    </Suspense>
   );
 }
 

@@ -153,6 +153,7 @@ pnpm test
 - [ADR 013: 実行履歴の検索と論理削除](docs/adr/013-backtest-run-history-management.md)
 - [ADR 017: チャート分析 × MM](docs/adr/017-chart-analysis-money-management.md)
 - [ADR 018: 売買戦略・トレードプラン](docs/adr/018-trade-strategy-plan.md)
+- [ADR 019: 分析と戦略のコース補正ループ](docs/adr/019-analysis-strategy-feedback-loop.md)
 
 
 

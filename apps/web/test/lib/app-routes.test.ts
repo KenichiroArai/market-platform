@@ -1,4 +1,4 @@
-import { backtestsHref, chartsHref, symbolsHref } from '../../lib/app-routes';
+import { backtestsHref, chartsHref, strategyHref, symbolsHref } from '../../lib/app-routes';
 
 describe('app-routes', () => {
   it('returns /symbols', () => {
@@ -39,5 +39,36 @@ describe('app-routes', () => {
     ).toBe(
       '/backtests?indicatorSetId=set_1&symbolId=sym_1&from=2026-01-01&to=2026-06-30',
     );
+  });
+
+  it('returns /strategy without query when empty', () => {
+    expect(strategyHref()).toBe('/strategy');
+    expect(strategyHref({})).toBe('/strategy');
+  });
+
+  it('builds strategy URL with symbol and exit methods', () => {
+    expect(
+      strategyHref({
+        symbolId: 'sym_1',
+        stopMethod: 'atr',
+        takeProfitMethod: 'rr_target',
+        equity: 100000,
+        riskRate: 0.01,
+      }),
+    ).toBe(
+      '/strategy?symbolId=sym_1&stopMethod=atr&takeProfitMethod=rr_target&equity=100000&riskRate=0.01',
+    );
+  });
+
+  it('omits null stopMethod and non-finite numbers', () => {
+    expect(
+      strategyHref({
+        symbolId: 'sym_1',
+        stopMethod: null,
+        takeProfitMethod: null,
+        equity: Number.NaN,
+        riskRate: Number.POSITIVE_INFINITY,
+      }),
+    ).toBe('/strategy?symbolId=sym_1');
   });
 });

@@ -447,6 +447,7 @@ export class SignalsBacktestsService {
         moneyManagementJson: (dto.moneyManagement ?? null) as unknown as Prisma.InputJsonValue,
         moneyManagementStatsJson: (result.summary.moneyManagement ??
           null) as unknown as Prisma.InputJsonValue,
+        exitPolicyJson: (dto.exitPolicy ?? null) as unknown as Prisma.InputJsonValue,
         finalEquity: result.summary.finalEquity,
         totalReturnRate: result.summary.totalReturnRate,
         maxDrawdownRate: result.summary.maxDrawdownRate,
@@ -805,6 +806,7 @@ export class SignalsBacktestsService {
       tradeSidePolicy?: 'LONG_ONLY' | 'LONG_SHORT';
       moneyManagementJson?: unknown;
       moneyManagementStatsJson?: unknown;
+      exitPolicyJson?: unknown;
       finalEquity: DecimalLike;
       totalReturnRate: DecimalLike;
       maxDrawdownRate: DecimalLike;
@@ -875,6 +877,8 @@ export class SignalsBacktestsService {
       slippageRate: this.toNumber(row.slippageRate),
       tradeSidePolicy: this.fromPrismaTradeSidePolicy(row.tradeSidePolicy ?? 'LONG_ONLY'),
       moneyManagement: (row.moneyManagementJson as MoneyManagementConfig | null) ?? null,
+      exitPolicy:
+        (row.exitPolicyJson as BacktestRunDto['exitPolicy'] | null | undefined) ?? null,
       summary: {
         finalEquity: this.toNumber(row.finalEquity),
         totalReturnRate: this.toNumber(row.totalReturnRate),
